@@ -1,0 +1,576 @@
+// Battle Scene — renders a Battle (combat.js) in the 3D world and provides the combat HUD:
+// turn order, monster intents, hand with drag & drop, action slots, cooldown track.
+import * as THREE from 'three';
+import * as Hex from '../engine/hex.js';
+import { h, sleep } from '../core/util.js';
+import { t } from '../core/i18n.js';
+const tr = t; // for scopes with a local variable named t
+import { audio } from '../core/audio.js';
+import { elColor } from '../engine/renderer.js';
+import { Battle } from '../game/combat.js';
+import { ACTION_SLOTS } from '../game/cardEngine.js';
+import { G, cardLevel } from '../game/state.js';
+import { ELEMENTS, STATUS_INFO, describeCard } from '../data/cards.js';
+import { terrainOf } from '../data/terrain.js';
+import { CONSUMABLES } from '../data/items.js';
+import { CLASSES } from '../data/classes.js';
+import { ui, cardEl, unitSprite, statusChips, bar, btn, icon, toast, banner, openModal } from './components.js';
+
+const INTENT_ICON = { strike: 'sword', shoot: 'arrow', aoe: 'meteor', guard: 'shield', buff: 'star', heal: 'cross', summon: 'skull' };
+const EL_SFX = { fire: 'fire', ice: 'ice', wind: 'wind', earth: 'earth', holy: 'holy', shadow: 'shadow', poison: 'poison', neutral: 'slash', arcane: 'magic' };
+
+export class BattleScene {
+  constructor(app, { stage, enc }) {
+    this.app = app; this.world = app.world; this.stage = stage; this.enc = enc;
+    this.labels = new Map(); this.pending = null; this.inputOn = false; this.hoverCell = null; this.inspect = null;
+    this.battle = new Battle({ stage, enemies: enc.enemies, kind: enc.kind, party: G.state.party, levelOf: cardLevel, inv: G.state.inv, nextBuff: G.state.nextBuff, view: this });
+  }
+
+  // ───────── lifecycle ─────────
+  async play() {
+    const b = this.battle, w = this.world;
+    w.clearBoard(); w.setEnvironment(this.stage);
+    w.buildBoard(b.board.cells.values());
+    for (const u of b.units) this.addUnit(u);
+    const boss = b.kind === 'boss';
+    // frame the camera on this board's own outline (every stage has a different shape and size)
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (const c of b.board.cells.values()) { const p = Hex.toWorld(c.q, c.r); x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); z0 = Math.min(z0, p.z); z1 = Math.max(z1, p.z); }
+    this.view = { x: (x0 + x1) / 2, z: (z0 + z1) / 2, size: Math.max(19, (z1 - z0) * 0.78 + 14), offY: 0.05, yaw: 0, minWidth: (x1 - x0) + 13 };
+    w.focus(this.view, 0);
+    this.buildHud();
+    this.bind();
+    audio.music(boss ? 'boss' : 'battle');
+    const result = await b.run();
+    return result;
+  }
+
+  dispose() {
+    this.unbind();
+    for (const l of this.labels.values()) this.world.detach(l.anchor);
+    this.labels.clear();
+    this.hud?.remove();
+    this.world.clearLayers(); this.world.setHover(null); this.world.setTurnRing(null);
+  }
+
+  addUnit(u) {
+    const w = this.world; const b = this.battle;
+    w.addUnit(u, b.cellsOf(u));
+    const el = h('div.unit-label' + (u.side === 'enemy' ? '.enemy' : '.ally') + (u.rank === 'mvp' ? '.mvp' : u.rank === 'mini' ? '.mini' : ''),
+      h('div.ul-inner', h('div.ul-intent'), h('div.ul-status'), h('div.ul-row', h('div.ul-block'), h('div.ul-hp', h('div.ul-hp-fill')))));
+    const anchor = w.attach(el, () => (u.alive ? w.unitPos(u.uid, u.construct ? 1.1 : 2.0) : null));
+    this.labels.set(u.uid, { el, anchor, u });
+    this.syncLabel(u);
+  }
+
+  syncLabel(u) {
+    const L = this.labels.get(u.uid); if (!L) return;
+    const el = L.el;
+    el.querySelector('.ul-hp-fill').style.width = Math.max(0, (u.hp / u.maxHp) * 100) + '%';
+    const blk = el.querySelector('.ul-block'); blk.textContent = u.block > 0 ? Math.round(u.block) : ''; blk.classList.toggle('on', u.block > 0);
+    const st = el.querySelector('.ul-status'); st.replaceChildren(...statusChips(u));
+    const it = el.querySelector('.ul-intent');
+    if (u.intent && u.alive) {
+      const i = u.intent; const val = i.power ? (i.hits > 1 ? `${i.power}×${i.hits}` : i.power) : i.blockValue || '';
+      it.className = 'ul-intent on k-' + i.k;
+      it.replaceChildren(icon(INTENT_ICON[i.k], '#fff', 16), val ? h('b', val) : null);
+      it.dataset.tip = this.intentText(u);
+    } else { it.className = 'ul-intent'; it.replaceChildren(); }
+  }
+  syncAll() { for (const u of this.battle.units) this.syncLabel(u); this.renderParty(); this.renderInfo(); }
+
+  intentText(u) {
+    const i = u.intent; if (!i) return '';
+    const st = i.status ? t(' Applies {st}.', { st: STATUS_INFO[i.status.st].name }) : '';
+    switch (i.k) {
+      case 'strike': return t('{name}: melee attack for {p}{hits}.{st}', { name: i.name, p: i.power, hits: i.hits > 1 ? ' ×' + i.hits : '', st });
+      case 'shoot': return t('{name}: ranged attack (range {r}) for {p}.{st}', { name: i.name, r: i.range, p: i.power, st });
+      case 'aoe': return t('{name}: {shape} attack for {p}.{st}{warn}', { name: i.name, shape: t(i.shape), p: i.power, st, warn: i.shape === 'area' ? t(' Target area is marked on the board — move out!') : '' });
+      case 'guard': return t('{name}: gains {n} Block.', { name: i.name, n: i.blockValue });
+      case 'buff': return t('{name}: grants {st} {n}{allies}.', { name: i.name, st: STATUS_INFO[i.st].name, n: i.n, allies: i.allies ? t(' to nearby allies') : '' });
+      case 'heal': return t('{name}: heals a wounded ally.', { name: i.name });
+      case 'summon': return t('{name}: summons reinforcements.', { name: i.name });
+      default: return i.name;
+    }
+  }
+
+  // ───────── HUD ─────────
+  buildHud() {
+    const b = this.battle;
+    this.el = {
+      order: h('div.turn-order'), round: h('div.round-label', t('Round {n}', { n: 1 })), party: h('div.b-party'), info: h('div.b-info'),
+      hand: h('div.hand'), slots: h('div.slots'), energy: h('div.energy-orb'), cool: h('div.cooldown-track'), heroTag: h('div.hero-tag'),
+      exec: btn(t('Execute'), () => this.execute(), { cls: 'primary exec', tip: t('Resolve the cards in your Action Slots (E)') }),
+      end: btn(t('End Turn'), () => this.endTurn(), { cls: 'end', tip: t("End this hero's turn (Space)") }),
+      undo: btn(t('Undo'), () => this.undo(), { cls: 'small', tip: t('Remove the last planned card') }),
+      items: btn(t('Items'), () => this.openItems(), { cls: 'small', tip: t('Use a consumable (once per turn)') }),
+      hint: h('div.b-hint'),
+    };
+    this.hud = h('div.battle-hud',
+      h('div.b-top', h('div.b-title', h('div.b-stage', this.stage.name), this.el.round), this.el.order),
+      this.el.party, this.el.info, this.el.hint,
+      h('div.b-bottom',
+        h('div.b-left', this.el.heroTag, this.el.energy),
+        h('div.b-center', h('div.slots-wrap', h('div.slots-label', t('ACTION SLOTS')), this.el.slots), this.el.hand),
+        h('div.b-right', h('div.cool-wrap', h('div.slots-label', t('COOLDOWN')), this.el.cool), h('div.b-buttons', this.el.undo, this.el.items, this.el.exec, this.el.end))),
+    );
+    ui().appendChild(this.hud);
+    this.renderOrder(); this.renderParty(); this.renderHand(); void b;
+  }
+
+  renderOrder() {
+    const b = this.battle;
+    const list = b.order.length ? b.order.filter((u) => u.alive) : b.units.filter((u) => u.alive);
+    this.el.order.replaceChildren(...list.map((u) => h('div.to-unit' + (u.side === 'enemy' ? '.enemy' : '.ally') + (u === b.current ? '.current' : '') + (u.rank === 'mvp' ? '.mvp' : ''),
+      { 'data-tip': t('{name} — Speed {n}', { name: u.name, n: u.stats.spd }), onmouseenter: () => { this.inspect = u; this.renderInfo(); } },
+      unitSprite(u, { size: 56, zoom: u.scale > 1.5 ? 1.0 : 1.25, oy: u.scale > 1.5 ? 0 : 0.12 }))));
+    this.el.round.textContent = t('Round {n}', { n: Math.max(1, b.round) });
+  }
+
+  renderParty() {
+    const b = this.battle;
+    const heroes = b.units.filter((u) => u.hero);
+    this.el.party.replaceChildren(...heroes.map((u) => h('div.p-card' + (u === b.current ? '.current' : '') + (u.alive ? '' : '.dead'), { onclick: () => { this.inspect = u; this.renderInfo(); } },
+      h('div.p-portrait', unitSprite(u, { size: 64, zoom: 1.5, oy: 0.3 })),
+      h('div.p-body', h('div.p-name', u.name, h('span', ` Lv ${u.level}`)), bar('hp', u.hp, u.maxHp), bar('mp', u.mp, u.maxMp),
+        h('div.p-status', u.block > 0 ? h('span.status-chip.block', { 'data-tip': t('Block absorbs damage until your next turn.') }, '🛡', h('i', Math.round(u.block))) : null, ...statusChips(u))))));
+  }
+
+  renderInfo() {
+    const u = this.inspect; const box = this.el.info;
+    if (!u || !u.alive) { box.classList.remove('on'); return; }
+    box.classList.add('on');
+    const rows = [];
+    if (u.def) {
+      if (u.weak.length) rows.push(h('div.i-line.weak', t('Weak: '), ...u.weak.map((e) => h('span', { style: { color: ELEMENTS[e].color } }, ELEMENTS[e].name + ' '))));
+      if (u.resist.length) rows.push(h('div.i-line.res', t('Resists: '), ...u.resist.map((e) => h('span', { style: { color: ELEMENTS[e].color } }, ELEMENTS[e].name + ' '))));
+      if (u.intent) rows.push(h('div.i-intent', h('b', t('Intent — ')), this.intentText(u)));
+    } else if (u.cls) rows.push(h('div.i-line', CLASSES[u.cls].role));
+    box.replaceChildren(
+      h('div.i-head', h('div.i-portrait', unitSprite(u, { size: 72, zoom: u.scale > 1.5 ? 1 : 1.3, oy: u.scale > 1.5 ? 0 : 0.14 })),
+        h('div', h('div.i-name', u.name), h('div.i-sub', `Lv ${u.level}${u.rank === 'mvp' ? t(' · MVP BOSS') : u.rank === 'mini' ? t(' · Mini Boss') : ''}${u.phase === 2 ? t(' · ENRAGED') : ''}`))),
+      bar('hp', u.hp, u.maxHp), u.maxMp ? bar('mp', u.mp, u.maxMp) : null,
+      h('div.i-stats', h('span', { 'data-tip': t('Attack') }, `ATK ${Math.round(u.stats.atk)}`), u.hero ? h('span', `MATK ${Math.round(u.stats.matk)}`) : null, h('span', `DEF ${Math.round(u.stats.def)}`), h('span', t('MOV {n}', { n: u.stats.move })), u.block ? h('span.blk', t('Block {n}', { n: Math.round(u.block) })) : null),
+      h('div.i-status', ...Object.entries(u.status).map(([st, s]) => h('div.i-st', { style: { color: STATUS_INFO[st].color } }, `${STATUS_INFO[st].icon} ${STATUS_INFO[st].name}${s.n > 1 ? ' ' + s.n : ''}`, h('small', STATUS_INFO[st].desc)))),
+      ...rows);
+  }
+
+  hero() { const u = this.battle.current; return u && u.cards && u.alive ? u : null; }
+
+  renderHand(drawn = []) {
+    const u = this.hero(); const E = this.el;
+    const active = !!u && this.inputOn;
+    this.hud.classList.toggle('my-turn', active);
+    if (!u) { E.hand.replaceChildren(); E.slots.replaceChildren(); E.cool.replaceChildren(); E.energy.replaceChildren(); E.heroTag.replaceChildren(); return; }
+    // hero tag + energy
+    E.heroTag.replaceChildren(h('div.ht-portrait', unitSprite(u, { size: 84, zoom: 1.45, oy: 0.28 })), h('div.ht-name', u.name), h('div.ht-move' + (u.moved || u.plan.length ? '.used' : ''), u.status.root ? t('Rooted') : u.moved ? t('Moved') : t('Move {n}', { n: this.battle.moveBudget(u) })));
+    E.energy.replaceChildren(h('div.eo-num', u.energy), h('div.eo-label', t('ENERGY')), h('div.eo-pips', ...Array.from({ length: Math.max(u.stats.energy, u.energy) }, (_, i) => h('i' + (i < u.energy ? '.on' : '')))));
+    // hand
+    const n = u.cards.hand.length;
+    E.hand.replaceChildren(...u.cards.hand.map((inst, i) => {
+      const el = cardEl(inst.id, inst.lv, { unit: u });
+      const why = this.battle.whyNot(u, inst);
+      el.dataset.uid = inst.uid;
+      if (why) { el.classList.add('unplayable'); el.dataset.tip = why; }
+      if (this.pending?.inst === inst) el.classList.add('selected');
+      if (drawn.includes(inst)) { el.classList.add('drawn'); el.style.animationDelay = drawn.indexOf(inst) * 90 + 'ms'; }
+      const mid = (n - 1) / 2; el.style.setProperty('--rot', (i - mid) * 3 + 'deg'); el.style.setProperty('--lift', Math.abs(i - mid) * 5 + 'px'); el.style.zIndex = 10 + i;
+      el.appendChild(h('div.card-key', i + 1));
+      el.addEventListener('pointerdown', (e) => this.cardDown(e, inst, el));
+      el.addEventListener('pointerenter', () => this.cardHover(inst));
+      el.addEventListener('pointerleave', () => this.cardHover(null));
+      return el;
+    }));
+    // action slots
+    const slots = [];
+    for (let i = 0; i < ACTION_SLOTS; i++) {
+      if (i < u.slotsUsed) slots.push(h('div.slot.spent', h('span', t('Spent'))));
+      else {
+        const e = u.plan[i - u.slotsUsed];
+        if (e) {
+          const c = e.inst.card; const last = i - u.slotsUsed === u.plan.length - 1;
+          slots.push(h('div.slot.filled' + (last ? '.last' : ''), { style: { '--el': ELEMENTS[c.el].color }, 'data-tip': last ? t('Click to remove') : describeCard(c, u).text, onclick: () => { if (last) this.undo(); } },
+            h('div.slot-n', i + 1), icon(c.icon, '#fff', 30), h('div.slot-name', c.name)));
+        } else slots.push(h('div.slot.empty' + (this.pending && i === u.slotsUsed + u.plan.length ? '.awaiting' : ''), h('div.slot-n', i + 1), h('span', this.pending && i === u.slotsUsed + u.plan.length ? t('Choose target') : t('Drop card'))));
+      }
+    }
+    E.slots.replaceChildren(...slots);
+    // cooldown track
+    E.cool.replaceChildren(...(u.cards.cooldown.length ? u.cards.cooldown.map((e) => h('div.cool-card', { style: { '--el': ELEMENTS[e.inst.card.el].color }, 'data-tip': t('{name} — ready in {n} round(s)', { name: e.inst.card.name, n: e.left }) }, icon(e.inst.card.icon, '#fff', 22), h('b', e.left))) : [h('div.cool-empty', '—')]),
+      h('div.pile', { 'data-tip': t('Draw pile {d} · Discard {x}', { d: u.cards.draw.length, x: u.cards.discard.length }) }, h('span', u.cards.draw.length), h('small', t('DECK'))));
+    E.exec.disabled = !active || !u.plan.length; E.end.disabled = !active; E.undo.disabled = !active || !u.plan.length;
+    const cons = Object.values(G.state.inv.cons).reduce((s, v) => s + v, 0);
+    E.items.disabled = !active || u.itemUsed || !cons; E.items.querySelector('span').textContent = t('Items ({n})', { n: cons });
+    this.setHint();
+  }
+
+  setHint() {
+    const u = this.hero(); let t = '';
+    if (!u || !this.inputOn) t = this.battle.current && !this.battle.current.cards ? tr("{name}'s turn…", { name: this.battle.current.name }) : '';
+    else if (this.pending) t = this.pending.T.mode === 'dir' ? tr('Choose a direction — right-click to cancel') : tr('Choose a target — right-click to cancel');
+    else if (!u.moved && !u.plan.length && this.battle.moveBudget(u) > 0) t = tr('Click a blue hex to move · Drag cards into Action Slots');
+    else t = tr(u.plan.length ? 'Execute your plan, or add more cards' : 'Drag cards into Action Slots · End Turn when done');
+    this.el.hint.textContent = t; this.el.hint.classList.toggle('on', !!t);
+  }
+
+  // ───────── board highlights ─────────
+  refreshBoard() {
+    const w = this.world, b = this.battle, u = this.hero();
+    w.clearLayers(['telegraph']);
+    this.refreshTelegraph();
+    if (!u || !this.inputOn) return;
+    if (this.pending) {
+      const T = this.pending.T; const c = this.pending.inst.card;
+      const col = c.tg === 'ally' ? 0x5fe08a : c.tg === 'hex' ? 0x4fb0ff : T.mode === 'dir' ? 0xffb347 : c.tg === 'enemy' ? 0xff5a4a : 0xffb347;
+      w.setLayer('target', T.cells, { color: col, opacity: T.mode === 'hex' && c.tg === 'any' ? 0.16 : 0.42, pulse: 4 });
+      this.refreshPreview();
+    } else {
+      const m = b.moveOptions(u);
+      if (m) w.setLayer('move', [...m.costs.keys()].map(Hex.parseKey).filter((c) => !Hex.hexEq(c, u)), { color: 0x4fa8ff, opacity: 0.34 });
+    }
+    const proj = b.projected(u);
+    if (u.plan.length && !Hex.hexEq(proj, u)) w.setLayer('proj', [proj], { color: 0x7ff0ff, opacity: 0.7, pulse: 6, y: 0.04 });
+  }
+
+  refreshTelegraph() {
+    const b = this.battle; const cells = [];
+    for (const e of b.enemies()) {
+      const i = e.intent; if (!i || i.k !== 'aoe') continue;
+      if (i.shape === 'area' && i.cells) cells.push(...i.cells);
+      else if (i.shape === 'burst') cells.push(...Hex.spiral(e, i.size + (e.size === 7 ? 1 : 0)).filter((c) => b.cell(c) && !b.cellsOf(e).some((o) => Hex.hexEq(o, c))));
+    }
+    this.world.setLayer('telegraph', cells, { color: 0xff2a2a, opacity: 0.5, pulse: 5, y: 0.03, order: 3 });
+  }
+
+  refreshPreview() {
+    const w = this.world, b = this.battle, u = this.hero();
+    if (!this.pending || !u) { w.clearLayer('aoe'); return; }
+    const c = this.pending.inst.card; const hc = this.hoverCell;
+    const valid = hc && this.pending.T.cells.find((x) => x.q === hc.q && x.r === hc.r);
+    if (!valid) { w.clearLayer('aoe'); return; }
+    let cells;
+    if (c.fx[0].t === 'move' && this.pending.T.prev) cells = Hex.pathFromPrev(this.pending.T.prev, b.projected(u), hc);
+    else if (c.shape === 'single') cells = valid.uid ? b.cellsOf(b.units.find((x) => x.uid === valid.uid)) : [hc];
+    else cells = b.preview(u, c, hc);
+    w.setLayer('aoe', cells, { color: c.tg === 'ally' || c.allies ? 0x8affb0 : c.tg === 'hex' ? 0x9fd8ff : 0xffe066, opacity: 0.75, y: 0.05, order: 4 });
+  }
+
+  cardHover(inst) {
+    if (this.pending || this.drag || !this.inputOn) return;
+    const u = this.hero(); if (!u) return;
+    if (!inst) { this.world.clearLayer('range'); return; }
+    const c = inst.card; const T = this.battle.targetsFor(u, c);
+    const cells = T.mode === 'none' ? (c.shape === 'burst' ? this.battle.preview(u, c, null) : [this.battle.projected(u)]) : T.cells;
+    this.world.setLayer('range', cells, { color: c.tg === 'ally' || c.allies ? 0x5fe08a : c.tg === 'hex' ? 0x9fd8ff : 0xff8a5a, opacity: 0.22, y: 0.025 });
+  }
+
+  // ───────── input ─────────
+  bind() {
+    const cv = this.world.canvas;
+    this._move = (e) => this.pointerMove(e);
+    this._down = (e) => this.pointerDown(e);
+    this._ctx = (e) => { e.preventDefault(); this.cancelPending(); };
+    this._key = (e) => this.key(e);
+    cv.addEventListener('pointermove', this._move); cv.addEventListener('pointerdown', this._down); cv.addEventListener('contextmenu', this._ctx);
+    window.addEventListener('keydown', this._key);
+  }
+  unbind() {
+    const cv = this.world.canvas;
+    cv.removeEventListener('pointermove', this._move); cv.removeEventListener('pointerdown', this._down); cv.removeEventListener('contextmenu', this._ctx);
+    window.removeEventListener('keydown', this._key);
+  }
+
+  pickAt(e) { return this.world.pick(e.clientX, e.clientY, { units: this.battle.units.filter((u) => u.alive) }); }
+
+  pointerMove(e) {
+    const p = this.pickAt(e);
+    const cell = p ? { q: p.q, r: p.r } : null;
+    if ((cell && this.hoverCell && Hex.hexEq(cell, this.hoverCell)) || (!cell && !this.hoverCell)) return;
+    this.hoverCell = cell;
+    this.world.setHover(cell, this.pending ? 0xffe066 : 0xffffff);
+    const u = cell ? (p.unit || this.battle.unitAt(cell)) : null;
+    if (u) { this.inspect = u; this.renderInfo(); }
+    else if (cell) {
+      const t = terrainOf(this.battle.cell(cell)?.t);
+      this.el.hint.textContent = t.desc ? tr('{name} — {desc}', { name: t.name, desc: t.desc }) : this.el.hint.textContent; if (!t.desc) this.setHint(); else this.el.hint.classList.add('on');
+    }
+    this.refreshPreview();
+  }
+
+  async pointerDown(e) {
+    if (e.button !== 0) return;
+    audio.init();
+    const u = this.hero(); if (!u || !this.inputOn || this.battle.busy) return;
+    const p = this.pickAt(e); if (!p) { this.cancelPending(); return; }
+    if (this.pending) { await this.tryTarget(p); return; }
+    const m = this.battle.moveOptions(u);
+    if (m && m.costs.has(Hex.key(p.q, p.r)) && !Hex.hexEq(p, u)) {
+      this.inputOn = false; this.world.clearLayers(['telegraph']);
+      await this.battle.heroMove(u, { q: p.q, r: p.r });
+      this.inputOn = !this.battle.result && this.battle.current === u && u.alive;
+      this.renderHand(); this.refreshBoard();
+    }
+  }
+
+  async tryTarget(p) {
+    const u = this.hero(); const pend = this.pending; if (!u || !pend) return false;
+    let cell = pend.T.cells.find((c) => c.q === p.q && c.r === p.r);
+    if (!cell && p.unit) cell = pend.T.cells.find((c) => c.uid === p.unit.uid);
+    if (!cell) { audio.sfx('error'); return false; }
+    this.pending = null;
+    if (this.battle.plan(u, pend.inst.uid, cell)) audio.sfx('place'); else audio.sfx('error');
+    this.renderHand(); this.refreshBoard();
+    return true;
+  }
+
+  cancelPending() { if (!this.pending) return; this.pending = null; this.renderHand(); this.refreshBoard(); }
+
+  choose(inst, dropPoint = null) {
+    const u = this.hero(); if (!u || !this.inputOn || this.battle.busy) return;
+    const why = this.battle.whyNot(u, inst);
+    if (why) { toast(why, 'bad'); audio.sfx('error'); return; }
+    const T = this.battle.targetsFor(u, inst.card);
+    this.world.clearLayer('range');
+    if (T.mode === 'none') {
+      this.pending = null;
+      if (this.battle.plan(u, inst.uid, null)) audio.sfx('place');
+      this.renderHand(); this.refreshBoard(); return;
+    }
+    if (!T.cells.length) { toast(t(inst.card.tg === 'hex' ? 'No valid destination' : 'No valid target in range'), 'bad'); audio.sfx('error'); this.cancelPending(); return; }
+    this.pending = { inst, T };
+    this.renderHand(); this.refreshBoard();
+    if (dropPoint) { const p = this.world.pick(dropPoint.x, dropPoint.y, { units: this.battle.units.filter((x) => x.alive) }); if (p) this.tryTarget(p); }
+  }
+
+  cardDown(e, inst, el) {
+    if (e.button !== 0 || !this.inputOn || this.battle.busy) return;
+    e.preventDefault(); audio.init();
+    const sx = e.clientX, sy = e.clientY; const rect = el.getBoundingClientRect();
+    let dragging = false; let ghost = null;
+    const move = (ev) => {
+      const dx = ev.clientX - sx, dy = ev.clientY - sy;
+      if (!dragging && Math.hypot(dx, dy) > 8) {
+        dragging = true; this.drag = inst; this.cardHover(null); this.drag = inst;
+        ghost = el.cloneNode(true); ghost.classList.add('drag-ghost'); ghost.classList.remove('drawn', 'selected');
+        ghost.style.width = rect.width + 'px'; ghost.style.height = rect.height + 'px';
+        document.getElementById('game').appendChild(ghost); el.classList.add('drag-src');
+        // preview valid targets while dragging
+        const u = this.hero(); if (u && !this.battle.whyNot(u, inst)) { const T = this.battle.targetsFor(u, inst.card); if (T.mode !== 'none') { this.pending = { inst, T, dragging: true }; this.refreshBoard(); } }
+        this.hud.classList.add('dragging');
+      }
+      if (dragging) {
+        ghost.style.transform = `translate(${ev.clientX - rect.width / 2}px, ${ev.clientY - rect.height * 0.6}px) rotate(${Math.max(-12, Math.min(12, dx * 0.04))}deg) scale(${ev.clientY < this.el.hand.getBoundingClientRect().top ? 0.62 : 1})`;
+        const p = this.world.pick(ev.clientX, ev.clientY, { units: this.battle.units.filter((x) => x.alive) });
+        this.hoverCell = p ? { q: p.q, r: p.r } : null; this.world.setHover(this.hoverCell, 0xffe066); this.refreshPreview();
+      }
+    };
+    const up = (ev) => {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+      this.drag = null; this.hud.classList.remove('dragging');
+      if (ghost) ghost.remove(); el.classList.remove('drag-src');
+      if (!dragging) { if (this.pending?.inst === inst) this.cancelPending(); else this.choose(inst); return; }
+      const wasPending = this.pending; this.pending = null;
+      const handTop = this.el.hand.getBoundingClientRect().top;
+      if (ev.clientY < handTop - 4) this.choose(inst, wasPending ? { x: ev.clientX, y: ev.clientY } : null);
+      else { this.renderHand(); this.refreshBoard(); }
+    };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  }
+
+  key(e) {
+    if (e.repeat || document.querySelector('.modal-wrap')) return;
+    if (e.key === 'Escape') this.cancelPending();
+    else if (e.code === 'Space') { e.preventDefault(); this.endTurn(); }
+    else if (e.key === 'e' || e.key === 'E' || e.key === 'Enter') this.execute();
+    else if (e.key === 'z' || e.key === 'Z' || e.key === 'Backspace') this.undo();
+    else if (/^[1-9]$/.test(e.key)) { const u = this.hero(); const inst = u?.cards.hand[+e.key - 1]; if (inst) this.choose(inst); }
+  }
+
+  undo() { const u = this.hero(); if (!u || !this.inputOn || this.battle.busy) return; this.pending = null; if (this.battle.unplan(u)) audio.sfx('close'); this.renderHand(); this.refreshBoard(); }
+
+  async execute() {
+    const u = this.hero(); if (!u || !this.inputOn || this.battle.busy || !u.plan.length) return;
+    this.pending = null; this.inputOn = false; this.world.clearLayers(['telegraph']); this.renderHand();
+    await this.battle.execute(u);
+    this.inputOn = !this.battle.result && this.battle.current === u && u.alive && !!this.battle._endTurn;
+    this.renderHand(); this.refreshBoard();
+  }
+
+  async endTurn() {
+    const u = this.hero(); if (!u || !this.inputOn || this.battle.busy) return;
+    this.pending = null; this.inputOn = false; this.world.clearLayers(['telegraph']); this.renderHand();
+    await this.battle.endHeroTurn(u);
+  }
+
+  openItems() {
+    const u = this.hero(); if (!u || !this.inputOn) return;
+    const list = Object.entries(G.state.inv.cons).map(([id, n]) => { const c = CONSUMABLES[id];
+      return h('div.item', { style: { '--rar': c.color }, onclick: async () => { m.close(); this.inputOn = false; await this.battle.useItem(u, id); this.inputOn = !this.battle.result && this.battle.current === u && u.alive; this.renderHand(); this.refreshBoard(); } },
+        h('div.item-icon', icon(c.icon, c.color, 34)), h('div.item-info', h('div.item-name', c.name), h('div.item-sub', c.desc)), h('div.item-tag', '×' + n)); });
+    const m = openModal(h('div.item-list', ...list), { title: t('Use Item — {name}', { name: u.name }), cls: 'narrow' });
+  }
+
+  // ───────── view: battle event handler ─────────
+  async handle(type, d) {
+    const w = this.world, b = this.battle;
+    const pos = (u, up = 1) => w.unitPos(u.uid, up);
+    switch (type) {
+      case 'start': {
+        if (b.kind === 'boss') {
+          const boss = b.units.find((u) => u.rank === 'mvp'); const bp = pos(boss, 0);
+          audio.sfx('boss');
+          await w.focus({ x: bp.x, z: bp.z + 0.5, size: 10 }, 900);
+          audio.sfx('roar'); w.shake(0.5, 900); w.ring(bp, elColor(boss.el), 5, 900); w.playOnce(boss.uid, 'cast');
+          await banner(boss.name, `“${boss.def.quote}”`, 'boss', 2600);
+          await w.focus(this.view, 800);
+        } else await banner(t(b.kind === 'mini' ? 'Mini Boss' : 'Battle'), b.enemies().map((e) => e.name).filter((n, i, a) => a.indexOf(n) === i).join(' · '), b.kind === 'mini' ? 'mini' : '', 1100);
+        break;
+      }
+      case 'round': {
+        this.renderOrder(); this.syncAll(); this.refreshTelegraph();
+        if (d.round > 1) { audio.sfx('turn'); await banner(t('Round {n}', { n: d.round }), '', 'round', 650); }
+        break;
+      }
+      case 'turnStart': {
+        w.setTurnRing(d.unit.uid); this.renderOrder(); this.syncAll(); this.inputOn = false; this.renderHand();
+        if (!d.unit.cards) await sleep(260);
+        break;
+      }
+      case 'heroTurn': {
+        audio.sfx('turn'); this.inspect = d.unit; this.inputOn = true;
+        d.drawn.forEach((_, i) => setTimeout(() => audio.sfx('draw'), i * 90));
+        this.renderHand(d.drawn); this.syncAll(); this.refreshBoard();
+        break;
+      }
+      case 'refresh': this.syncAll(); break;
+      case 'turnEnd': { this.syncAll(); if (d.unit.cards) { this.inputOn = false; this.pending = null; w.clearLayers(['telegraph']); this.renderHand(); } break; }
+      case 'move': {
+        const u = d.unit; let prev = { q: u.q, r: u.r };
+        const steps = d.path.map((c) => { const s = { pos: w.footPos(b.cellsOf(u, c)), dir: Hex.directionTo(prev, c) }; prev = c; return s; });
+        await w.moveUnit(u.uid, steps, { stepMs: u.size > 1 ? 260 : 170, hop: u.size > 1 ? 0.3 : 0.16 });
+        if (u.size > 1) w.shake(0.12, 150);
+        break;
+      }
+      case 'teleport': { audio.sfx('magic'); w.burst(pos(d.unit), { color: elColor(d.el), count: 18 }); w.units.get(d.unit.uid).mat.opacity = 0; await sleep(140); break; }
+      case 'teleportIn': { w.placeUnit(d.unit.uid, b.cellsOf(d.unit)); w.burst(pos(d.unit), { color: elColor(d.el), count: 18 }); w.ring(pos(d.unit, 0), elColor(d.el), 1.4); await w.fadeIn(d.unit.uid, 220); break; }
+      case 'dash': { audio.sfx('wind'); w.setFacing(d.unit.uid, Hex.directionTo(d.unit, d.to)); w.setAnim(d.unit.uid, 'walk'); const p0 = pos(d.unit, 0.5); await w.leapUnit(d.unit.uid, w.footPos(b.cellsOf(d.unit, d.to)), 230, 0.5); w.setAnim(d.unit.uid, 'idle'); w.burst(p0, { color: 0xffffff, count: 8, speed: 1.5 }); break; }
+      case 'shove': { await w.leapUnit(d.unit.uid, w.footPos(b.cellsOf(d.unit, d.to)), 200, 0.35); w.burst(pos(d.unit, 0.1), { color: 0xd0c0a0, count: 6, speed: 1.5, up: 0.6 }); break; }
+      case 'cardPlay': {
+        const slot = this.el.slots.children[d.slot]; if (slot) slot.classList.add('firing');
+        w.floatText(pos(d.unit, 2.3), d.card.name, 'card-name');
+        if (d.combo) { w.floatText(pos(d.unit, 2.7), t('COMBO!'), 'combo'); audio.sfx('buff'); }
+        await sleep(160);
+        break;
+      }
+      case 'cast': await this.castFx(d); break;
+      case 'hit': {
+        const { tgt, dmg, blocked, crit, el, tags, dot, killed } = d;
+        const p = pos(tgt, 1.1);
+        if (dmg > 0) {
+          w.hitFlash(tgt.uid, crit);
+          w.floatText(pos(tgt, 1.6), (crit ? '✦ ' : '') + dmg, `dmg el-${el}${crit ? ' crit' : ''}${dot ? ' dot' : ''}${tgt.side === 'hero' ? ' on-ally' : ''}`);
+          w.burst(p, { color: elColor(el), count: crit ? 22 : dot ? 6 : 12, speed: crit ? 4.5 : 3 });
+          audio.sfx(crit ? 'crit' : dot ? (el === 'fire' ? 'fire' : 'poison') : 'hit');
+          if (crit || dmg > tgt.maxHp * 0.25) w.shake(crit ? 0.4 : 0.25, 260);
+        } else if (blocked > 0) { w.floatText(pos(tgt, 1.6), t('Blocked'), 'blocked'); audio.sfx('block'); w.burst(p, { color: 0x9fc8ff, count: 8, speed: 2 }); }
+        if (blocked > 0 && dmg > 0) w.floatText(pos(tgt, 2.0), t('-{n} block', { n: blocked }), 'blocked small');
+        tags.forEach((t, i) => setTimeout(() => w.floatText(pos(tgt, 2.2 + i * 0.35), tr(t), d.combo && t.startsWith(d.combo) ? 'combo' : 'tag'), 90 * (i + 1)));
+        if (d.combo) { audio.sfx('magic'); w.ring(pos(tgt, 0.1), elColor(el), 2); }
+        this.syncLabel(tgt); this.renderParty(); if (this.inspect === tgt) this.renderInfo();
+        await sleep(killed ? 60 : dot ? 240 : 170);
+        break;
+      }
+      case 'miss': { w.floatText(pos(d.tgt, 1.6), t('Miss'), 'miss'); audio.sfx('miss'); await sleep(180); break; }
+      case 'heal': { if (d.amount > 0) { w.floatText(pos(d.tgt, 1.6), '+' + d.amount, 'heal'); w.rise(pos(d.tgt, 0.2), { color: 0x7fffa0, count: 12 }); audio.sfx('heal'); } this.syncLabel(d.tgt); this.renderParty(); await sleep(200); break; }
+      case 'block': { w.floatText(pos(d.unit, 1.6), t('+{n} Block', { n: d.amount }), 'blocked'); w.ring(pos(d.unit, 0.1), 0x9fc8ff, 1.2, 300); audio.sfx('block'); this.syncLabel(d.unit); this.renderParty(); await sleep(170); break; }
+      case 'status': {
+        const info = STATUS_INFO[d.st];
+        w.floatText(pos(d.unit, 1.9), `${info.icon} ${info.name}`, 'status' + (info.debuff ? ' debuff' : ' buffed'));
+        w.rise(pos(d.unit, 0.3), { color: new THREE.Color(info.color).getHex(), count: 7, speed: 1.2 });
+        if (!info.debuff) audio.sfx('buff'); else if (d.st === 'frozen' || d.st === 'chill') audio.sfx('ice');
+        this.syncLabel(d.unit); this.renderParty(); await sleep(150); break;
+      }
+      case 'text': { w.floatText(pos(d.unit, 1.9), d.text, 'note'); await sleep(260); break; }
+      case 'death': {
+        const u = d.unit; audio.sfx(u.rank === 'mvp' ? 'explosion' : 'death');
+        const L = this.labels.get(u.uid); if (L) { w.detach(L.anchor); this.labels.delete(u.uid); }
+        const p = pos(u, 0.8);
+        if (u.rank === 'mvp') { w.shake(0.7, 1200); for (let i = 0; i < 6; i++) { w.burst(p.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 2, (Math.random() - 0.5) * 2)), { color: elColor(u.el), count: 20, speed: 5 }); audio.sfx('explosion'); await sleep(170); } w.ring(pos(u, 0), 0xffffff, 8, 900); }
+        w.burst(p, { color: u.side === 'enemy' ? 0xc0a0ff : 0xff6060, count: 20, speed: 3.5 });
+        w.rise(p, { color: 0xffffff, count: 10 });
+        await w.fadeOut(u.uid, u.rank === 'mvp' ? 1100 : 480);
+        this.renderOrder(); this.renderParty(); if (this.inspect === u) { this.inspect = null; this.renderInfo(); }
+        this.refreshTelegraph();
+        break;
+      }
+      case 'spawn': {
+        const u = d.unit; this.addUnit(u); audio.sfx(d.revive ? 'holy' : 'magic');
+        w.ring(pos(u, 0), d.revive ? 0xfff0a0 : elColor(u.el), 1.6); w.rise(pos(u, 0.2), { color: d.revive ? 0xfff0a0 : elColor(u.el), count: 16 });
+        await w.fadeIn(u.uid, 380); this.renderOrder(); this.renderParty(); break;
+      }
+      case 'phase': {
+        const u = d.unit; audio.sfx('roar'); w.shake(0.6, 900); w.playOnce(u.uid, 'cast');
+        w.ring(pos(u, 0), 0xff3030, 7, 900); w.burst(pos(u, 1), { color: 0xff4040, count: 40, speed: 6 });
+        audio.music('boss');
+        await banner(t('ENRAGED'), t('{name} unleashes its true power!', { name: u.name }), 'boss enrage', 1700);
+        this.syncAll(); break;
+      }
+      case 'intent': case 'intentDone': { this.syncLabel(d.unit); this.refreshTelegraph(); if (this.inspect === d.unit) this.renderInfo(); break; }
+      case 'cardSpent': case 'draw': { if (d.drawn) d.drawn.forEach((_, i) => setTimeout(() => audio.sfx('draw'), i * 90)); this.renderHand(d.drawn || []); this.syncAll(); break; }
+      case 'item': { audio.sfx('heal'); w.floatText(pos(d.unit, 2.2), CONSUMABLES[d.id].name, 'card-name'); await sleep(200); break; }
+      case 'end': {
+        this.inputOn = false; this.renderHand(); w.clearLayers(); w.setTurnRing(null);
+        audio.stopMusic();
+        if (d.result === 'victory') { audio.sfx('victory'); b.heroes().forEach((u) => { w.playOnce(u.uid, 'cast'); w.rise(pos(u, 0.2), { color: 0xffe080, count: 14 }); }); await banner(t('VICTORY'), b.kind === 'boss' ? t('{stage} is liberated', { stage: this.stage.name }) : '', 'victory', 1700); }
+        else { audio.sfx('defeat'); await banner(t('DEFEAT'), t('The party has fallen…'), 'defeat', 2000); }
+        break;
+      }
+      default: break;
+    }
+  }
+
+  async castFx(d) {
+    const w = this.world; const { unit: u, card, cells, targets, target } = d;
+    const color = card.proj === 'arrow' || card.proj === 'knife' ? 0xfff0c8 : elColor(card.el);
+    const from = w.unitPos(u.uid, 0.95);
+    const tpos = (c) => { const p = w.cellPos(c.q, c.r); p.y += 0.7; return p; };
+    const aoe = card.shape && card.shape !== 'single';
+    const magic = card.cat !== 'attack' || (card.proj && !['arrow', 'knife'].includes(card.proj)) || card.mp > 0 || (aoe && card.shape !== 'burst') || (d.monster && card.el && card.el !== 'neutral' && (card.proj || aoe));
+    w.setFacing(u.uid, u.facing);
+    if (d.monster) { w.floatText(w.unitPos(u.uid, 2.4 ), card.name, 'card-name enemy'); }
+    w.playOnce(u.uid, magic ? 'cast' : 'attack').then(() => { if (w.units.has(u.uid)) w.setAnim(u.uid, 'idle'); });
+    if (magic) { w.rise(w.unitPos(u.uid, 0.2), { color, count: 8, speed: 1.4 }); audio.sfx('magic'); }
+    await sleep(magic ? 230 : 150);
+
+    if (card.cat === 'attack' || card.cat === 'special' && targets.some((t) => t.side !== u.side)) {
+      if (aoe) {
+        const center = card.shape === 'area' ? tpos(target) : w.unitPos(u.uid, 0.2);
+        if (card.shape === 'area') {
+          if (card.el === 'fire' || card.icon === 'meteor' || card.big) await w.meteor(tpos(target), color);
+          else if (card.icon === 'arrows') { for (let i = 0; i < Math.min(6, cells.length); i++) w.projectile(from.clone().add(new THREE.Vector3(0, 6, 0)), tpos(cells[i]), { color, ms: 260 + i * 30, arc: 0, size: 0.35 }); await sleep(320); }
+          else await w.projectile(from, tpos(target), { color, size: 0.9 });
+          w.ring(center, color, card.size * 1.9 + 1.2);
+        } else if (card.shape === 'line') { const end = cells.length ? tpos(cells[cells.length - 1]) : from; await w.beam(from, end, color); }
+        else w.ring(center, color, (card.size || 1) * 1.9 + 1);
+        audio.sfx(card.el === 'fire' ? 'explosion' : EL_SFX[card.el] || 'earth');
+        w.flashCells(cells, color, 520);
+        cells.slice(0, 40).forEach((c) => w.burst(tpos(c), { color, count: 5, speed: 2, up: 2.2, size: 0.3 }));
+        w.shake(card.big || card.size >= 2 ? 0.45 : 0.25, 320);
+        await sleep(160);
+      } else if (card.proj) {
+        audio.sfx(card.proj === 'arrow' || card.proj === 'knife' ? 'arrow' : EL_SFX[card.el] || 'magic');
+        await w.projectile(from, tpos(target), { color, arc: card.proj === 'arrow' ? 0.7 : 0.15, size: card.proj === 'arrow' || card.proj === 'knife' ? 0.3 : 0.7 });
+      } else {
+        const tp = tpos(target);
+        audio.sfx(card.el && card.el !== 'neutral' ? EL_SFX[card.el] : 'slash');
+        await w.lunge(u.uid, tp);
+        w.slash(tp, color, Math.max(1, u.scale * 0.8));
+      }
+    } else {
+      // supportive / defensive
+      targets.forEach((t) => { w.rise(w.unitPos(t.uid, 0.2), { color, count: 10, speed: 1.6 }); });
+      if (aoe) w.ring(w.unitPos(u.uid, 0.1), color, (card.size || 1) * 1.9 + 1);
+      await sleep(140);
+    }
+  }
+}
