@@ -5,6 +5,21 @@
         ".read": "auth != null && auth.uid === $uid",
         ".write": "auth != null && auth.uid === $uid"
       }
+    },
+    "rooms": {
+      "$code": {
+        ".read": "auth != null",
+        ".write": "auth != null && (data.exists() ? data.child('host').val() === auth.uid : newData.child('host').val() === auth.uid)",
+        "players": {
+          "$uid": { ".write": "auth != null && auth.uid === $uid && data.parent().parent().child('host').exists()" }
+        },
+        "pings": {
+          "$uid": { ".write": "auth != null && auth.uid === $uid && data.parent().parent().child('host').exists()" }
+        },
+        "log": {
+          "$id": { ".write": "auth != null && !data.exists() && newData.child('from').val() === auth.uid && data.parent().parent().child('players').child(auth.uid).exists()" }
+        }
+      }
     }
   }
 }

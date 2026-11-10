@@ -13,14 +13,18 @@ import { MONSTERS } from './data/monsters.js';
 import { STAGE_BY_ID } from './data/stages.js';
 import { initTooltips, transition, toast, openModal, btn, topModal, banner } from './ui/components.js';
 import { titleScreen, charSelectScreen, worldMapScreen, authModal, clearScreens, epilogue } from './ui/screens.js';
-import { ExploreScene, rewardsModal, stageIntro } from './ui/exploreUI.js';
+import { ExploreScene, rewardsModal, stageIntro, lootModal } from './ui/exploreUI.js';
 import { BattleScene } from './ui/battleUI.js';
+import { Coop } from './net/coop.js';
+import { coopBadge, guestWaitScreen } from './ui/coopUI.js';
+
 
 class App {
   constructor() {
     this.world = new World(document.getElementById('view3d'), document.getElementById('labels'));
     this.sm = new StageManager();
     this.scene = null; this.diorama = false; this.saveTimer = null;
+    this.inBattle = false; this.guestQ = Promise.resolve(); this.ownState = null;
   }
 
   async boot() {
@@ -32,7 +36,8 @@ class App {
     await Net.init();
     G.state = normalize(await Net.load());
     if (G.state) audio.setVolumes(G.state.settings.music, G.state.settings.sfx);
-    bus.on('state:changed', () => this.queueSave());
+    bus.on('state:changed', () => { this.queueSave(); this.queueCoopState(); });
+    this.bindCoop();
     const wake = () => { audio.init(); if (G.state) audio.setVolumes(G.state.settings.music, G.state.settings.sfx); };
     window.addEventListener('pointerdown', wake); window.addEventListener('keydown', wake);
     window.addEventListener('keydown', (e) => { if (e.key === 'Escape') { const m = topModal(); if (m?._close) m._close(); } if (e.key === 'F11') return; });
@@ -51,7 +56,7 @@ class App {
   queueSave() { clearTimeout(this.saveTimer); this.saveTimer = setTimeout(() => this.saveNow({ gap: 5 * 60000 }), 1000); }
   // gap = minimum time since the last cloud upload (0 = upload now if anything changed)
   async saveNow({ gap = 0 } = {}) {
-    if (!G.state) return;
+    if (!G.state || Coop.isGuest) return;
     clearTimeout(this.saveTimer);
     G.state.updated = Date.now();
     const okLocal = Net.saveLocal(G.state);
@@ -100,6 +105,8 @@ class App {
 
   // ───── flow ─────
   async toTitle() {
+    if (Coop.isGuest) { await this.leaveCoop({ silent: true }); return; }
+    if (Coop.active) await this.leaveCoop({ silent: true });
     await this.saveNow();
     await transition(() => { this.disposeScene(); clearScreens(); if (!this.diorama) this.buildDiorama(); titleScreen(this); audio.music('title'); });
   }
@@ -113,21 +120,27 @@ class App {
   async continueGame() { if (G.state.run) await this.enterStage(G.state.run.stageId); else await this.toWorldMap(); }
   async toWorldMap() {
     await transition(() => { this.disposeScene(); clearScreens(); if (!this.diorama) this.buildDiorama(); worldMapScreen(this); audio.music('world'); });
+    this.hostScene();
   }
   async enterStage(id) {
     const st = G.state; const fresh = !(st.run && st.run.stageId === id);
     await transition(() => { this.disposeScene(); clearScreens(); this.leaveDiorama(); this.scene = new ExploreScene(this, id, { fresh }); this.scene.build(); });
+    this.hostScene();
     if (!st.seenIntro[id]) { st.seenIntro[id] = true; touch(); await stageIntro(STAGE_BY_ID[id]); }
   }
 
   async startBattle(enc, cell) {
     const stage = this.sm.stage; const stageId = stage.id;
-    this.disposeScene();
+    const seed = (Math.random() * 2 ** 31) | 0;
+    if (Coop.isHost) Coop.send({ t: 'battle', stageId, enc, seed, state: G.state });
+    this.disposeScene(); this.inBattle = true;
     let bs; let playing;
-    await transition(async () => { clearScreens(); bs = new BattleScene(this, { stage, enc }); this.scene = bs; playing = bs.play(); await sleep(60); });
+    await transition(async () => { clearScreens(); bs = new BattleScene(this, { stage, enc, seed }); this.scene = bs; playing = bs.play(); await sleep(60); });
     const result = await playing;
+    this.inBattle = false;
     if (result === 'victory') {
       const r = this.sm.battleRewards(bs.battle, cell);
+      if (Coop.isHost) Coop.send({ t: 'rewards', kind: enc.kind, r: { ...r, cardChoices: null, levelUps: r.levelUps.map((l) => ({ levels: l.levels, hero: { name: l.hero.name, cls: l.hero.cls, level: l.hero.level, skillPoints: l.hero.skillPoints } })) } });
       await rewardsModal(r, enc.kind);
       await this.saveNow({ gap: enc.kind === 'boss' ? 0 : 3 * 60000 });
       if (enc.kind === 'boss') {
@@ -139,13 +152,100 @@ class App {
       }
     } else {
       const d = this.sm.onDefeat();
+      if (Coop.isHost) Coop.send({ t: 'note', key: 'defeat', gold: d.lost });
       await new Promise((res) => { const m = openModal(h('div.confirm', h('p', t('Your party was defeated and carried back to the entrance of {stage}. You lost {gold} gold. The heroes recover to half strength — cleared encounters stay cleared.', { stage: stage.name, gold: d.lost })), h('div.row.center', btn(t('Rise Again'), () => { m.close(); res(); }, { cls: 'primary' }))), { title: t('Defeat'), closable: false, cls: 'narrow' }); });
       await this.saveNow({ gap: 3 * 60000 });
     }
     await transition(() => { this.disposeScene(); clearScreens(); this.scene = new ExploreScene(this, stageId); this.scene.build(); });
+    this.hostScene();
+  }
+
+  // ───── online co-op ─────
+  bindCoop() {
+    bus.on('coop:players', () => coopBadge(this));
+    bus.on('coop:join', (id) => {
+      if (!G.state) return;
+      const i = Coop.autoAssign(id, G.state.party.length);
+      toast(i > 0 ? t('{name} joined and takes {hero}', { name: Coop.nameOf(id), hero: G.state.party[i].name }) : t('{name} joined the room', { name: Coop.nameOf(id) }), 'good');
+      if (!this.inBattle) this.hostScene(); // a battle in progress can't be joined; they sync right after it
+    });
+    bus.on('coop:left', (id) => { Coop.freeSlotsOf(id); toast(t('A player left the room'), ''); });
+    bus.on('coop:closed', () => this.onRoomClosed());
+    bus.on('coop:msg', (m) => {
+      if (m.t === 'b') { (Coop.bbuf ||= []).push(m); return; } // battle commands go to the battle scene
+      if (Coop.isGuest && m.from === Coop.hostId) this.guestQ = this.guestQ.then(() => this.guestHandle(m)).catch((e) => console.error('[co-op]', e));
+    });
+  }
+  onCoopStart() {
+    coopBadge(this);
+    if (Coop.isGuest) {
+      this.ownState = G.state; // put the guest's own save aside while playing in the host's world
+      this.disposeScene(); if (!this.diorama) this.buildDiorama();
+      guestWaitScreen(this, t('Waiting for the host…'));
+    } else this.hostScene();
+  }
+  // Host → everyone: the current scene with a full snapshot of the campaign.
+  hostScene() {
+    if (!Coop.isHost || !G.state || this.inBattle) return;
+    const explore = this.scene instanceof ExploreScene;
+    Coop.send({ t: 'scene', s: explore ? 'explore' : 'map', stageId: explore ? this.sm.stage.id : null, state: G.state });
+  }
+  queueCoopState() {
+    if (!Coop.isHost || this.inBattle) return;
+    clearTimeout(this._coopT); this._coopT = setTimeout(() => { if (!this.inBattle && Coop.isHost) Coop.send({ t: 'state', state: G.state }); }, 1200);
+  }
+  async leaveCoop({ silent = false } = {}) {
+    const guest = Coop.isGuest;
+    await Coop.leave(); coopBadge(this);
+    if (!silent) toast(t('You left the room'));
+    if (guest) await this.restoreOwn();
+  }
+  async onRoomClosed() {
+    coopBadge(this);
+    await new Promise((res) => { const m = openModal(h('div.confirm', h('p', t('The host closed the room. You return to your own campaign.')), h('div.row.center', btn(t('OK'), () => { m.close(); res(); }, { cls: 'primary' }))), { title: t('Room Closed'), closable: false, cls: 'narrow' }); });
+    await this.restoreOwn();
+  }
+  async restoreOwn() {
+    G.state = this.ownState; this.ownState = null; this.inBattle = false;
+    this.guestQ = Promise.resolve(); Coop.bbuf = [];
+    document.querySelectorAll('.modal-wrap').forEach((w) => w.remove());
+    await transition(() => { this.disposeScene(); clearScreens(); if (!this.diorama) this.buildDiorama(); titleScreen(this); audio.music('title'); });
+  }
+  closeGuestModals() { document.querySelectorAll('.modal-wrap.coop-view').forEach((w) => w.remove()); }
+  // Guests replay the host's stream in order (walks and battles take time, so each waits for the last).
+  async guestHandle(m) {
+    if (!Coop.isGuest) return;
+    switch (m.t) {
+      case 'scene': {
+        G.state = normalize(m.state); this.closeGuestModals();
+        if (m.s === 'explore') {
+          await transition(() => { this.disposeScene(); clearScreens(); this.leaveDiorama(); this.scene = new ExploreScene(this, m.stageId, { spectator: true }); this.scene.build(); });
+        } else {
+          await transition(() => { this.disposeScene(); clearScreens(); if (!this.diorama) this.buildDiorama(); guestWaitScreen(this, t('The host is choosing the next stage…')); audio.music('world'); });
+        }
+        break;
+      }
+      case 'state': if (!this.inBattle && m.state) { const pos = G.state?.run?.pos; G.state = normalize(m.state); if (pos && G.state.run && this.scene instanceof ExploreScene) G.state.run.pos = pos; this.refreshHud(); } break;
+      case 'walk': if (this.scene instanceof ExploreScene) await this.scene.walk(m.path); break;
+      case 'loot': lootModal(m.title, m.r, { view: true }); break;
+      case 'event': this.scene?.eventView?.(m); break;
+      case 'note': toast(m.key === 'defeat' ? t('The party was defeated. Lost {gold} gold.', { gold: m.gold }) : t(m.text, m.vars || {}), m.key === 'defeat' ? 'bad' : ''); break;
+      case 'battle': {
+        G.state = normalize(m.state); this.closeGuestModals();
+        const stage = STAGE_BY_ID[m.stageId];
+        this.disposeScene(); this.inBattle = true;
+        let playing;
+        await transition(async () => { clearScreens(); this.leaveDiorama(); const bs = new BattleScene(this, { stage, enc: m.enc, seed: m.seed }); this.scene = bs; playing = bs.play(); await sleep(60); });
+        await playing;
+        this.inBattle = false;
+        break;
+      }
+      case 'rewards': rewardsModal(m.r, m.kind, { view: true }); break;
+      default: break;
+    }
   }
 }
 
 const app = new App();
-window.__app = app; window.__G = G; window.__Net = Net; // handles for debugging and automated tests
+window.__app = app; window.__G = G; window.__Net = Net; window.__Coop = Coop; // handles for debugging and automated tests
 app.boot();

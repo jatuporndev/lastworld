@@ -6,11 +6,12 @@ export const HAND_LIMIT = 7;
 export const ACTION_SLOTS = 3;
 
 let instCounter = 1;
+const defaultId = () => 'c' + instCounter++;
 
 export class CardEngine {
-  constructor(deckIds, levelOf, rng) {
+  constructor(deckIds, levelOf, rng, nextId = defaultId) {
     this.rng = rng;
-    this.draw = deckIds.map((id) => ({ uid: 'c' + instCounter++, id, lv: levelOf(id), card: cardStats(id, levelOf(id)) }));
+    this.draw = deckIds.map((id) => ({ uid: nextId(), id, lv: levelOf(id), card: cardStats(id, levelOf(id)) }));
     rng.shuffle(this.draw);
     this.hand = []; this.discard = []; this.cooldown = []; // cooldown: [{inst, left, total}]
   }

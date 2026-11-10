@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff1c4"/><stop offset=".5" stop-color="#d9a43c"/><stop offset="1" stop-color="#6a4210"/></linearGradient>
+    <linearGradient id="face" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b2d5c"/><stop offset="1" stop-color="#140e22"/></linearGradient>
+    <linearGradient id="gem" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d6e8ff"/><stop offset=".5" stop-color="#6f96ff"/><stop offset="1" stop-color="#2a3a9a"/></linearGradient>
+  </defs>
+  <!-- hex tile -->
+  <path d="M32 2 58 17v30L32 62 6 47V17Z" fill="url(#rim)"/>
+  <path d="M32 7.5 53.5 20v24L32 56.5 10.5 44V20Z" fill="url(#face)"/>
+  <!-- crown -->
+  <path d="M17 41 14 22l10 8 8-13 8 13 10-8-3 19Z" fill="url(#rim)" stroke="#3a2406" stroke-width="1.5" stroke-linejoin="round"/>
+  <rect x="17" y="41" width="30" height="5" rx="1.5" fill="url(#rim)" stroke="#3a2406" stroke-width="1.5"/>
+  <circle cx="32" cy="34" r="4" fill="url(#gem)" stroke="#1a1440" stroke-width="1"/>
+</svg>

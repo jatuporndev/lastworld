@@ -3,7 +3,7 @@ import { h, sleep } from '../core/util.js';
 import { t } from '../core/i18n.js';
 import { audio } from '../core/audio.js';
 import { getSheet, drawFrame, iconCanvas, FRAMES } from '../engine/sprites.js';
-import { CARDS, cardStats, describeCard, ELEMENTS, CATEGORIES, RARITY, STATUS_INFO } from '../data/cards.js';
+import { CARDS, cardStats, describeCard, ELEMENTS, CATEGORIES, RARITY, STATUS_INFO, DICE_NAME, diceLabel } from '../data/cards.js';
 import { ITEM_RARITY, STAT_LABEL } from '../data/items.js';
 import { CLASSES } from '../data/classes.js';
 import { MONSTERS } from '../data/monsters.js';
@@ -41,6 +41,13 @@ export const unitSprite = (u, opts) => spriteCanvas(u.spriteKey, u.look, opts);
 export const icon = (name, color = '#fff', size = 20) => h('img.icon', { src: iconCanvas(name, color, 64), width: size, height: size, draggable: 'false' });
 
 // ───── cards ─────
+// A dice chip such as [■■ red ×2]; card text marks dice as ⟦red:2⟧ (see describeCard).
+export function diceChip(color, n) {
+  return h(`span.dchip.${color}`, { 'data-tip': diceLabel(color, n) }, ...Array.from({ length: n }, () => h('i')), h('b', `${t(DICE_NAME[color])}×${n}`));
+}
+function richText(s) {
+  return s.split(/(⟦\w+:\d+⟧)/).filter(Boolean).map((p) => { const m = p.match(/^⟦(\w+):(\d+)⟧$/); return m ? diceChip(m[1], +m[2]) : p; });
+}
 export function cardEl(id, level = 0, { unit = null, small = false, count = null } = {}) {
   const c = cardStats(id, level) || CARDS[id];
   const d = describeCard(c, unit);
@@ -54,7 +61,7 @@ export function cardEl(id, level = 0, { unit = null, small = false, count = null
     h('div.card-name', c.name),
     h('div.card-art', h('div.card-art-glow'), h('img', { src: iconCanvas(c.icon, '#ffffff', 96), draggable: 'false' })),
     h('div.card-type', `${cat.name}${c.el !== 'neutral' ? ' · ' + el.name : ''}`),
-    h('div.card-text', d.text),
+    h('div.card-text', ...richText(d.text)),
     h('div.card-foot', h('span', range), h('span.cd', c.cd ? t('CD {n}', { n: c.cd }) : t('No CD'))),
   );
 }
@@ -104,10 +111,13 @@ export function openModal(content, { cls = '', closable = true, onClose = null, 
   const box = h('div.modal' + (cls ? '.' + cls.split(' ').join('.') : ''),
     title ? h('div.modal-title', h('span.orn', '❖'), title, h('span.orn', '❖')) : null,
     closable ? h('button.modal-x', { onclick: close, 'data-tip': t('Close (Esc)') }, '✕') : null,
-    h('div.modal-body', content));
+    h('div.modal-body', content),
+    h('i.mc.tl'), h('i.mc.tr'), h('i.mc.bl'), h('i.mc.br'));
   const wrap = h('div.modal-wrap', { onpointerdown: (e) => { if (e.target === wrap && closable) close(); } }, box);
   wrap._close = closable ? close : null;
   ui().appendChild(wrap);
+  // give keyboard players a starting point: first text field, else the primary button
+  requestAnimationFrame(() => (box.querySelector('[autofocus]') || box.querySelector('.modal-body input, .modal-body .btn.primary'))?.focus({ preventScroll: true }));
   return { el: box, wrap, close, body: box.querySelector('.modal-body') };
 }
 export function topModal() { const all = ui().querySelectorAll('.modal-wrap:not(.closing)'); return all[all.length - 1] || null; }

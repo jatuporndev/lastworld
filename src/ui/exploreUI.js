@@ -13,12 +13,17 @@ import { CARDS } from '../data/cards.js';
 import { CONSUMABLES, MATERIALS } from '../data/items.js';
 import { ui, openModal, btn, icon, toast, cardEl, itemEl, monsterSprite, heroSprite, bar, banner } from './components.js';
 import { openMenu } from './panels.js';
+import { Coop } from '../net/coop.js';
+import { bus } from '../core/util.js';
+import { lobbyModal } from './coopUI.js';
 
 export class ExploreScene {
   constructor(app, stageId, opts = {}) {
     this.app = app; this.world = app.world; this.sm = app.sm;
     this.stage = this.sm.enter(stageId, opts);
     this.busy = false; this.followers = [];
+    this.spectator = Coop.isGuest; // guests watch the host lead; they can only drop pings
+    this.pings = new Map();
   }
 
   build() {
@@ -45,7 +50,7 @@ export class ExploreScene {
     audio.music('explore');
   }
 
-  dispose() { this.unbind(); this.hud?.remove(); this.world.clearLayers(); this.world.setHover(null); }
+  dispose() { this._offPing?.(); for (const p of this.pings.values()) { this.world.detach(p.anchor); this.world.clearLayer(p.layer); clearTimeout(p.timer); } this.pings.clear(); this.unbind(); this.hud?.remove(); this.world.clearLayers(); this.world.setHover(null); }
 
   buildHud() {
     this.hud?.remove();
@@ -53,8 +58,8 @@ export class ExploreScene {
     this.hud = h('div.explore-hud',
       h('div.x-top', h('div.x-title', h('div.x-stage', this.stage.name), h('div.x-sub', this.stage.subtitle), this.el.obj),
         h('div.x-right', this.el.res, h('div.x-buttons',
-          btn(t('Journal'), () => openMenu(this.app), { cls: 'small', iconName: 'book', tip: t('Heroes, equipment, deck, forge, quests (Tab)') }),
-          btn(t('World Map'), () => this.app.toWorldMap(), { cls: 'small', iconName: 'flag', tip: t('Leave — your progress in this stage is kept') })))),
+          this.spectator ? null : btn(t('Journal'), () => openMenu(this.app), { cls: 'small', iconName: 'book', tip: t('Heroes, equipment, deck, forge, quests (Tab)') }),
+          this.spectator ? btn(t('Party Room'), () => lobbyModal(this.app), { cls: 'small', iconName: 'banner' }) : btn(t('World Map'), () => this.app.toWorldMap(), { cls: 'small', iconName: 'flag', tip: t('Leave — your progress in this stage is kept') })))),
       this.el.party, this.el.hint,
       h('div.x-legend', ...[['sword', '#e05a4a', 'Monsters'], ['horns', '#ff8a2a', 'Mini Boss'], ['crown', '#ff3050', 'MVP Boss'], ['chest', '#ffd24a', 'Treasure'], ['gem', '#6fe0c0', 'Resources'], ['question', '#c9a0ff', 'Event'], ['camp', '#7fe08a', 'Rest'], ['coin', '#ffc050', 'Shop'], ['shrine', '#9ad8ff', 'Shrine']].map(([i, c, n]) => h('span', icon(i, c, 16), t(n)))));
     ui().appendChild(this.hud);
@@ -78,15 +83,18 @@ export class ExploreScene {
   bind() {
     const cv = this.world.canvas;
     this._move = (e) => this.onMove(e); this._down = (e) => this.onDown(e);
-    this._key = (e) => { if (e.key === 'Tab') { e.preventDefault(); if (!document.querySelector('.modal-wrap')) openMenu(this.app); } };
-    cv.addEventListener('pointermove', this._move); cv.addEventListener('pointerdown', this._down); window.addEventListener('keydown', this._key);
+    this._key = (e) => { if (e.key === 'Tab') { e.preventDefault(); if (!document.querySelector('.modal-wrap') && !this.spectator) openMenu(this.app); } };
+    this._ctx = (e) => { if (Coop.active) e.preventDefault(); };
+    cv.addEventListener('pointermove', this._move); cv.addEventListener('pointerdown', this._down); window.addEventListener('keydown', this._key); cv.addEventListener('contextmenu', this._ctx);
+    if (Coop.active) { this._offPing = bus.on('coop:pings', (all) => this.showPings(all)); }
   }
-  unbind() { const cv = this.world.canvas; cv.removeEventListener('pointermove', this._move); cv.removeEventListener('pointerdown', this._down); window.removeEventListener('keydown', this._key); }
+  unbind() { const cv = this.world.canvas; cv.removeEventListener('contextmenu', this._ctx); cv.removeEventListener('pointermove', this._move); cv.removeEventListener('pointerdown', this._down); window.removeEventListener('keydown', this._key); }
 
   onMove(e) {
-    if (this.busy) return;
+    if (this.busy && !this.spectator) return;
     const p = this.world.pick(e.clientX, e.clientY);
-    const path = p ? this.sm.pathTo(p) : null;
+    const path = p && !this.spectator ? this.sm.pathTo(p) : null;
+    if (this.spectator) { const ok = p && this.sm.run.seen[Hex.key(p.q, p.r)]; this.world.setHover(ok ? p : null, parseInt(Coop.colorOf(Coop.me).slice(1), 16)); this.world.canvas.style.cursor = ok ? 'pointer' : ''; return; }
     this.world.setHover(path ? p : null, 0xffe9a0);
     this.world.setLayer('path', path || [], { color: 0xffe9a0, opacity: 0.45, y: 0.03 });
     const c = p && this.sm.run.seen[Hex.key(p.q, p.r)] ? this.sm.cell(p) : null; const node = this.sm.activeNode(c);
@@ -95,8 +103,14 @@ export class ExploreScene {
   }
 
   async onDown(e) {
-    if (e.button !== 0 || this.busy) return;
     audio.init();
+    // co-op: guests (left click) and the host (right click) mark a tile — "let's go this way"
+    if (Coop.active && (this.spectator ? e.button === 0 : e.button === 2)) {
+      const p = this.world.pick(e.clientX, e.clientY);
+      if (p && this.sm.run.seen[Hex.key(p.q, p.r)]) { Coop.ping(p.q, p.r); this.showPing(Coop.me, p); audio.sfx('click'); }
+      return;
+    }
+    if (e.button !== 0 || this.busy || this.spectator) return;
     const p = this.world.pick(e.clientX, e.clientY); if (!p) return;
     const path = this.sm.pathTo(p); if (!path || !path.length) return;
     this.busy = true; this.world.clearLayer('path'); this.world.setHover(null);
@@ -106,7 +120,29 @@ export class ExploreScene {
     this.busy = false;
   }
 
+  // ── co-op pings ──
+  showPings(all) {
+    for (const [id, p] of Object.entries(all)) {
+      if (id === Coop.me || !p || Date.now() - p.ts > 15000) continue;
+      const cur = this.pings.get(id); if (cur && cur.ts === p.ts) continue;
+      this.showPing(id, p);
+    }
+  }
+  showPing(id, p) {
+    const w = this.world; const old = this.pings.get(id);
+    if (old) { w.detach(old.anchor); clearTimeout(old.timer); }
+    const color = Coop.colorOf(id); const layer = 'ping_' + id;
+    w.setLayer(layer, [{ q: p.q, r: p.r }], { color: parseInt(color.slice(1), 16), opacity: 0.55, pulse: 5, y: 0.05 });
+    const el = h('div.ping-label', h('div.ping-pill', { style: { '--pc': color } }, h('i', '➤'), Coop.nameOf(id)));
+    const anchor = w.attach(el, () => { const v = w.cellPos(p.q, p.r); v.y += 1.2; return v; });
+    w.ring(w.cellPos(p.q, p.r), parseInt(color.slice(1), 16), 1.1, 600);
+    const timer = setTimeout(() => { w.detach(anchor); w.clearLayer(layer); this.pings.delete(id); }, 7000);
+    this.pings.set(id, { ts: p.ts, anchor, layer, timer });
+    if (id !== Coop.me) { audio.sfx('place'); this.el && (this.el.hint.textContent = t('{name}: let\'s go this way!', { name: Coop.nameOf(id) }), this.el.hint.classList.add('on')); }
+  }
+
   async walk(path) {
+    if (Coop.isHost && !this.spectator) Coop.send({ t: 'walk', path: path.map((s) => ({ q: s.q, r: s.r })) });
     const w = this.world, run = this.sm.run; const n = G.state.party.length;
     for (const step of path) {
       const prev = [...this.trail];
@@ -139,18 +175,27 @@ export class ExploreScene {
     switch (node.type) {
       case 'monster': case 'mini': case 'boss': {
         const enc = sm.encounterFor(c);
+        if (Coop.isHost) Coop.send({ t: 'note', text: 'The host is deciding whether to fight {name}…', vars: { name: node.name } });
         const go = await this.encounterPrompt(enc, node);
         if (go) await this.app.startBattle(enc, c); else await this.retreat();
         break;
       }
-      case 'treasure': { audio.sfx('chest'); const r = sm.openTreasure(c); this.clearNode(c); await lootModal(t('Treasure Cache'), r); break; }
-      case 'resource': { audio.sfx('coin'); const r = sm.gatherResource(c); this.clearNode(c); await lootModal(t('Resources Gathered'), r); break; }
-      case 'rest': await this.restPrompt(c); break;
-      case 'shop': await this.shop(c); break;
+      case 'treasure': { audio.sfx('chest'); const r = sm.openTreasure(c); this.clearNode(c); this.share('loot', { title: 'Treasure Cache', r }); await lootModal(t('Treasure Cache'), r); break; }
+      case 'resource': { audio.sfx('coin'); const r = sm.gatherResource(c); this.clearNode(c); this.share('loot', { title: 'Resources Gathered', r }); await lootModal(t('Resources Gathered'), r); break; }
+      case 'rest': this.share('note', { text: 'The host found a rest site.' }); await this.restPrompt(c); break;
+      case 'shop': this.share('note', { text: 'The host is browsing the merchant.' }); await this.shop(c); break;
       case 'event': case 'shrine': await this.event(c); break;
       default: break;
     }
     this.refreshHud();
+  }
+
+  share(type, data) { if (Coop.isHost) Coop.send({ t: type, ...data }); }
+  // Guests: read-only view of an event the host resolved.
+  eventView(m) {
+    if (m.cell) this.clearNode(this.sm.cell(m.cell));
+    openModal(h('div.event', h('div.big-icon', icon(m.icon, '#e8d8a8', 72)), h('p.event-text', m.text), h('p.event-text', h('b', m.choice)), h('p.event-text', m.msg), h('div.gains', ...(m.gains || []).map((g) => h('div.gain', g)))),
+      { title: m.title, cls: 'narrow event-modal coop-view' });
   }
 
   encounterPrompt(enc, node) {
@@ -201,6 +246,7 @@ export class ExploreScene {
       body.replaceChildren(h('div.big-icon', icon(ev.icon, '#e8d8a8', 72)), h('p.event-text', ev.text),
         h('div.choices', ...ev.choices.map((ch) => btn(ch.label, async () => {
           const out = this.sm.resolveChoice(c, ch);
+          this.share('event', { title: ev.title, icon: ev.icon, text: ev.text, choice: ch.label, msg: out.msg, gains: out.gains, cell: out.fight ? null : { q: c.q, r: c.r } });
           audio.sfx(out.fight ? 'boss' : out.gains.length ? 'chest' : 'click');
           body.replaceChildren(h('div.big-icon', icon(ev.icon, '#e8d8a8', 72)), h('p.event-text', out.msg), h('div.gains', ...out.gains.map((g) => h('div.gain', g))),
             h('div.row.center', btn(t(out.fight ? 'To battle!' : 'Continue'), async () => { m.close(); if (out.fight) await this.app.startBattle(this.sm.ambush(), c); else this.clearNode(c); res(); }, { cls: 'primary' })));
@@ -221,18 +267,20 @@ function lootRows(r) {
   return rows;
 }
 
-export function lootModal(title, r) {
+export function lootModal(title, r, { view = false } = {}) {
+  if (view) title = t(title);
   return new Promise((res) => {
     const m = openModal(h('div.rewards', h('div.loot-list', ...lootRows(r)), (r.items || []).length ? h('div.item-list', ...r.items.map((it) => itemEl(it))) : null,
       (r.cards || []).length ? h('div.card-grid.center', ...r.cards.map((id) => cardEl(id, 0, { small: true }))) : null,
-      h('div.row.center', btn(t('Take'), () => { m.close(); res(); }, { cls: 'primary' }))), { title, closable: false, cls: 'narrow' });
+      h('div.row.center', btn(t(view ? 'OK' : 'Take'), () => { m.close(); res(); }, { cls: 'primary' }))), { title, closable: view, cls: 'narrow' + (view ? ' coop-view' : ''), onClose: res });
   });
 }
 
-export function rewardsModal(r, kind) {
+export function rewardsModal(r, kind, { view = false } = {}) {
   return new Promise((res) => {
     const body = h('div.rewards');
-    const m = openModal(body, { title: t(kind === 'boss' ? 'MVP Defeated!' : 'Spoils of Battle'), closable: false, cls: 'rewards-modal' });
+    const m = openModal(body, { title: t(kind === 'boss' ? 'MVP Defeated!' : 'Spoils of Battle'), closable: view, cls: 'rewards-modal' + (view ? ' coop-view' : ''), onClose: res });
+    r.items = r.items || []; r.fixedCards = r.fixedCards || []; r.levelUps = r.levelUps || [];
     r.levelUps.forEach((l, i) => setTimeout(() => audio.sfx('levelup'), 400 + i * 300));
     const finish = () => { m.close(); res(); };
     const choices = r.cardChoices ? h('div.card-pick', h('div.sec-title', t('Choose a card reward')), h('div.card-grid.center', ...r.cardChoices.map((id) => { const el = cardEl(id, G.state.cards[id]?.lv || 0); el.classList.add('pickable'); el.onclick = () => { addCard(id); audio.sfx('draw'); audio.sfx('buff'); toast(t('{name} added to your collection', { name: CARDS[id].name }), 'good'); finish(); }; return el; })),

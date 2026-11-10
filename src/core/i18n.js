@@ -7,6 +7,7 @@ let saved = null;
 try { saved = localStorage.getItem(KEY); } catch { /* storage blocked */ }
 export const LANG = saved === 'en' ? 'en' : 'th';
 const DICT = LANG === 'th' ? TH : {};
+if (typeof document !== 'undefined') document.documentElement.lang = LANG; // lets CSS adapt typography per script
 
 export function t(s, vars) {
   if (s == null) return s;

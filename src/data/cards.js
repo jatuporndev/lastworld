@@ -202,12 +202,39 @@ export const STATUS_INFO = {
   stealth: { name: 'Stealth', color: '#9a8ab0', icon: '◐', desc: '+50% evasion. Breaks when you attack.' },
 };
 
+// ───────── dice ─────────
+// Heroes roll coloured dice for every damage / block / heal card, and the card prints its formula,
+// e.g. "[red ×2] + 8 damage" = roll two red dice and add 8. Face values are added as-is.
+//   red (ATK attacks): ✸ = 3 and a guaranteed critical hit
+//   blue (MATK spells): ◈ = 2 and +1 stack on every status the card applies
+//   green (block / heal): ★ = 2 and doubles the dice total
+export const DICE = {
+  red: [{ v: 0 }, { v: 2 }, { v: 2 }, { v: 3 }, { v: 4 }, { v: 3, k: 'crit' }],
+  blue: [{ v: 0 }, { v: 2 }, { v: 3 }, { v: 3 }, { v: 2, k: 'surge' }, { v: 2, k: 'surge' }],
+  green: [{ v: 0 }, { v: 2 }, { v: 2 }, { v: 3 }, { v: 3 }, { v: 2, k: 'star' }],
+};
+export const DICE_NAME = { red: 'Red', blue: 'Blue', green: 'Green' };
+// Which dice a card rolls (null = none): colour from its first damage stat, count from cost and rarity.
+export function diceOf(card) {
+  const off = card.fx.find((f) => f.t === 'dmg'); const sup = card.fx.find((f) => f.t === 'block' || f.t === 'heal');
+  if (!off && !sup) return null;
+  const color = off ? (off.s === 'matk' ? 'blue' : 'red') : 'green';
+  const n = Math.min(4, 1 + (card.cost >= 2 ? 1 : 0) + (card.cost >= 3 ? 1 : 0) + (['epic', 'legendary'].includes(card.rarity) ? 1 : 0));
+  return { color, n };
+}
+// Card text carries dice as a marker like ⟦red:2⟧; diceText() makes it plain text, cards render it as chips.
+export const diceMark = (d) => `⟦${d.color}:${d.n}⟧`;
+export const diceLabel = (color, n) => t('{c} die ×{n}', { c: t(DICE_NAME[color]), n });
+export const diceText = (s) => s.replace(/⟦(\w+):(\d+)⟧/g, (_, c, n) => '🎲' + diceLabel(c, +n));
+
 export function describeCard(card, unit = null) {
+  const dice = unit === false ? null : diceOf(card); let diceUsed = false;
+  const withDice = (v) => { if (!dice || diceUsed) return v; diceUsed = true; return `${diceMark(dice)} + ${v}`; };
   const parts = [];
   for (const f of card.fx) {
     switch (f.t) {
       case 'dmg': {
-        const v = unit && f.s ? Math.round(f.v + (unit.stats?.[f.s] || 0) * f.m) : `${f.v}${f.s ? ` + ${Math.round(f.m * 100)}% ${STAT_NAMES[f.s]}` : ''}`;
+        const v = withDice(unit && f.s ? Math.round(f.v + (unit.stats?.[f.s] || 0) * f.m) : `${f.v}${f.s ? ` + ${Math.round(f.m * 100)}% ${STAT_NAMES[f.s]}` : ''}`);
         let s = card.el !== 'neutral' ? t('Deal {v} {el} damage', { v, el: ELEMENTS[card.el].name }) : t('Deal {v} damage', { v });
         if (f.hits > 1) s += ` ×${f.hits}`;
         if (f.fromBlock) s += t(', +{n}% of your Block', { n: Math.round(f.fromBlock * 100) });
@@ -216,8 +243,8 @@ export function describeCard(card, unit = null) {
         if (f.drain) s += t('. Heal {n}% of damage dealt', { n: f.drain * 100 });
         parts.push(s + t('.')); break;
       }
-      case 'block': parts.push(t(f.self ? 'Gain {v} Block.' : 'Grant {v} Block.', { v: `${f.v}${f.s ? ` + ${Math.round(f.m * 100)}% ${STAT_NAMES[f.s]}` : ''}` })); break;
-      case 'heal': parts.push(t(f.self ? 'Heal yourself {v} HP.' : 'Heal {v} HP.', { v: `${f.v}${f.s ? ` + ${Math.round(f.m * 100)}% ${STAT_NAMES[f.s]}` : ''}` })); break;
+      case 'block': parts.push(t(f.self ? 'Gain {v} Block.' : 'Grant {v} Block.', { v: dice?.color === 'green' ? withDice(flat(f, unit)) : flat(f, unit) })); break;
+      case 'heal': parts.push(t(f.self ? 'Heal yourself {v} HP.' : 'Heal {v} HP.', { v: dice?.color === 'green' ? withDice(flat(f, unit)) : flat(f, unit) })); break;
       case 'status': parts.push(t(f.self ? 'Gain {st}.' : STATUS_INFO[f.st].debuff ? 'Apply {st}.' : 'Grant {st}.', { st: `${STATUS_INFO[f.st].name}${['stun', 'frozen', 'mark', 'stealth'].includes(f.st) ? '' : ' ' + f.n}` })); break;
       case 'move': parts.push(t('Move up to {n} hexes.', { n: f.v })); break;
       case 'teleport': parts.push(t('Teleport to a hex within {n}.', { n: card.range })); break;
@@ -240,5 +267,6 @@ export function describeCard(card, unit = null) {
     parts.push(t('Combo (after {cat}): {bonus}.', { cat: t(card.combo.after), bonus: `${b.dmg ? t('+{n} damage', { n: b.dmg }) : ''}${b.status ? STATUS_INFO[b.status.st].name : ''}` }));
   }
   const n = card.size; const shape = card.shape === 'line' ? t('Line {n}', { n }) : card.shape === 'cone' ? t('Cone {n}', { n }) : card.shape === 'area' ? t('Area r{n}', { n }) : card.shape === 'burst' ? t('Around self r{n}', { n }) : null;
-  return { text: parts.join(' '), shape };
+  return { text: parts.join(' '), shape, dice };
 }
+const flat = (f, unit) => (unit && f.s ? Math.round(f.v + (unit.stats?.[f.s] || 0) * f.m) : `${f.v}${f.s ? ` + ${Math.round(f.m * 100)}% ${STAT_NAMES[f.s]}` : ''}`);

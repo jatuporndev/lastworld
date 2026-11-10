@@ -13,6 +13,7 @@ import { CARDS } from '../data/cards.js';
 import { Net } from '../net/firebase.js';
 import { ui, btn, icon, openModal, heroSprite, monsterSprite, cardEl, toast, toggleFullscreen, confirmBox, bar } from './components.js';
 import { openMenu } from './panels.js';
+import { coopModal } from './coopUI.js';
 
 function mount(el) { ui().querySelectorAll('.screen').forEach((s) => s.remove()); ui().appendChild(el); return el; }
 export function clearScreens() { ui().querySelectorAll('.screen, .battle-hud, .explore-hud').forEach((s) => s.remove()); }
@@ -27,46 +28,99 @@ export function titleScreen(app) {
     h('div.title-menu',
       st ? btn(t('Continue'), () => app.continueGame(), { cls: 'primary big', iconName: 'sword' }) : null,
       st ? h('div.continue-info', t('{party} — Stage {n}{prog}', { party: st.party.map((p) => `${p.name} Lv ${p.level}`).join(' · '), n: Math.min(6, st.unlocked), prog: st.run ? t(' (in progress)') : '' })) : null,
-      btn(t('New Game'), async () => { if (!st || await confirmBox(t('Start a New Game?'), t('This will overwrite your current campaign save.'), t('Start Over'))) app.toCharSelect(); }, { cls: 'big', iconName: 'star' }),
-      btn(t(Net.online && Net.user ? 'Account' : 'Sign In'), () => app.openAuth(() => app.toTitle(true)), { cls: 'big', iconName: 'book' }),
-      btn(t('Fullscreen'), toggleFullscreen, { cls: 'big', iconName: 'flag' }),
-      btn(LANG === 'th' ? 'English' : 'ภาษาไทย', () => setLang(LANG === 'th' ? 'en' : 'th'), { cls: 'big', iconName: 'star' })),
+      btn(t('New Game'), async () => { if (!st || await confirmBox(t('Start a New Game?'), t('This will overwrite your current campaign save.'), t('Start Over'))) app.toCharSelect(); }, { cls: st ? 'big ghost' : 'primary big', iconName: 'star' }),
+      btn(t('Play with Friends'), () => coopModal(app), { cls: 'big ghost', iconName: 'banner', disabled: !Net.online }),
+      btn(t(Net.online && Net.user ? 'Account' : 'Sign In'), () => app.openAuth(() => app.toTitle(true)), { cls: 'big ghost', iconName: 'book' }),
+      btn(t('Fullscreen'), toggleFullscreen, { cls: 'big ghost', iconName: 'flag' }),
+      btn(LANG === 'th' ? 'English' : 'ภาษาไทย', () => setLang(LANG === 'th' ? 'en' : 'th'), { cls: 'big ghost', iconName: 'star' })),
     h('div.title-foot', h('span.net' + (Net.online && Net.user ? '.on' : ''), Net.label()), h('span', 'v1.0 · Three.js · Firebase')));
   return mount(el);
 }
 
 // ───────── Auth ─────────
+// The account gate: crest + heading, then one focused task per view.
+const authHead = (title, sub, ic = 'crown') => h('div.auth-head',
+  h('div.auth-crest', h('div.auth-crest-ring'), icon(ic, '#f6d98a', 46)),
+  h('h2.auth-title', title), sub ? h('p.auth-sub', sub) : null);
+const AUTH_ERRORS = {
+  'auth/invalid-email': 'That email address is not valid.',
+  'auth/invalid-credential': 'Wrong email or password.',
+  'auth/wrong-password': 'Wrong email or password.',
+  'auth/user-not-found': 'Wrong email or password.',
+  'auth/missing-password': 'Enter your password.',
+  'auth/email-already-in-use': 'An account with this email already exists. Sign in instead.',
+  'auth/credential-already-in-use': 'An account with this email already exists. Sign in instead.',
+  'auth/weak-password': 'The password needs at least 6 characters.',
+  'auth/too-many-requests': 'Too many attempts. Please wait a moment and try again.',
+  'auth/network-request-failed': 'Cannot reach the server. Check your connection.',
+  'auth/operation-not-allowed': 'This sign-in method is not enabled for the game yet.',
+  'auth/admin-restricted-operation': 'This sign-in method is not enabled for the game yet.',
+};
+const authError = (e) => t(AUTH_ERRORS[e?.code] || 'Something went wrong');
+
 export function authModal(app, done) {
-  const msg = h('div.auth-msg');
+  const finish = (m) => { m.close(); done?.(); };
   if (!Net.online) {
-    const m = openModal(h('div.auth', h('p', t('Cloud accounts are not configured for this build, so the game is running in offline mode. Your campaign is saved automatically in this browser.')),
-      h('p.note', t('To enable Firebase Authentication and Realtime Database saves, add your project keys to src/net/firebase-config.js (or a .env file) — see README.md.')),
-      h('div.row.center', btn(t('OK'), () => m.close(), { cls: 'primary' }))), { title: t('Account'), cls: 'narrow' });
+    const m = openModal(h('div.auth',
+      authHead(t('Offline Mode'), t('Cloud accounts are not configured for this build, so the game is running in offline mode. Your campaign is saved automatically in this browser.'), 'shield'),
+      h('div.auth-actions', btn(t('OK'), () => m.close(), { cls: 'primary block' }))), { cls: 'auth-modal' });
     return m;
   }
   if (Net.user) {
-    const m = openModal(h('div.auth', h('p', Net.user.guest ? t('You are playing on a guest account. Register an email to keep your save across devices.') : t('Signed in as {email}', { email: Net.user.email })), msg,
-      Net.user.guest ? authForm(app, msg, () => { m.close(); done?.(); }, true) : null,
-      h('div.row.center', btn(t('Sign Out'), async () => { await app.saveNow(); await Net.signOut(); m.close(); toast(t('Signed out')); done?.(); }), btn(t('Close'), () => m.close(), { cls: 'primary' }))), { title: t('Account'), cls: 'narrow' });
+    const m = openModal(h('div.auth',
+      authHead(Net.user.guest ? t('Guest Adventurer') : t('Account'), Net.user.guest ? t('You are playing on a guest account. Register an email to keep your save across devices.') : null, Net.user.guest ? 'flag' : 'crown'),
+      Net.user.guest ? null : h('div.auth-id', h('small', t('Signed in as')), h('b', Net.user.email)),
+      h('div.auth-status', h('i.dot.on'), Net.label()),
+      Net.user.guest ? authForm(app, () => finish(m), 'upgrade') : null,
+      h('div.auth-actions.split',
+        btn(t('Sign Out'), async () => { await app.saveNow(); await Net.signOut(); toast(t('Signed out')); finish(m); }, { cls: 'ghost' }),
+        btn(t('Close'), () => m.close(), { cls: Net.user.guest ? 'ghost' : 'primary' }))), { cls: 'auth-modal' });
     return m;
   }
-  const m = openModal(h('div.auth', h('p', t('Sign in to save your campaign to the cloud and continue on any device.')), msg, authForm(app, msg, () => { m.close(); done?.(); }, false)), { title: t('Sign In'), cls: 'narrow' });
+  const body = h('div.auth');
+  const m = openModal(body, { cls: 'auth-modal' });
+  let mode = 'signin';
+  const render = () => body.replaceChildren(
+    authHead(t('Adventurer Account'), t('Sign in to save your campaign to the cloud and continue on any device.')),
+    h('div.auth-tabs', ...[['signin', 'Sign In'], ['signup', 'Create Account']].map(([id, label]) =>
+      h('button.auth-tab' + (mode === id ? '.on' : ''), { type: 'button', onclick: () => { if (mode !== id) { mode = id; audio.sfx('click'); render(); } } }, t(label)))),
+    authForm(app, () => finish(m), mode),
+    h('div.auth-or', h('span', t('or'))),
+    btn(t('Play as Guest'), async (e) => {
+      const b = e.currentTarget; b.disabled = true;
+      try { await Net.signInGuest(); await app.onSignedIn(); finish(m); }
+      catch (err) { toast(authError(err), 'bad'); audio.sfx('error'); b.disabled = false; }
+    }, { cls: 'ghost block', iconName: 'flag' }),
+    h('p.auth-note', t('Your progress is always saved on this device too.')));
+  render();
   return m;
 }
 
-function authForm(app, msg, ok, upgradeOnly) {
-  const email = h('input', { type: 'email', placeholder: t('Email'), autocomplete: 'email' });
-  const pass = h('input', { type: 'password', placeholder: t('Password (6+ characters)'), autocomplete: 'current-password' });
-  const run = async (fn, label) => {
-    msg.textContent = t(label) + '…'; msg.className = 'auth-msg';
-    try { await fn(); await app.onSignedIn(); ok(); }
-    catch (e) { msg.textContent = (e.code || e.message || t('Something went wrong')).replace('auth/', '').replace(/-/g, ' '); msg.className = 'auth-msg bad'; audio.sfx('error'); }
-  };
-  return h('div.auth-form', email, pass,
-    h('div.row.center',
-      upgradeOnly ? null : btn(t('Sign In'), () => run(() => Net.signIn(email.value.trim(), pass.value), 'Signing in'), { cls: 'primary' }),
-      btn(t(upgradeOnly ? 'Register this account' : 'Create Account'), () => run(() => Net.signUp(email.value.trim(), pass.value), 'Creating account'), { cls: upgradeOnly ? 'primary' : '' })),
-    upgradeOnly ? null : h('div.row.center', btn(t('Play as Guest'), () => run(() => Net.signInGuest(), 'Connecting'), { cls: 'small' })));
+// mode: 'signin' | 'signup' | 'upgrade' (link the current guest account to an email)
+function authForm(app, ok, mode) {
+  const signin = mode === 'signin';
+  const msg = h('div.auth-msg', { role: 'status' });
+  const email = h('input', { type: 'email', name: 'email', autocomplete: 'email', required: true, autofocus: true, placeholder: 'name@example.com' });
+  const pass = h('input', { type: 'password', name: 'password', autocomplete: signin ? 'current-password' : 'new-password', required: true, minlength: 6, placeholder: '••••••' });
+  const reveal = h('button.auth-eye', { type: 'button', 'data-tip': t('Show password'), onclick: () => { pass.type = pass.type === 'password' ? 'text' : 'password'; reveal.classList.toggle('on', pass.type === 'text'); } }, '👁');
+  const submit = btn(t(signin ? 'Sign In' : mode === 'upgrade' ? 'Register this account' : 'Create Account'), null, { cls: 'primary block big' });
+  submit.type = 'submit';
+  const field = (label, input, extra = null, hint = null) => h('label.auth-field', h('span.auth-label', label), h('div.auth-input', input, extra), hint ? h('small.auth-hint', hint) : null);
+  return h('form.auth-form', {
+    novalidate: true,
+    onsubmit: async (e) => {
+      e.preventDefault();
+      const em = email.value.trim(), pw = pass.value;
+      if (!em) { msg.textContent = t('Enter your email.'); msg.className = 'auth-msg bad'; email.focus(); return; }
+      if (pw.length < 6) { msg.textContent = t('The password needs at least 6 characters.'); msg.className = 'auth-msg bad'; pass.focus(); return; }
+      submit.disabled = true; msg.textContent = t(signin ? 'Signing in' : 'Creating account') + '…'; msg.className = 'auth-msg busy';
+      try { await (signin ? Net.signIn(em, pw) : Net.signUp(em, pw)); await app.onSignedIn(); audio.sfx('levelup'); ok(); }
+      catch (err) { msg.textContent = authError(err); msg.className = 'auth-msg bad'; audio.sfx('error'); submit.disabled = false; }
+    },
+  },
+  field(t('Email'), email),
+  field(t('Password'), pass, reveal, signin ? null : t('At least 6 characters')),
+  msg, submit);
 }
 
 // ───────── Character Selection ─────────

@@ -7,23 +7,80 @@ import { t } from '../core/i18n.js';
 const tr = t; // for scopes with a local variable named t
 import { audio } from '../core/audio.js';
 import { elColor } from '../engine/renderer.js';
-import { Battle } from '../game/combat.js';
+import { Battle, DICE } from '../game/combat.js';
 import { ACTION_SLOTS } from '../game/cardEngine.js';
 import { G, cardLevel } from '../game/state.js';
-import { ELEMENTS, STATUS_INFO, describeCard } from '../data/cards.js';
+import { ELEMENTS, STATUS_INFO, describeCard, diceText } from '../data/cards.js';
 import { terrainOf } from '../data/terrain.js';
 import { CONSUMABLES } from '../data/items.js';
 import { CLASSES } from '../data/classes.js';
-import { ui, cardEl, unitSprite, statusChips, bar, btn, icon, toast, banner, openModal } from './components.js';
+import { Coop } from '../net/coop.js';
+import { bus } from '../core/util.js';
+import { ui, cardEl, unitSprite, statusChips, bar, btn, icon, toast, banner, openModal, diceChip } from './components.js';
 
 const INTENT_ICON = { strike: 'sword', shoot: 'arrow', aoe: 'meteor', guard: 'shield', buff: 'star', heal: 'cross', summon: 'skull' };
 const EL_SFX = { fire: 'fire', ice: 'ice', wind: 'wind', earth: 'earth', holy: 'holy', shadow: 'shadow', poison: 'poison', neutral: 'slash', arcane: 'magic' };
 
 export class BattleScene {
-  constructor(app, { stage, enc }) {
+  constructor(app, { stage, enc, seed = Date.now() }) {
     this.app = app; this.world = app.world; this.stage = stage; this.enc = enc;
     this.labels = new Map(); this.pending = null; this.inputOn = false; this.hoverCell = null; this.inspect = null;
-    this.battle = new Battle({ stage, enemies: enc.enemies, kind: enc.kind, party: G.state.party, levelOf: cardLevel, inv: G.state.inv, nextBuff: G.state.nextBuff, view: this });
+    this.battle = new Battle({ stage, enemies: enc.enemies, kind: enc.kind, party: G.state.party, levelOf: cardLevel, inv: G.state.inv, nextBuff: G.state.nextBuff, view: this, seed });
+    // co-op lockstep: every hero action is a numbered command applied in the same order on every client
+    this.cmdN = 0; this.remote = new Map(); this.applying = false;
+    this.coop = Coop.active;
+    if (this.coop) {
+      for (const m of Coop.bbuf || []) if (m.seed === seed) this.remote.set(m.n, m); // commands that arrived before this scene
+      Coop.bbuf = [];
+      this._offs = [bus.on('coop:msg', (m) => { if (m.t === 'b' && m.seed === this.battle.seed) { this.remote.set(m.n, m); this.drain(); } }),
+        bus.on('coop:players', () => this.ownersChanged())];
+    }
+  }
+
+  // ───────── co-op ─────────
+  // Whether this client may act for a hero unit.
+  canControl(u) { return !this.coop || Coop.controls(G.state.party.indexOf(u.hero)); }
+  ownerName(u) { return Coop.nameOf(Coop.ownerOf(G.state.party.indexOf(u.hero))); }
+  ready(u = this.hero()) { return !!u && !!this.battle._endTurn && !this.battle.busy && !this.applying && !this.battle.result; }
+  inputReady() { this.ownersChanged(); this.drain(); }
+  ownersChanged() {
+    if (!this.el) return;
+    const u = this.hero();
+    const can = !!u && this.ready(u) && this.canControl(u) && !this.remote.has(this.cmdN);
+    if (can !== this.inputOn) { this.inputOn = can; if (!can) this.pending = null; this.renderHand(); this.refreshBoard(); }
+    else this.setHint();
+  }
+  // Local action: publish it (co-op), then apply it.
+  async act(cmd) {
+    const u = this.hero(); if (!u) return;
+    if (this.coop) Coop.send({ t: 'b', seed: this.battle.seed, n: this.cmdN, u: u.uid, ...cmd });
+    await this.apply(cmd);
+  }
+  async apply(c) {
+    const b = this.battle; const u = b.current;
+    this.cmdN++; this.applying = true; this.inputOn = false;
+    try {
+      switch (c.k) {
+        case 'move': await b.heroMove(u, { q: c.q, r: c.r }); break;
+        case 'plan': if (b.plan(u, c.c, c.q == null ? null : { q: c.q, r: c.r })) audio.sfx('place'); else audio.sfx('error'); break;
+        case 'unplan': if (b.unplan(u)) audio.sfx('close'); break;
+        case 'exec': await b.execute(u); break;
+        case 'end': await b.endHeroTurn(u); break;
+        case 'item': await b.useItem(u, c.id); break;
+        default: break;
+      }
+    } finally { this.applying = false; }
+    if (!b.result) { this.renderHand(); this.refreshBoard(); }
+    this.drain();
+  }
+  // Apply queued remote commands once the battle reaches the point they were made at.
+  drain() {
+    const c = this.remote.get(this.cmdN);
+    if (!c) { this.ownersChanged(); return; }
+    if (!this.ready() || this.battle.current?.uid !== c.u) return;
+    this.remote.delete(this.cmdN);
+    this.pending = null;
+    this.apply(c);
   }
 
   // ───────── lifecycle ─────────
@@ -46,6 +103,7 @@ export class BattleScene {
   }
 
   dispose() {
+    this._offs?.forEach((off) => off());
     this.unbind();
     for (const l of this.labels.values()) this.world.detach(l.anchor);
     this.labels.clear();
@@ -189,7 +247,7 @@ export class BattleScene {
         const e = u.plan[i - u.slotsUsed];
         if (e) {
           const c = e.inst.card; const last = i - u.slotsUsed === u.plan.length - 1;
-          slots.push(h('div.slot.filled' + (last ? '.last' : ''), { style: { '--el': ELEMENTS[c.el].color }, 'data-tip': last ? t('Click to remove') : describeCard(c, u).text, onclick: () => { if (last) this.undo(); } },
+          slots.push(h('div.slot.filled' + (last ? '.last' : ''), { style: { '--el': ELEMENTS[c.el].color }, 'data-tip': last ? t('Click to remove') : diceText(describeCard(c, u).text), onclick: () => { if (last) this.undo(); } },
             h('div.slot-n', i + 1), icon(c.icon, '#fff', 30), h('div.slot-name', c.name)));
         } else slots.push(h('div.slot.empty' + (this.pending && i === u.slotsUsed + u.plan.length ? '.awaiting' : ''), h('div.slot-n', i + 1), h('span', this.pending && i === u.slotsUsed + u.plan.length ? t('Choose target') : t('Drop card'))));
       }
@@ -206,7 +264,8 @@ export class BattleScene {
 
   setHint() {
     const u = this.hero(); let t = '';
-    if (!u || !this.inputOn) t = this.battle.current && !this.battle.current.cards ? tr("{name}'s turn…", { name: this.battle.current.name }) : '';
+    if (u && this.coop && !this.canControl(u)) t = tr('{player} is playing {name}…', { player: this.ownerName(u), name: u.name });
+    else if (!u || !this.inputOn) t = this.battle.current && !this.battle.current.cards ? tr("{name}'s turn…", { name: this.battle.current.name }) : '';
     else if (this.pending) t = this.pending.T.mode === 'dir' ? tr('Choose a direction — right-click to cancel') : tr('Choose a target — right-click to cancel');
     else if (!u.moved && !u.plan.length && this.battle.moveBudget(u) > 0) t = tr('Click a blue hex to move · Drag cards into Action Slots');
     else t = tr(u.plan.length ? 'Execute your plan, or add more cards' : 'Drag cards into Action Slots · End Turn when done');
@@ -306,9 +365,7 @@ export class BattleScene {
     const m = this.battle.moveOptions(u);
     if (m && m.costs.has(Hex.key(p.q, p.r)) && !Hex.hexEq(p, u)) {
       this.inputOn = false; this.world.clearLayers(['telegraph']);
-      await this.battle.heroMove(u, { q: p.q, r: p.r });
-      this.inputOn = !this.battle.result && this.battle.current === u && u.alive;
-      this.renderHand(); this.refreshBoard();
+      await this.act({ k: 'move', q: p.q, r: p.r });
     }
   }
 
@@ -318,8 +375,8 @@ export class BattleScene {
     if (!cell && p.unit) cell = pend.T.cells.find((c) => c.uid === p.unit.uid);
     if (!cell) { audio.sfx('error'); return false; }
     this.pending = null;
-    if (this.battle.plan(u, pend.inst.uid, cell)) audio.sfx('place'); else audio.sfx('error');
-    this.renderHand(); this.refreshBoard();
+    if (!this.battle.canPlan(u, pend.inst.uid, cell)) { audio.sfx('error'); this.renderHand(); this.refreshBoard(); return true; }
+    await this.act({ k: 'plan', c: pend.inst.uid, q: cell.q, r: cell.r });
     return true;
   }
 
@@ -333,8 +390,8 @@ export class BattleScene {
     this.world.clearLayer('range');
     if (T.mode === 'none') {
       this.pending = null;
-      if (this.battle.plan(u, inst.uid, null)) audio.sfx('place');
-      this.renderHand(); this.refreshBoard(); return;
+      if (this.battle.canPlan(u, inst.uid, null)) this.act({ k: 'plan', c: inst.uid });
+      return;
     }
     if (!T.cells.length) { toast(t(inst.card.tg === 'hex' ? 'No valid destination' : 'No valid target in range'), 'bad'); audio.sfx('error'); this.cancelPending(); return; }
     this.pending = { inst, T };
@@ -386,26 +443,24 @@ export class BattleScene {
     else if (/^[1-9]$/.test(e.key)) { const u = this.hero(); const inst = u?.cards.hand[+e.key - 1]; if (inst) this.choose(inst); }
   }
 
-  undo() { const u = this.hero(); if (!u || !this.inputOn || this.battle.busy) return; this.pending = null; if (this.battle.unplan(u)) audio.sfx('close'); this.renderHand(); this.refreshBoard(); }
+  undo() { const u = this.hero(); if (!u || !this.inputOn || this.battle.busy || !u.plan.length) return; this.pending = null; this.act({ k: 'unplan' }); }
 
   async execute() {
     const u = this.hero(); if (!u || !this.inputOn || this.battle.busy || !u.plan.length) return;
     this.pending = null; this.inputOn = false; this.world.clearLayers(['telegraph']); this.renderHand();
-    await this.battle.execute(u);
-    this.inputOn = !this.battle.result && this.battle.current === u && u.alive && !!this.battle._endTurn;
-    this.renderHand(); this.refreshBoard();
+    await this.act({ k: 'exec' });
   }
 
   async endTurn() {
     const u = this.hero(); if (!u || !this.inputOn || this.battle.busy) return;
     this.pending = null; this.inputOn = false; this.world.clearLayers(['telegraph']); this.renderHand();
-    await this.battle.endHeroTurn(u);
+    await this.act({ k: 'end' });
   }
 
   openItems() {
     const u = this.hero(); if (!u || !this.inputOn) return;
     const list = Object.entries(G.state.inv.cons).map(([id, n]) => { const c = CONSUMABLES[id];
-      return h('div.item', { style: { '--rar': c.color }, onclick: async () => { m.close(); this.inputOn = false; await this.battle.useItem(u, id); this.inputOn = !this.battle.result && this.battle.current === u && u.alive; this.renderHand(); this.refreshBoard(); } },
+      return h('div.item', { style: { '--rar': c.color }, onclick: async () => { m.close(); if (!this.inputOn || u.itemUsed) return; this.inputOn = false; await this.act({ k: 'item', id }); } },
         h('div.item-icon', icon(c.icon, c.color, 34)), h('div.item-info', h('div.item-name', c.name), h('div.item-sub', c.desc)), h('div.item-tag', '×' + n)); });
     const m = openModal(h('div.item-list', ...list), { title: t('Use Item — {name}', { name: u.name }), cls: 'narrow' });
   }
@@ -437,7 +492,8 @@ export class BattleScene {
         break;
       }
       case 'heroTurn': {
-        audio.sfx('turn'); this.inspect = d.unit; this.inputOn = true;
+        audio.sfx('turn'); this.inspect = d.unit; this.inputOn = false; // enabled by inputReady() once the battle waits for input
+        if (this.coop) toast(this.canControl(d.unit) ? tr('Your turn — {name}', { name: d.unit.name }) : tr("{player}'s turn — {name}", { player: this.ownerName(d.unit), name: d.unit.name }), this.canControl(d.unit) ? 'good' : '');
         d.drawn.forEach((_, i) => setTimeout(() => audio.sfx('draw'), i * 90));
         this.renderHand(d.drawn); this.syncAll(); this.refreshBoard();
         break;
@@ -462,6 +518,7 @@ export class BattleScene {
         await sleep(160);
         break;
       }
+      case 'dice': await this.showDice(d); break;
       case 'cast': await this.castFx(d); break;
       case 'hit': {
         const { tgt, dmg, blocked, crit, el, tags, dot, killed } = d;
@@ -527,6 +584,42 @@ export class BattleScene {
       }
       default: break;
     }
+  }
+
+  // Dice tray: shows the card's dice formula, the dice tumble and land one by one, then the total. Click to skip.
+  async showDice({ dice, card, unit }) {
+    const SYM = { crit: '✸', surge: '◈', star: '★' };
+    const faceEl = (f) => [h('span', String(f.v)), f.k ? h('i', SYM[f.k]) : null];
+    const faces = DICE[dice.color];
+    const els = dice.faces.map(() => h(`div.die.${dice.color}.rolling`, h('span')));
+    const flat = describeCard(card, unit).text.match(/⟦\w+:\d+⟧ \+ (\d+)/)?.[1];
+    const head = h('div.dice-head', h('b', card.name), h('span', diceChip(dice.color, dice.faces.length), flat ? ` + ${flat}` : ''));
+    const parts = [];
+    const what = dice.color === 'green' ? t('Rolled {n}', { n: dice.total }) : t('Rolled {n} damage', { n: dice.total });
+    parts.push(dice.stars ? `${dice.faces.map((f) => f.v).join(' + ')} ×${1 + dice.stars} = ${dice.total}` : `${dice.faces.map((f) => f.v).join(' + ')} = ${dice.total}`);
+    if (dice.crit) parts.push(t('Critical!'));
+    if (dice.surge) parts.push(t('+{n} status stacks', { n: dice.surge }));
+    if (dice.stars) parts.push(t('Bonus doubled!'));
+    const sum = h('div.dice-sum', h('div.ds-total', what), h('div.ds-parts', parts.join(' · ')));
+    const tray = h(`div.dice-tray.${dice.color}`, head, h('div.dice-row', ...els), sum);
+    let skip = false; tray.addEventListener('pointerdown', () => { skip = true; });
+    this.hud.appendChild(tray);
+    const wait = async (ms) => { const end = performance.now() + ms; while (!skip && performance.now() < end) await sleep(30); };
+    const spin = setInterval(() => els.forEach((el) => { if (el.classList.contains('rolling')) el.replaceChildren(...faceEl(faces[Math.floor(Math.random() * faces.length)])); }), 90);
+    await wait(500); // read the formula first
+    audio.sfx('dice');
+    await wait(950);
+    for (let i = 0; i < els.length; i++) {
+      const el = els[i]; const f = dice.faces[i];
+      el.classList.remove('rolling'); el.replaceChildren(...faceEl(f));
+      el.classList.add('landed', f.v === 0 ? 'f-blank' : 'f-' + (f.k || 'num'));
+      audio.sfx(f.v === 0 ? 'place' : f.k === 'crit' || f.k === 'star' ? 'crit' : 'coin');
+      await wait(480);
+    }
+    clearInterval(spin);
+    tray.classList.add('done');
+    await wait(dice.crit || dice.stars ? 1500 : 1200);
+    tray.classList.add('out'); setTimeout(() => tray.remove(), 300);
   }
 
   async castFx(d) {

@@ -6,7 +6,7 @@ import { t } from '../core/i18n.js';
 import { terrainOf } from '../data/terrain.js';
 import { parseLayout } from '../data/stages.js';
 import { MONSTERS } from '../data/monsters.js';
-import { STATUS_INFO, ELEMENTS } from '../data/cards.js';
+import { STATUS_INFO, ELEMENTS, DICE, diceOf } from '../data/cards.js';
 import { CLASSES } from '../data/classes.js';
 import { CONSUMABLES } from '../data/items.js';
 import { computeStats } from './character.js';
@@ -19,7 +19,7 @@ const FOOT = {
   7: [[0, 0], ...Hex.DIRS],
 };
 const NO_STACK = ['stun', 'frozen', 'mark', 'stealth', 'taunt'];
-let unitCounter = 1;
+export { DICE } from '../data/cards.js';
 
 // Builds the battle board from the stage's hand-designed layouts (see data/stages.js).
 // Skirmishes pick one of the stage's boards; the MVP fight always uses the stage's boss arena.
@@ -53,7 +53,9 @@ export function generateBoard(stage, kind, rng) {
 export class Battle {
   constructor({ stage, enemies, kind = 'normal', party, levelOf = () => 0, inv = null, nextBuff = null, view = null, seed = Date.now() }) {
     this.stage = stage; this.kind = kind; this.view = view;
-    this.rng = new RNG(seed);
+    this.rng = new RNG(seed); this.seed = seed;
+    this._ids = 1; // per-battle ids keep co-op clients in lockstep
+    this.nextId = () => this._ids++;
     this.board = generateBoard(stage, kind, this.rng);
     this.units = []; this.round = 0; this.order = []; this.current = null; this.result = null;
     this.inv = inv; this.combos = 0; this.kills = []; this.log = [];
@@ -103,13 +105,13 @@ export class Battle {
   _heroUnit(hero, levelOf) {
     const s = computeStats(hero);
     return {
-      uid: 'u' + unitCounter++, side: 'hero', hero, name: hero.name, cls: hero.cls, look: CLASSES[hero.cls].look, spriteKey: 'cls_' + hero.cls,
+      uid: 'u' + this.nextId(), side: 'hero', hero, name: hero.name, cls: hero.cls, look: CLASSES[hero.cls].look, spriteKey: 'cls_' + hero.cls,
       size: 1, scale: 1, q: 0, r: 0, facing: 0, level: hero.level,
       hp: Math.min(hero.hp, s.hp), maxHp: s.hp, mp: Math.min(hero.mp, s.mp), maxMp: s.mp,
       stats: { atk: s.atk, matk: s.matk, def: s.def, spd: s.spd, crit: s.crit, eva: s.eva, move: s.move, energy: s.energy, draw: s.draw, mpRegen: s.mpRegen },
       passives: s.passives, el: CLASSES[hero.cls].element, weak: [], resist: [],
       block: 0, status: {}, alive: true, energy: 0, moved: false, slotsUsed: 0, plan: [], lastCat: null, itemUsed: false,
-      cards: new CardEngine(hero.deck, levelOf, this.rng),
+      cards: new CardEngine(hero.deck, levelOf, this.rng, () => 'c' + this.nextId()),
     };
   }
 
@@ -117,7 +119,7 @@ export class Battle {
     const d = MONSTERS[id];
     const hp = Math.round(d.hp * (minion ? 0.6 : 1));
     return {
-      uid: 'u' + unitCounter++, side: d.construct ? 'hero' : 'enemy', def: d, monsterId: id, name: d.name, look: d.look, spriteKey: 'mon_' + id,
+      uid: 'u' + this.nextId(), side: d.construct ? 'hero' : 'enemy', def: d, monsterId: id, name: d.name, look: d.look, spriteKey: 'mon_' + id,
       size: d.size || 1, scale: d.scale || 1, q: 0, r: 0, facing: 3, level: d.level || 1, rank: d.rank || 'normal', construct: !!d.construct, minion,
       hp, maxHp: hp, mp: 0, maxMp: 0,
       stats: { atk: d.atk, matk: d.matk || d.atk, def: d.def, spd: d.spd, crit: 5, eva: d.body === 'bat' ? 15 : 3, move: d.move },
@@ -224,7 +226,7 @@ export class Battle {
       const ready = u.cards.tickCooldowns();
       const drawn = u.cards.drawTo(HAND_SIZE + (u.stats.draw || 0));
       await this.emit('heroTurn', { unit: u, drawn, ready });
-      await new Promise((res) => { this._endTurn = res; });
+      await new Promise((res) => { this._endTurn = res; this.view?.inputReady?.(u); });
       this._endTurn = null;
     } else if (u.construct) {
       await this.constructAct(u);
@@ -373,6 +375,14 @@ export class Battle {
     return cells;
   }
 
+  // Would plan() accept this card and target? (no side effects)
+  canPlan(u, handUid, target) {
+    const inst = u.cards.hand.find((c) => c.uid === handUid);
+    if (!inst || this.whyNot(u, inst)) return false;
+    const T = this.targetsFor(u, inst.card, this.projected(u));
+    return T.mode === 'none' || T.cells.some((c) => c.q === target?.q && c.r === target?.r);
+  }
+
   plan(u, handUid, target) {
     const inst = u.cards.hand.find((c) => c.uid === handUid);
     if (!inst || this.whyNot(u, inst)) return false;
@@ -418,14 +428,16 @@ export class Battle {
 
   _afterAction(u) {
     this.checkEnd();
-    if ((this.result || !u.alive) && this._endTurn) this._endTurn();
+    if ((this.result || !u.alive) && this._endTurn) this.finishTurn();
     else this.emit('refresh', { unit: u });
   }
+
+  finishTurn() { const f = this._endTurn; this._endTurn = null; f?.(); }
 
   async endHeroTurn(u) {
     if (this.busy || this.current !== u || !this._endTurn) return;
     if (u.plan.length) await this.execute(u);
-    if (this._endTurn) this._endTurn();
+    if (this._endTurn) this.finishTurn();
   }
 
   async useItem(u, id) {
@@ -494,9 +506,11 @@ export class Battle {
       if (card.allies && !victims.includes(u)) victims.unshift(u);
     }
     const hasEffect = card.fx.some((f) => !['move', 'teleport', 'dash'].includes(f.t));
+    const dice = hasEffect ? this.rollDice(u, card) : null; // only the side playing the card rolls
+    if (dice) await this.emit('dice', { unit: u, card, dice });
     if (hasEffect) await this.emit('cast', { unit: u, card, cells, targets: victims, target: target || origin });
 
-    const evaded = new Set();
+    const evaded = new Set(); const diceHit = new Set();
     let firstDmg = true;
     for (const f of card.fx) {
       const tgts = f.self ? [u] : victims;
@@ -508,16 +522,18 @@ export class Battle {
               let raw = f.v + (f.s ? u.stats[f.s] * f.m : 0);
               if (f.fromBlock) raw += u.block * f.fromBlock;
               if (comboCat && firstDmg && card.combo.bonus.dmg) raw += card.combo.bonus.dmg + u.stats.atk * 0.3;
+              const diceFirst = dice && !diceHit.has(v); // dice bonus lands once per target, on its first hit
+              if (diceFirst) { diceHit.add(v); raw += dice.dmgBonus; }
               if (f.execute && v.hp / v.maxHp <= f.execute) raw *= 2;
-              const res = await this.hit(u, v, { raw, el: card.el, critBonus: f.crit || 0, drain: f.drain, aoe: card.shape !== 'single', tags: comboCat && firstDmg ? ['Combo!'] : [] });
+              const res = await this.hit(u, v, { raw, el: card.el, critBonus: f.crit || 0, forceCrit: diceFirst && dice.crit, drain: f.drain, aoe: card.shape !== 'single', tags: comboCat && firstDmg ? ['Combo!'] : [] });
               if (res.evaded) evaded.add(v);
             }
           }
           firstDmg = false; break;
         }
-        case 'block': for (const v of tgts) await this.addBlock(v, Math.round(f.v + (f.s ? u.stats[f.s] * f.m : 0))); break;
-        case 'heal': for (const v of tgts) if (v.alive) await this.heal(u, v, f.v + (f.s ? u.stats[f.s] * f.m : 0)); break;
-        case 'status': for (const v of tgts) if (v.alive && !evaded.has(v)) await this.addStatus(u, v, f.st, f.n); break;
+        case 'block': for (const v of tgts) await this.addBlock(v, Math.round(f.v + (f.s ? u.stats[f.s] * f.m : 0) + (dice?.supBonus || 0))); break;
+        case 'heal': for (const v of tgts) if (v.alive) await this.heal(u, v, f.v + (f.s ? u.stats[f.s] * f.m : 0) + (dice?.supBonus || 0)); break;
+        case 'status': for (const v of tgts) if (v.alive && !evaded.has(v)) await this.addStatus(u, v, f.st, f.n + (dice?.surge && !NO_STACK.includes(f.st) ? dice.surge : 0)); break;
         case 'push': case 'pull': for (const v of tgts) if (v.alive && !evaded.has(v)) await this.shove(u, v, f.v, f.t === 'pull'); break;
         case 'draw': { const d = []; for (let i = 0; i < f.v; i++) { const c = u.cards.drawOne(); if (c) d.push(c); } await this.emit('draw', { unit: u, drawn: d }); break; }
         case 'energy': u.energy += f.v; await this.emit('text', { unit: u, text: t('+{n} Energy', { n: f.v }), color: '#ffd76a' }); break;
@@ -603,6 +619,22 @@ export class Battle {
     await this.hit(u, t, { raw: u.stats.atk, el: 'fire', noEvade: true, tags: [] });
   }
 
+  // ───────── dice ─────────
+  // Heroes roll the dice printed on the card (see diceOf in data/cards.js); the faces' values are
+  // added as-is to the card's flat value. Only the side playing the card rolls.
+  rollDice(u, card) {
+    if (!u.hero) return null;
+    const d = diceOf(card); if (!d) return null;
+    const faces = Array.from({ length: d.n }, () => this.rng.pick(DICE[d.color]));
+    const hasStack = card.fx.some((f) => f.t === 'status' && !f.self && !NO_STACK.includes(f.st));
+    const sum = faces.reduce((s, f) => s + f.v, 0);
+    const stars = faces.filter((f) => f.k === 'star').length;
+    const total = sum * (1 + stars);
+    const surge = hasStack ? faces.filter((f) => f.k === 'surge').length : 0;
+    const off = d.color !== 'green';
+    return { color: d.color, faces, sum, total, crit: faces.some((f) => f.k === 'crit'), surge, stars, dmgBonus: off ? total : 0, supBonus: off ? 0 : total };
+  }
+
   // ───────── damage / heal / status ─────────
   async hit(src, tgt, o) {
     if (!tgt.alive) return { dmg: 0 };
@@ -634,7 +666,7 @@ export class Battle {
     else if (el === 'holy' && (tgt.status.weak || tgt.status.vulnerable)) { combo = 'Judgment'; dmg *= 1 + 0.25 * cm; }
     if (combo) { tags.push(combo + '!'); if (src.side === 'hero') this.combos++; }
     // crit / mark / vulnerable
-    let crit = this.rng.chance((src.stats.crit + (o.critBonus || 0)) / 100);
+    let crit = !!o.forceCrit || this.rng.chance((src.stats.crit + (o.critBonus || 0)) / 100);
     if (tgt.status.mark) { crit = true; dmg *= 1.5; delete tgt.status.mark; }
     if (crit) dmg *= 1.5 + (P.critDmg || 0);
     if (tgt.status.vulnerable) dmg *= 1.25;

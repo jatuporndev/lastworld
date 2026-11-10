@@ -53,6 +53,9 @@ export const Net = {
     this._open++; if (this._open === 1) this._fd.goOnline(this._db);
     try { return await fn(); } finally { this._open--; if (this._open === 0) this._fd.goOffline(this._db); }
   },
+  // Keep the connection open for a long-lived session (an online co-op room).
+  hold() { this._open++; if (this._open === 1) this._fd.goOnline(this._db); },
+  release() { this._open = Math.max(0, this._open - 1); if (this._open === 0) this._fd.goOffline(this._db); },
   _ref(path = '') { return this._fd.ref(this._db, `users/${this.user.uid}/save${path}`); },
 
   label() {
