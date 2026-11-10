@@ -2,7 +2,7 @@
 import { h, fmt } from '../core/util.js';
 import { t, LANG, setLang } from '../core/i18n.js';
 import { audio } from '../core/audio.js';
-import { G, claimableQuests } from '../game/state.js';
+import { G, claimableQuests, charList, worldList, createCharacter, createWorld, deleteCharacter, deleteWorld, MAX_CHARS, MAX_WORLDS } from '../game/state.js';
 import { computeStats, createHero } from '../game/character.js';
 import { CLASSES, CLASS_ORDER } from '../data/classes.js';
 import { STARTER_DECKS, ELEMENTS } from '../data/cards.js';
@@ -13,27 +13,29 @@ import { CARDS } from '../data/cards.js';
 import { Net } from '../net/firebase.js';
 import { ui, btn, icon, openModal, heroSprite, monsterSprite, cardEl, toast, toggleFullscreen, confirmBox, bar } from './components.js';
 import { openMenu } from './panels.js';
-import { coopModal } from './coopUI.js';
+import { coopModal, inviteFriends } from './coopUI.js';
+import { Coop } from '../net/coop.js';
 
 function mount(el) { ui().querySelectorAll('.screen').forEach((s) => s.remove()); ui().appendChild(el); return el; }
 export function clearScreens() { ui().querySelectorAll('.screen, .battle-hud, .explore-hud').forEach((s) => s.remove()); }
 
 // ───────── Title ─────────
 export function titleScreen(app) {
-  const st = G.state;
-  const letters = (t) => [...t].map((ch, i) => h('span', { style: { animationDelay: `${i * 70}ms` } }, ch === ' ' ? ' ' : ch));
+  const P = G.profile; const L = P.last || {};
+  const lastChar = P.chars[L.char]; const lastWorld = P.worlds[L.world];
+  const letters = (t) => [...t].map((ch, i) => h('span', { style: { animationDelay: `${i * 70}ms` } }, ch === ' ' ? ' ' : ch));
   const el = h('div.screen.title-screen',
     h('div.title-rays'), h('div.title-vignette'),
     h('div.title-logo', h('div.logo-crest', icon('crown', '#f6d98a', 44)), h('h1.logo', h('span.logo-word', ...letters('LAST')), h('span.logo-word.w2', ...letters('WORLD'))), h('div.logo-sub', t('A Tactical Card Chronicle of the Sundered Realms'))),
     h('div.title-menu',
-      st ? btn(t('Continue'), () => app.continueGame(), { cls: 'primary big', iconName: 'sword' }) : null,
-      st ? h('div.continue-info', t('{party} — Stage {n}{prog}', { party: st.party.map((p) => `${p.name} Lv ${p.level}`).join(' · '), n: Math.min(6, st.unlocked), prog: st.run ? t(' (in progress)') : '' })) : null,
-      btn(t('New Game'), async () => { if (!st || await confirmBox(t('Start a New Game?'), t('This will overwrite your current campaign save.'), t('Start Over'))) app.toCharSelect(); }, { cls: st ? 'big ghost' : 'primary big', iconName: 'star' }),
+      lastChar && lastWorld ? btn(t('Continue'), () => app.continueGame(), { cls: 'primary big', iconName: 'sword' }) : null,
+      lastChar && lastWorld ? h('div.continue-info', t('{hero} Lv {lv} · {world} — Stage {n}', { hero: lastChar.hero.name, lv: lastChar.hero.level, world: lastWorld.name, n: Math.min(6, lastWorld.unlocked) })) : null,
+      btn(t('Play'), () => app.toPlay(), { cls: lastChar && lastWorld ? 'big ghost' : 'primary big', iconName: 'star' }),
       btn(t('Play with Friends'), () => coopModal(app), { cls: 'big ghost', iconName: 'banner', disabled: !Net.online }),
       btn(t(Net.online && Net.user ? 'Account' : 'Sign In'), () => app.openAuth(() => app.toTitle(true)), { cls: 'big ghost', iconName: 'book' }),
       btn(t('Fullscreen'), toggleFullscreen, { cls: 'big ghost', iconName: 'flag' }),
       btn(LANG === 'th' ? 'English' : 'ภาษาไทย', () => setLang(LANG === 'th' ? 'en' : 'th'), { cls: 'big ghost', iconName: 'star' })),
-    h('div.title-foot', h('span.net' + (Net.online && Net.user ? '.on' : ''), Net.label()), h('span', 'v1.0 · Three.js · Firebase')));
+    h('div.title-foot', h('span.net' + (Net.online && Net.user ? '.on' : ''), Net.label()), h('span', 'v1.1 · Three.js · Firebase')));
   return mount(el);
 }
 
@@ -123,18 +125,79 @@ function authForm(app, ok, mode) {
   msg, submit);
 }
 
-// ───────── Character Selection ─────────
-export function charSelectScreen(app) {
-  let picks = ['knight']; let focus = 'knight';
-  const names = {};
-  const list = h('div.cs-list'); const detail = h('div.cs-detail'); const partyBar = h('div.cs-party');
-  const start = btn(t('Begin Journey'), () => app.startNewGame(picks.map((cls) => ({ cls, name: (names[cls] || '').trim() || CLASSES[cls].name }))), { cls: 'primary big' });
+// ───────── Characters + Worlds ─────────
+// Up to 3 characters and 6 worlds. Pick a character and a world, then enter. A world can be played
+// alone or opened to friends (co-op); a character can visit any world.
+export function playScreen(app, sel = {}) {
+  const P = G.profile;
+  let charId = sel.char && P.chars[sel.char] ? sel.char : (P.chars[P.last.char] ? P.last.char : charList()[0]?.id);
+  let worldId = sel.world && P.worlds[sel.world] ? sel.world : (P.worlds[P.last.world] ? P.last.world : worldList()[0]?.id);
+  const chars = h('div.ps-chars'); const worlds = h('div.ps-worlds'); const go = h('div.ps-go');
   const render = () => {
-    list.replaceChildren(...CLASS_ORDER.map((cls, i) => { const C = CLASSES[cls]; const idx = picks.indexOf(cls);
-      return h('div.cs-card' + (idx >= 0 ? '.picked' : '') + (focus === cls ? '.focus' : ''), { style: { '--c': C.color, animationDelay: `${i * 70}ms` },
-        onclick: () => { audio.sfx('click'); focus = cls; if (idx >= 0) { if (picks.length > 1) picks.splice(idx, 1); } else if (picks.length < 3) picks.push(cls); else toast(t('Your party can hold 3 heroes'), 'bad'); render(); },
+    const list = charList();
+    chars.replaceChildren(...Array.from({ length: MAX_CHARS }, (_, i) => {
+      const c = list[i];
+      if (!c) return h('button.ps-char.empty', { onclick: () => app.toCharCreate({ world: worldId }) }, h('div.ps-plus', '+'), h('b', t('Create Character')), h('small', t('Slot {n}', { n: i + 1 })));
+      const hero = c.hero; const C = CLASSES[hero.cls];
+      return h('div.ps-char' + (c.id === charId ? '.sel' : ''), { style: { '--c': C.color }, onclick: () => { charId = c.id; audio.sfx('click'); render(); } },
+        h('div.ps-sprite', heroSprite(hero.cls, { size: 120, zoom: 1.15, oy: 0.1 })),
+        h('b.ps-cname', hero.name), h('small', `${C.name} · Lv ${hero.level}`),
+        h('div.ps-cstats', h('span', icon('coin', '#ffd24a', 14), fmt(c.gold)), h('span', icon('book', '#c9a0ff', 14), Object.values(c.cards).reduce((s, x) => s + x.n, 0))),
+        h('button.ps-del', { 'data-tip': t('Delete character'), onclick: async (e) => { e.stopPropagation();
+          if (await confirmBox(t('Delete {name}?', { name: hero.name }), t('This character, their gear, cards and gold are deleted for good. Worlds are kept.'), t('Delete'))) { deleteCharacter(c.id); if (charId === c.id) charId = charList()[0]?.id; await app.saveNow({ gap: 0 }); render(); } } }, '✕'));
+    }));
+    const wl = worldList();
+    worlds.replaceChildren(
+      ...wl.map((w) => h('div.ps-world' + (w.id === worldId ? '.sel' : ''), { onclick: () => { worldId = w.id; audio.sfx('click'); render(); } },
+        h('div.ps-wicon', icon(Object.keys(w.cleared).length >= 6 ? 'crown' : 'flag', '#f6d98a', 26)),
+        h('div.ps-winfo', h('b', w.name), h('small', t('Stage {n} / 6 · {cleared} cleared', { n: Math.min(6, w.unlocked), cleared: Object.keys(w.cleared).length }) + (w.run ? t(' (in progress)') : '')),
+          w.lastChar && P.chars[w.lastChar] ? h('small.ps-wlast', t('Last played: {name}', { name: P.chars[w.lastChar].hero.name })) : null),
+        h('button.ps-del', { 'data-tip': t('Delete world'), onclick: async (e) => { e.stopPropagation();
+          if (await confirmBox(t('Delete {name}?', { name: w.name }), t('All map progress in this world is lost. Characters are kept.'), t('Delete'))) { deleteWorld(w.id); if (worldId === w.id) worldId = worldList()[0]?.id; await app.saveNow({ gap: 0 }); render(); } } }, '✕'))),
+      wl.length < MAX_WORLDS ? h('button.ps-world.new', { onclick: () => newWorldModal((w) => { worldId = w.id; app.saveNow(); render(); }) }, h('div.ps-plus', '+'), h('b', t('Create World'))) : null);
+    const c = P.chars[charId]; const w = P.worlds[worldId];
+    go.replaceChildren(
+      h('div.ps-pick', c ? h('span', h('small', t('Character')), h('b', c.hero.name)) : h('span.dim', t('Choose or create a character')), h('i', '→'), w ? h('span', h('small', t('World')), h('b', w.name)) : h('span.dim', t('Choose or create a world'))),
+      btn(t('Enter World'), () => app.play(worldId, charId), { cls: 'primary big', iconName: 'sword', disabled: !c || !w }));
+  };
+  render();
+  return mount(h('div.screen.ps-screen',
+    h('div.cs-head', h('h2', t('Characters & Worlds')), btn(t('Back'), () => app.toTitle(), { cls: 'small' })),
+    h('div.ps-main',
+      h('section.ps-col', h('div.ps-title', icon('crown', '#f6d98a', 20), t('Your Characters'), h('small', t('up to {n}', { n: MAX_CHARS }))), chars),
+      h('section.ps-col', h('div.ps-title', icon('flag', '#f6d98a', 20), t('Worlds'), h('small', t('solo or co-op · up to {n}', { n: MAX_WORLDS }))), worlds)),
+    go));
+}
+
+export function newWorldModal(done) {
+  const n = worldList().length + 1;
+  const input = h('input', { value: t('World {n}', { n }), maxlength: 24 });
+  const ok = () => { const w = createWorld(input.value.trim() || t('World {n}', { n })); m.close(); audio.sfx('buff'); done?.(w); };
+  const m = openModal(h('form.confirm', { novalidate: true, onsubmit: (e) => { e.preventDefault(); ok(); } },
+    h('label.auth-field', h('span.auth-label', t('World name')), h('div.auth-input', input)),
+    h('p.note', t('A new world starts at Stage 1. Any of your characters can enter it, alone or with friends.')),
+    h('div.row.center', btn(t('Cancel'), () => m.close(), { cls: 'ghost' }), btn(t('Create World'), ok, { cls: 'primary' }))), { title: t('Create World'), cls: 'narrow' });
+  requestAnimationFrame(() => input.select());
+}
+
+// ───────── Character creation ─────────
+// One hero per character. `back` = selection to return to on the Characters & Worlds screen.
+export function charCreateScreen(app, back = {}) {
+  let focus = 'knight'; let name = '';
+  const list = h('div.cs-list'); const detail = h('div.cs-detail'); const foot = h('div.cs-party');
+  const nameInput = h('input', { placeholder: CLASSES[focus].name, maxlength: 14, oninput: (e) => { name = e.target.value; } });
+  const create = () => {
+    if (charList().length >= MAX_CHARS) { toast(t('You already have {n} characters. Delete one first.', { n: MAX_CHARS }), 'bad'); return; }
+    const c = createCharacter(focus, name.trim() || CLASSES[focus].name);
+    audio.sfx('levelup'); app.saveNow();
+    if (back.join) { back.join(c.id); return; }
+    app.toPlay({ ...back, char: c.id });
+  };
+  const render = () => {
+    list.replaceChildren(...CLASS_ORDER.map((cls, i) => { const C = CLASSES[cls];
+      return h('div.cs-card' + (focus === cls ? '.focus.picked' : ''), { style: { '--c': C.color, animationDelay: `${i * 70}ms` },
+        onclick: () => { audio.sfx('click'); focus = cls; nameInput.placeholder = C.name; render(); },
         onmouseenter: (e) => { const cv = e.currentTarget.querySelector('canvas'); if (cv?._sprite) cv._sprite.anim = 'walk'; audio.sfx('hover'); }, onmouseleave: (e) => { const cv = e.currentTarget.querySelector('canvas'); if (cv?._sprite) cv._sprite.anim = 'idle'; } },
-        idx >= 0 ? h('div.cs-order', idx === 0 ? t('LEADER') : `#${idx + 1}`) : null,
         heroSprite(cls, { size: 150, zoom: 1.05 }), h('div.cs-name', C.name), h('div.cs-role', C.role));
     }));
     const C = CLASSES[focus]; const s = computeStats(createHero(focus));
@@ -147,12 +210,11 @@ export function charSelectScreen(app) {
       h('div.cs-info', h('div.cs-title', { style: { color: C.color } }, C.name), h('div.cs-sub', `${C.title} · ${ELEMENTS[C.element].name}`), h('p', C.desc),
         h('div.cs-stats', statBar('HP', s.hp, 130), statBar('MP', s.mp, 60), statBar('ATK', s.atk, 26), statBar('MATK', s.matk, 26), statBar('DEF', s.def, 14), statBar('SPD', s.spd, 34), statBar(t('MOVE'), s.move, 5)),
         h('div.cs-deck-title', t('Starting Deck')), h('div.cs-deck', ...[...new Set(STARTER_DECKS[focus])].map((id) => cardEl(id, 0, { small: true })))));
-    partyBar.replaceChildren(h('div.cs-party-label', t('YOUR PARTY — choose 1 to 3 heroes')), ...picks.map((cls, i) => h('div.cs-slot', heroSprite(cls, { size: 64, zoom: 1.4, oy: 0.25 }),
-      h('input', { value: names[cls] || '', placeholder: CLASSES[cls].name, maxlength: 14, oninput: (e) => { names[cls] = e.target.value; } }), h('small', i === 0 ? t('Leader') : CLASSES[cls].name))),
-      ...Array.from({ length: 3 - picks.length }, () => h('div.cs-slot.empty', t('Empty'))));
+    foot.replaceChildren(h('div.cs-slot', heroSprite(focus, { size: 64, zoom: 1.4, oy: 0.25 }), h('label', h('small', t('Character name')), nameInput)));
   };
   render();
-  return mount(h('div.screen.cs-screen', h('div.cs-head', h('h2', t('Choose Your Heroes')), btn(t('Back'), () => app.toTitle(), { cls: 'small' })), list, detail, h('div.cs-foot', partyBar, start)));
+  return mount(h('div.screen.cs-screen', h('div.cs-head', h('h2', t('Create Character')), btn(t('Back'), () => (back.cancel ? back.cancel() : app.toPlay(back)), { cls: 'small' })),
+    list, detail, h('div.cs-foot', foot, btn(t('Create Character'), create, { cls: 'primary big', iconName: 'star' }))));
 }
 
 // ───────── World Map ─────────
@@ -180,10 +242,10 @@ export function worldMapScreen(app) {
   render();
   const q = claimableQuests();
   const el = h('div.screen.wm-screen',
-    h('div.wm-top', h('h2', t('The Sundered Realms')),
+    h('div.wm-top', h('h2', G.profile.worlds[st.worldId]?.name || t('The Sundered Realms')),
       h('div.wm-party', ...st.party.map((p) => { const cs = computeStats(p); return h('div.p-card', { onclick: () => openMenu(app, 'hero') }, h('div.p-portrait', heroSprite(p.cls, { size: 64, zoom: 1.5, oy: 0.3 })), h('div.p-body', h('div.p-name', p.name, h('span', ` Lv ${p.level}`), p.statPoints + p.skillPoints > 0 ? h('i.pip', '!') : null), bar('hp', p.hp, cs.hp), bar('mp', p.mp, cs.mp))); })),
       h('div.wm-actions', h('div.res', icon('coin', '#ffd24a', 18), fmt(st.gold)), h('div.res', icon('gem', '#9ad8ff', 18), fmt(st.shards)),
-        btn(q ? t('Journal ({n})', { n: q }) : t('Journal'), () => openMenu(app), { cls: 'small', iconName: 'book' }), btn(t('Forge'), () => openMenu(app, 'forge'), { cls: 'small', iconName: 'anvil' }), btn(t('Title'), () => app.toTitle(), { cls: 'small' }))),
+        btn(q ? t('Journal ({n})', { n: q }) : t('Journal'), () => openMenu(app), { cls: 'small', iconName: 'book' }), btn(t('Forge'), () => openMenu(app, 'forge'), { cls: 'small', iconName: 'anvil' }), Coop.active ? null : btn(t('Invite Friends'), () => inviteFriends(app), { cls: 'small', iconName: 'banner', tip: t('Open this world to friends (online co-op)'), disabled: !Net.online }), btn(t('Title'), () => app.toTitle(), { cls: 'small' }))),
     h('div.wm-main', h('div.wm-map', h('div.wm-parchment'), svg, nodes, h('div.wm-compass', '✦')), detail));
   el._refresh = () => { if (el.isConnected) worldMapScreen(app); };
   return mount(el);

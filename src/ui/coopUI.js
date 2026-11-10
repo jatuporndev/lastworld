@@ -3,7 +3,7 @@
 import { h, bus } from '../core/util.js';
 import { t } from '../core/i18n.js';
 import { audio } from '../core/audio.js';
-import { G } from '../game/state.js';
+import { G, charList, worldList } from '../game/state.js';
 import { CLASSES } from '../data/classes.js';
 import { Net } from '../net/firebase.js';
 import { Coop } from '../net/coop.js';
@@ -32,7 +32,12 @@ const defaultName = () => {
 export function coopModal(app) {
   if (Coop.active) return lobbyModal(app);
   if (!Net.online) { toast(t(ERR.offline), 'bad'); return null; }
-  const st = G.state;
+  const P = G.profile; const chars = charList(); const worlds = worldList();
+  const opt = (v, label, selected) => { const o = h('option', { value: v }, label); if (selected) o.selected = true; return o; };
+  const charLabel = (c) => `${c.hero.name} · ${CLASSES[c.hero.cls].name} Lv ${c.hero.level}`;
+  const pickChar = () => h('select.lb-select', ...chars.map((c) => opt(c.id, charLabel(c), c.id === P.last.char)));
+  const hostChar = pickChar(); const joinChar = pickChar();
+  const hostWorld = h('select.lb-select', ...worlds.map((w) => opt(w.id, `${w.name} · ${t('Stage {n}', { n: Math.min(6, w.unlocked) })}`, w.id === P.last.world)));
   const name = h('input', { value: defaultName(), maxlength: 16, autocomplete: 'nickname' });
   const code = h('input.code-input', { placeholder: 'ABCDE', maxlength: 5, autocomplete: 'off', spellcheck: 'false', oninput: () => { code.value = code.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); } });
   const msg = h('div.auth-msg');
@@ -43,25 +48,24 @@ export function coopModal(app) {
     if (busy) return; busy = true; say(t('Connecting…'), 'busy');
     try { await fn(); } catch (e) { console.warn('[co-op]', e); say(coopError(e)); } finally { busy = false; }
   };
-  const create = () => run(async () => {
-    await Coop.create(nick()); m.close(); audio.sfx('buff');
-    app.onCoopStart(); lobbyModal(app);
-  });
+  const create = () => run(async () => { await app.hostRoom(hostWorld.value, hostChar.value, nick()); m.close(); audio.sfx('buff'); lobbyModal(app); });
   const join = () => run(async () => {
     if (code.value.length < 5) { say(t('Enter the 5-letter room code.')); return; }
-    await Coop.join(code.value, nick()); m.close(); audio.sfx('buff');
-    app.onCoopStart();
+    await app.joinRoom(code.value, joinChar.value, nick()); m.close(); audio.sfx('buff');
   });
+  const field = (label, el) => h('label.auth-field', h('span.auth-label', label), el);
+  const needChar = h('div.coop-box.coop-need', h('p', t('You need a character to play online.')), btn(t('Create Character'), () => { m.close(); app.toCharCreate({}); }, { cls: 'primary block', iconName: 'star' }));
   const body = h('div.coop',
     h('div.auth-head', h('div.auth-crest', h('div.auth-crest-ring'), icon('banner', '#f6d98a', 46)), h('h2.auth-title', t('Play with Friends')),
-      h('p.auth-sub', t('Up to 3 players. The host shares their campaign; each friend controls one hero in battle.'))),
+      h('p.auth-sub', t('Up to 3 players, one character each. The host opens one of their worlds; friends bring their own character and keep what they earn.'))),
     h('label.auth-field', h('span.auth-label', t('Your name')), h('div.auth-input', name)),
-    h('div.coop-cols',
-      h('div.coop-box', h('h3', t('Host a room')), h('p', st ? t('Your party: {party}', { party: st.party.map((p) => p.name).join(', ') }) : t('You need a saved campaign to host.')),
-        st && st.party.length < 2 ? h('p.note', t('Tip: a party of 2–3 heroes lets friends take a hero each.')) : null,
-        btn(t('Create Room'), create, { cls: 'primary block', iconName: 'crown', disabled: !st })),
-      h('div.coop-box', h('h3', t('Join a room')), h('p', t('Ask the host for the room code.')),
-        h('form', { novalidate: true, onsubmit: (e) => { e.preventDefault(); join(); } }, h('div.auth-input', code), btn(t('Join'), join, { cls: 'block', iconName: 'sword' })))),
+    !chars.length ? needChar : h('div.coop-cols',
+      h('div.coop-box', h('h3', t('Host a room')),
+        worlds.length ? field(t('World'), hostWorld) : h('p', t('Create a world first (Play → Create World).')),
+        field(t('Character'), hostChar),
+        btn(t('Create Room'), create, { cls: 'primary block', iconName: 'crown', disabled: !worlds.length })),
+      h('div.coop-box', h('h3', t('Join a room')), field(t('Character'), joinChar),
+        h('form', { novalidate: true, onsubmit: (e) => { e.preventDefault(); join(); } }, field(t('Room code'), h('div.auth-input', code)), btn(t('Join'), join, { cls: 'block', iconName: 'sword' })))),
     msg);
   const m = openModal(body, { cls: 'auth-modal coop-modal' });
   return m;
@@ -72,25 +76,18 @@ export function lobbyModal(app) {
   const body = h('div.coop.lobby');
   const render = () => {
     if (!Coop.active) { m.close(); return; }
-    const st = G.state; const ids = Object.keys(Coop.players);
-    const playerRow = (id) => h('div.lb-player', { style: { '--pc': Coop.colorOf(id) } }, h('i.dot'), h('b', Coop.nameOf(id)),
-      id === Coop.hostId ? h('span.tag', t('Host')) : null, id === Coop.me ? h('span.tag.me', t('You')) : null,
-      Coop.isHost && id !== Coop.me ? h('button.mini', { onclick: () => Coop.kick(id), 'data-tip': t('Remove from room') }, '✕') : null);
-    const heroRow = (hero, i) => {
-      const owner = Coop.ownerOf(i);
-      const ctl = Coop.isHost
-        ? h('select.lb-select', { onchange: (e) => { Coop.setSlot(i, e.target.value); audio.sfx('click'); } }, ...ids.map((id) => { const o = h('option', { value: id }, Coop.nameOf(id)); if (id === owner) o.selected = true; return o; }))
-        : h('b', { style: { color: Coop.colorOf(owner) } }, Coop.nameOf(owner));
-      return h('div.lb-hero', { style: { '--pc': Coop.colorOf(owner) } }, h('div.lb-portrait', heroSprite(hero.cls, { size: 56, zoom: 1.5, oy: 0.3 })),
-        h('div.lb-hinfo', h('b', hero.name), h('small', `${CLASSES[hero.cls].name} · Lv ${hero.level}`)), h('div.lb-ctl', h('small', t('Controlled by')), ctl));
-    };
+    const ids = Coop.partyIds();
+    const playerRow = (id) => { const hero = id === Coop.me ? G.state?.party.find((x) => !x.remote) : Coop.heroOf(id);
+      return h('div.lb-hero', { style: { '--pc': Coop.colorOf(id) } },
+        hero ? h('div.lb-portrait', heroSprite(hero.cls, { size: 56, zoom: 1.5, oy: 0.3 })) : h('div.lb-portrait'),
+        h('div.lb-hinfo', h('b', { style: { color: Coop.colorOf(id) } }, Coop.nameOf(id), id === Coop.hostId ? h('span.tag', t('Host')) : null, id === Coop.me ? h('span.tag.me', t('You')) : null),
+          hero ? h('small', `${hero.name} · ${CLASSES[hero.cls].name} Lv ${hero.level}`) : h('small', '…')),
+        Coop.isHost && id !== Coop.me ? h('button.mini', { onclick: () => Coop.kick(id), 'data-tip': t('Remove from room') }, '✕') : null); };
     body.replaceChildren(
       h('div.lb-code', h('small', t('ROOM CODE')), h('div.lb-code-row', h('b', Coop.code),
         h('button.mini', { onclick: () => { navigator.clipboard?.writeText(Coop.code).then(() => toast(t('Code copied'), 'good')).catch(() => {}); } }, t('Copy')))),
       h('p.note', Coop.isHost ? t('Share this code with friends. Up to 3 players.') : t('The host leads the party on the map. Click tiles to suggest a direction.')),
-      h('div.sec-title', t('Players ({n}/3)', { n: ids.length })), h('div.lb-players', ...ids.map(playerRow)),
-      st ? h('div.sec-title', t('Heroes')) : null,
-      st ? h('div.lb-heroes', ...st.party.map(heroRow)) : null,
+      h('div.sec-title', t('Players ({n}/3)', { n: ids.length })), h('div.lb-heroes', ...ids.map(playerRow)),
       h('div.row.center', btn(t(Coop.isHost ? 'Close Room' : 'Leave Room'), async () => { m.close(); await app.leaveCoop(); }, { cls: 'ghost' }), btn(t('Done'), () => m.close(), { cls: 'primary' })));
   };
   const m = openModal(body, { title: t('Party Room'), cls: 'narrow lobby-modal', onClose: () => off() });
@@ -119,4 +116,11 @@ export function guestWaitScreen(app, text) {
       h('div.row.center', btn(t('Party Room'), () => lobbyModal(app), { cls: 'ghost' }), btn(t('Leave Room'), () => app.leaveCoop(), { cls: 'ghost' }))));
   ui().appendChild(el);
   return el;
+}
+
+// Host the world you are already in (from the world map).
+export async function inviteFriends(app) {
+  const st = G.state; if (!st?.worldId) return;
+  try { await app.hostRoom(st.worldId, st.charId, defaultName()); lobbyModal(app); audio.sfx('buff'); }
+  catch (e) { console.warn('[co-op]', e); toast(coopError(e), 'bad'); }
 }

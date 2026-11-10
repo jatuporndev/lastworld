@@ -2,7 +2,7 @@
 import { h, fmt } from '../core/util.js';
 import { t, LANG, setLang } from '../core/i18n.js';
 import { audio } from '../core/audio.js';
-import { G, touch, deckCount, usedCopies, canAddToDeck, canRemoveFromDeck, tryUpgradeCard, tryCraftCard, tryDismantle, equipItem, unequip, sellItem, useConsumable, questStatus, claimQuest, claimableQuests, progress, addItem } from '../game/state.js';
+import { G, myHeroes, touch, deckCount, usedCopies, canAddToDeck, canRemoveFromDeck, tryUpgradeCard, tryCraftCard, tryDismantle, equipItem, unequip, sellItem, useConsumable, questStatus, claimQuest, claimableQuests, progress, addItem } from '../game/state.js';
 import { computeStats, attributes, canLearn, learnSkill, canEquip, clampVitals } from '../game/character.js';
 import { CLASSES, SKILL_TREES, STAT_INFO, expToNext } from '../data/classes.js';
 import { CARDS, RARITY, MAX_CARD_LEVEL, upgradeCost, DECK_MIN, DECK_MAX } from '../data/cards.js';
@@ -16,7 +16,7 @@ let sel = 0; // selected hero index
 
 export function openMenu(app, tab = 'hero') {
   const st = G.state; if (!st) return;
-  sel = Math.min(sel, st.party.length - 1);
+  sel = Math.max(0, Math.min(sel, myHeroes().length - 1));
   const body = h('div.menu-body'); const tabs = h('div.menu-tabs'); const res = h('div.menu-res');
   const root = h('div.menu', h('div.menu-side', tabs, res), body);
   const m = openModal(root, { cls: 'menu-modal', title: t("Adventurer's Journal") });
@@ -31,14 +31,14 @@ export function openMenu(app, tab = 'hero') {
 }
 
 function heroPicker(render) {
-  return h('div.hero-picker', ...G.state.party.map((hero, i) => h('div.hp-item' + (i === sel ? '.on' : ''), { onclick: () => { sel = i; audio.sfx('click'); render(); } },
+  return h('div.hero-picker', ...myHeroes().map((hero, i) => h('div.hp-item' + (i === sel ? '.on' : ''), { onclick: () => { sel = i; audio.sfx('click'); render(); } },
     heroSprite(hero.cls, { size: 60, zoom: 1.4, oy: 0.26 }), h('div', h('b', hero.name), h('small', `Lv ${hero.level} ${CLASSES[hero.cls].name}`)),
     hero.statPoints + hero.skillPoints > 0 ? h('i.pip', '!') : null)));
 }
 
 // ───── Heroes: status, stat points, skill tree ─────
 function heroTab(render) {
-  const hero = G.state.party[sel]; const s = computeStats(hero); const a = attributes(hero); const C = CLASSES[hero.cls];
+  const hero = myHeroes()[sel]; const s = computeStats(hero); const a = attributes(hero); const C = CLASSES[hero.cls];
   const attrRow = (k) => h('div.attr', { 'data-tip': `${STAT_INFO[k].full} — ${STAT_INFO[k].desc}` }, h('span.attr-n', STAT_INFO[k].name), h('b', a[k]),
     h('button.plus', { disabled: hero.statPoints <= 0, onclick: () => { hero.alloc[k]++; hero.statPoints--; clampVitals(hero); touch(); audio.sfx('buff'); render(); } }, '+'));
   const d = (label, v, tip) => h('div.derived', { 'data-tip': tip }, h('span', label), h('b', v));
@@ -60,7 +60,7 @@ function heroTab(render) {
 
 // ───── Equipment & inventory ─────
 function equipTab(render) {
-  const st = G.state; const hero = st.party[sel];
+  const st = G.state; const hero = myHeroes()[sel];
   const slot = (name) => { const it = hero.equip[name];
     return h('div.eq-slot', h('div.eq-label', t(name)), it ? itemEl(it, { onClick: () => { unequip(hero, name); audio.sfx('close'); render(); }, tag: t('Unequip') }) : h('div.item.empty', t('Empty'))); };
   const items = st.inv.equip.slice().sort((a, b) => b.tier - a.tier || b.value - a.value);
@@ -83,7 +83,7 @@ function equipTab(render) {
 
 // ───── Deck builder + card upgrades ─────
 function deckTab(render) {
-  const st = G.state; const hero = st.party[sel];
+  const st = G.state; const hero = myHeroes()[sel];
   const deckIds = [...new Set(hero.deck)].sort((a, b) => CARDS[a].cost - CARDS[b].cost || a.localeCompare(b));
   const pool = Object.keys(st.cards).filter((id) => CARDS[id] && (CARDS[id].cls === 'any' || CARDS[id].cls === hero.cls)).sort((a, b) => CARDS[a].cost - CARDS[b].cost || a.localeCompare(b));
   const deckCard = (id) => { const el = cardEl(id, st.cards[id]?.lv || 0, { small: true, count: deckCount(hero, id) });
@@ -106,7 +106,7 @@ function deckTab(render) {
 
 // ───── Forge: craft equipment and cards ─────
 function forgeTab(render) {
-  const st = G.state; const classes = new Set(st.party.map((x) => x.cls));
+  const st = G.state; const classes = new Set(myHeroes().map((x) => x.cls));
   const recipes = RECIPES.filter((r) => r.tier <= st.unlocked + 1);
   const craftable = Object.values(CARDS).filter((c) => !c.id.startsWith('r_') && (c.cls === 'any' || classes.has(c.cls))).sort((a, b) => ['common', 'rare', 'epic', 'legendary'].indexOf(a.rarity) - ['common', 'rare', 'epic', 'legendary'].indexOf(b.rarity) || a.cls.localeCompare(b.cls));
   return h('div.tab-forge',
@@ -141,6 +141,6 @@ function systemTab(render, app, modal) {
     h('div.row', btn(t('Toggle Fullscreen'), toggleFullscreen, { iconName: 'star' }), btn(t('Save Now'), async () => { await app.saveNow(); toast(t('Game saved'), 'good'); })),
     h('div.sec-title', t('Account')), h('p.note', Net.label()),
     h('div.row', Net.online ? (Net.user ? btn(t('Sign Out'), async () => { await app.saveNow(); await Net.signOut(); toast(t('Signed out')); render(); }) : btn(t('Sign In / Register'), () => app.openAuth(() => render()))) : h('p.note', t('Cloud saves are disabled until Firebase is configured (see README). Progress is stored in this browser.'))),
-    h('div.sec-title', t('Campaign')), h('p.note', t('Stages liberated: {n} / 6 · Monsters slain: {k} · Party: {party}', { n: Object.keys(st.cleared).length, k: st.stats.kills, party: st.party.map((x) => `${x.name} Lv${x.level}`).join(', ') })),
+    h('div.sec-title', t('Campaign')), h('p.note', t('Stages liberated: {n} / 6 · Monsters slain: {k} · Party: {party}', { n: Object.keys(st.cleared).length, k: st.stats.kills, party: myHeroes().map((x) => `${x.name} Lv${x.level}`).join(', ') })),
     h('div.row', btn(t('Return to Title'), async () => { if (await confirmBox(t('Return to Title'), t('Your progress is saved automatically.'), t('Return'))) { modal.close(); app.toTitle(); } })));
 }

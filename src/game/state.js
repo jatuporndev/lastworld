@@ -1,48 +1,127 @@
-// Persistent campaign state + helpers (inventory, card collection, quests, autosave hook).
+// Persistent player profile (characters + worlds), the play session, and helpers
+// (inventory, card collection, quests, autosave hook).
 import { bus } from '../core/util.js';
+import { t } from '../core/i18n.js';
 import { createHero, computeStats, canEquip, clampVitals } from './character.js';
 import { CARDS, STARTER_DECKS, RARITY, MAX_CARD_LEVEL, upgradeCost, DECK_MIN, DECK_MAX } from '../data/cards.js';
 import { QUESTS } from '../data/events.js';
 import { CONSUMABLES } from '../data/items.js';
 
-export const SAVE_VERSION = 1;
-export const G = { state: null };
+export const SAVE_VERSION = 2;
+export const MAX_CHARS = 3;
+export const MAX_WORLDS = 6;
+// G.profile — everything saved for this player: up to 3 characters and up to 6 worlds.
+//   A character owns its hero, gold, shards, bag, card collection, quests and stats.
+//   A world owns map progress: unlocked / cleared stages, the current expedition, intros seen.
+// G.state — the play session: one world + one character, in the shape the game code uses.
+//   In online co-op the party also lists the other players' heroes (remote: true, never saved here).
+export const G = { profile: null, state: null };
+const CHAR_KEYS = ['gold', 'shards', 'inv', 'cards', 'quests', 'stats'];
+const WORLD_KEYS = ['unlocked', 'cleared', 'run', 'seenIntro', 'nextBuff'];
+const newId = (p) => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
-export function newGame(party) { // party: [{cls, name}]
-  const heroes = party.map((p) => createHero(p.cls, p.name));
+export function emptyProfile() { return { version: SAVE_VERSION, created: Date.now(), updated: 0, settings: { music: 0.45, sfx: 0.7 }, chars: {}, worlds: {}, last: {} }; }
+function touchProfile() { G.profile.updated = Date.now(); bus.emit('state:changed'); }
+
+export function createCharacter(cls, name) {
+  const hero = createHero(cls, name);
   const cards = {};
-  heroes.forEach((h) => STARTER_DECKS[h.cls].forEach((id) => { (cards[id] ||= { n: 0, lv: 0 }).n++; }));
+  STARTER_DECKS[cls].forEach((id) => { (cards[id] ||= { n: 0, lv: 0 }).n++; });
   cards.n_sprint = { n: 1, lv: 0 }; cards.n_secondwind = { n: 1, lv: 0 };
-  G.state = {
-    version: SAVE_VERSION, created: Date.now(), updated: Date.now(), playtime: 0,
-    party: heroes, gold: 60, shards: 20,
-    inv: { equip: [], cons: { potion: 3, ether: 1 }, mats: {} },
-    cards,
-    unlocked: 1, cleared: {}, run: null,
-    quests: {}, stats: { kills: 0, chests: 0, mini: 0, craft: 0, upgrade: 0, combos: 0, events: 0, bosses: {} },
-    nextBuff: null, seenIntro: {}, settings: { music: 0.45, sfx: 0.7 },
-  };
-  return G.state;
+  const c = { id: newId('c'), created: Date.now(), hero, gold: 60, shards: 20, inv: { equip: [], cons: { potion: 3, ether: 1 }, mats: {} }, cards, quests: {},
+    stats: { kills: 0, chests: 0, mini: 0, craft: 0, upgrade: 0, combos: 0, events: 0, bosses: {} } };
+  G.profile.chars[c.id] = c; touchProfile();
+  return c;
 }
+export function createWorld(name) {
+  const w = { id: newId('w'), name, created: Date.now(), unlocked: 1, cleared: {}, run: null, seenIntro: {}, nextBuff: null };
+  G.profile.worlds[w.id] = w; touchProfile();
+  return w;
+}
+export function deleteCharacter(id) { delete G.profile.chars[id]; if (G.profile.last.char === id) G.profile.last.char = null; touchProfile(); }
+export function deleteWorld(id) { delete G.profile.worlds[id]; if (G.profile.last.world === id) G.profile.last.world = null; touchProfile(); }
+export const charList = () => Object.values(G.profile?.chars || {}).sort((a, b) => a.created - b.created);
+export const worldList = () => Object.values(G.profile?.worlds || {}).sort((a, b) => a.created - b.created);
+
+// Start playing `worldId` with character `charId` (worldId null: no own world, e.g. a co-op guest).
+export function openSession(worldId, charId) {
+  const P = G.profile; const c = P.chars[charId]; const w = worldId ? P.worlds[worldId] : null;
+  if (!c) return null;
+  const st = { worldId, charId, party: [c.hero], settings: P.settings };
+  CHAR_KEYS.forEach((k) => { st[k] = c[k]; });
+  if (w) { WORLD_KEYS.forEach((k) => { st[k] = w[k]; }); w.lastChar = charId; }
+  else Object.assign(st, { unlocked: 1, cleared: {}, run: null, seenIntro: {}, nextBuff: null });
+  P.last = { world: worldId || P.last.world || null, char: charId };
+  G.state = st;
+  return st;
+}
+// Copy the session back into the profile. world: false keeps a borrowed (co-op host's) world out of the save.
+export function commitSession({ world = true } = {}) {
+  const st = G.state, P = G.profile; if (!st || !P) return;
+  const c = P.chars[st.charId];
+  if (c) { c.hero = myHeroes()[0] || c.hero; CHAR_KEYS.forEach((k) => { c[k] = st[k]; }); c.updated = Date.now(); }
+  const w = st.worldId && P.worlds[st.worldId];
+  if (w && world) { WORLD_KEYS.forEach((k) => { w[k] = st[k]; }); w.updated = Date.now(); }
+}
+// Heroes this player controls (in co-op the party also lists friends' heroes).
+export const myHeroes = (st = G.state) => (st?.party || []).filter((h) => !h.remote);
 
 export function touch() { if (G.state) { G.state.updated = Date.now(); bus.emit('state:changed'); } }
 
-// Firebase strips empty arrays/objects and nulls — repair shape on load.
+// Firebase strips empty arrays/objects and nulls — repair shapes on load.
+export function fixHero(h) {
+  h.alloc = { str: 0, agi: 0, vit: 0, int: 0, dex: 0, ...(h.alloc || {}) };
+  h.skills = h.skills || []; h.deck = h.deck || [];
+  h.equip = { weapon: null, armor: null, accessory: null, ...(h.equip || {}) };
+  return h;
+}
+function fixChar(c) {
+  fixHero(c.hero);
+  c.inv = c.inv || {}; c.inv.equip = c.inv.equip || []; c.inv.cons = c.inv.cons || {}; c.inv.mats = c.inv.mats || {};
+  c.cards = c.cards || {}; c.quests = c.quests || {}; c.gold = c.gold || 0; c.shards = c.shards || 0;
+  c.stats = { kills: 0, chests: 0, mini: 0, craft: 0, upgrade: 0, combos: 0, events: 0, bosses: {}, ...(c.stats || {}) };
+  c.stats.bosses = c.stats.bosses || {};
+  return c;
+}
+function fixWorld(w) {
+  w.unlocked = w.unlocked || 1; w.cleared = w.cleared || {}; w.seenIntro = w.seenIntro || {}; w.nextBuff = w.nextBuff || null;
+  if (w.run) { w.run.cleared = w.run.cleared || {}; w.run.seen = w.run.seen || {}; w.run.shop = w.run.shop || {}; } else w.run = null;
+  return w;
+}
+// Load any save into the current profile shape. A version-1 save (one campaign with a 1–3 hero party)
+// becomes one world plus one character per hero; the first hero keeps the gold, bag and cards.
+export function normalizeProfile(s) {
+  if (!s) return emptyProfile();
+  if (!s.chars && !s.worlds && s.party) {
+    const P = emptyProfile(); P.settings = { ...P.settings, ...(s.settings || {}) }; P.updated = s.updated || Date.now();
+    P.worlds.w1 = fixWorld({ id: 'w1', name: t('My World'), created: s.created || Date.now(), unlocked: s.unlocked, cleared: s.cleared, run: s.run, seenIntro: s.seenIntro, nextBuff: s.nextBuff, lastChar: 'c1' });
+    const heroes = (s.party || []).slice(0, MAX_CHARS);
+    // each card goes to the first hero of its class; class-free cards stay with the first hero
+    const ownerOf = (id) => Math.max(0, heroes.findIndex((h) => h.cls === CARDS[id]?.cls));
+    heroes.forEach((hero, i) => {
+      const first = i === 0;
+      const cards = Object.fromEntries(Object.entries(s.cards || {}).filter(([id]) => ownerOf(id) === i));
+      P.chars['c' + (i + 1)] = fixChar({ id: 'c' + (i + 1), created: (s.created || Date.now()) + i, hero,
+        cards, gold: first ? s.gold : 0, shards: first ? s.shards : 0,
+        inv: first ? s.inv : { equip: [], cons: {}, mats: {} }, quests: first ? s.quests : {}, stats: first ? s.stats : { bosses: { ...(s.stats?.bosses || {}) } } });
+    });
+    P.last = { world: 'w1', char: 'c1' };
+    return P;
+  }
+  s.version = SAVE_VERSION; s.settings = { music: 0.45, sfx: 0.7, ...(s.settings || {}) };
+  s.chars = s.chars || {}; s.worlds = s.worlds || {}; s.last = s.last || {};
+  Object.values(s.chars).forEach(fixChar); Object.values(s.worlds).forEach(fixWorld);
+  return s;
+}
+// A session snapshot received over the network (co-op) — same repairs as a save.
 export function normalize(s) {
   if (!s) return null;
-  s.party = (s.party || []).map((h) => {
-    h.alloc = { str: 0, agi: 0, vit: 0, int: 0, dex: 0, ...(h.alloc || {}) };
-    h.skills = h.skills || []; h.deck = h.deck || [];
-    h.equip = { weapon: null, armor: null, accessory: null, ...(h.equip || {}) };
-    return h;
-  });
+  s.party = (s.party || []).map(fixHero);
   s.inv = s.inv || {}; s.inv.equip = s.inv.equip || []; s.inv.cons = s.inv.cons || {}; s.inv.mats = s.inv.mats || {};
   s.cards = s.cards || {}; s.cleared = s.cleared || {}; s.quests = s.quests || {}; s.seenIntro = s.seenIntro || {};
   s.stats = { kills: 0, chests: 0, mini: 0, craft: 0, upgrade: 0, combos: 0, events: 0, bosses: {}, ...(s.stats || {}) };
   s.stats.bosses = s.stats.bosses || {};
-  s.settings = { music: 0.45, sfx: 0.7, ...(s.settings || {}) };
-  if (s.run) { s.run.cleared = s.run.cleared || {}; s.run.seen = s.run.seen || {}; }
-  else s.run = null;
+  if (s.run) { s.run.cleared = s.run.cleared || {}; s.run.seen = s.run.seen || {}; s.run.shop = s.run.shop || {}; } else s.run = null;
   s.nextBuff = s.nextBuff || null;
   return s;
 }
@@ -54,7 +133,7 @@ export function addCard(id, n = 1) {
 }
 export const cardLevel = (id) => G.state.cards[id]?.lv || 0;
 export function deckCount(hero, id) { return hero.deck.filter((c) => c === id).length; }
-export function usedCopies(id) { return G.state.party.reduce((s, h) => s + deckCount(h, id), 0); }
+export function usedCopies(id) { return myHeroes().reduce((s, h) => s + deckCount(h, id), 0); }
 export function canAddToDeck(hero, id) {
   const card = CARDS[id];
   if (!card || (card.cls !== 'any' && card.cls !== hero.cls)) return false;
@@ -132,7 +211,7 @@ export function questValue(q) {
   const st = G.state.stats;
   switch (q.goal.kind) {
     case 'boss': return st.bosses[q.goal.stage] ? 1 : 0;
-    case 'level': return Math.max(...G.state.party.map((h) => h.level));
+    case 'level': return Math.max(...myHeroes().map((h) => h.level));
     default: return st[q.goal.kind] || 0;
   }
 }

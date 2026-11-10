@@ -38,12 +38,7 @@ export class ExploreScene {
     w.finishBoard();
     for (const [k, m] of w.markers) m.grp.visible = !!run.seen[k];
     // party tokens: leader + followers
-    this.trail = G.state.party.map(() => ({ ...run.pos }));
-    G.state.party.slice().reverse().forEach((hero, ri) => {
-      const i = G.state.party.length - 1 - ri;
-      w.addUnit({ uid: 'party' + i, spriteKey: 'cls_' + hero.cls, look: CLASSES[hero.cls].look, scale: i === 0 ? 1 : 0.85, facing: 5 }, [run.pos]);
-      if (i > 0) { const U = w.units.get('party' + i); U.group.position.x -= 0.35 * i; U.group.position.z -= 0.18 * i; }
-    });
+    this.addPartyTokens(run.pos);
     const p = Hex.toWorld(run.pos.q, run.pos.r);
     w.focus({ x: p.x, z: p.z, size: 12.5, offY: 0, yaw: 0, minWidth: 15 }, 0);
     this.buildHud(); this.bind();
@@ -58,7 +53,7 @@ export class ExploreScene {
     this.hud = h('div.explore-hud',
       h('div.x-top', h('div.x-title', h('div.x-stage', this.stage.name), h('div.x-sub', this.stage.subtitle), this.el.obj),
         h('div.x-right', this.el.res, h('div.x-buttons',
-          this.spectator ? null : btn(t('Journal'), () => openMenu(this.app), { cls: 'small', iconName: 'book', tip: t('Heroes, equipment, deck, forge, quests (Tab)') }),
+          btn(t('Journal'), () => openMenu(this.app), { cls: 'small', iconName: 'book', tip: t('Heroes, equipment, deck, forge, quests (Tab)') }),
           this.spectator ? btn(t('Party Room'), () => lobbyModal(this.app), { cls: 'small', iconName: 'banner' }) : btn(t('World Map'), () => this.app.toWorldMap(), { cls: 'small', iconName: 'flag', tip: t('Leave — your progress in this stage is kept') })))),
       this.el.party, this.el.hint,
       h('div.x-legend', ...[['sword', '#e05a4a', 'Monsters'], ['horns', '#ff8a2a', 'Mini Boss'], ['crown', '#ff3050', 'MVP Boss'], ['chest', '#ffd24a', 'Treasure'], ['gem', '#6fe0c0', 'Resources'], ['question', '#c9a0ff', 'Event'], ['camp', '#7fe08a', 'Rest'], ['coin', '#ffc050', 'Shop'], ['shrine', '#9ad8ff', 'Shrine']].map(([i, c, n]) => h('span', icon(i, c, 16), t(n)))));
@@ -83,7 +78,7 @@ export class ExploreScene {
   bind() {
     const cv = this.world.canvas;
     this._move = (e) => this.onMove(e); this._down = (e) => this.onDown(e);
-    this._key = (e) => { if (e.key === 'Tab') { e.preventDefault(); if (!document.querySelector('.modal-wrap') && !this.spectator) openMenu(this.app); } };
+    this._key = (e) => { if (e.key === 'Tab') { e.preventDefault(); if (!document.querySelector('.modal-wrap')) openMenu(this.app); } };
     this._ctx = (e) => { if (Coop.active) e.preventDefault(); };
     cv.addEventListener('pointermove', this._move); cv.addEventListener('pointerdown', this._down); window.addEventListener('keydown', this._key); cv.addEventListener('contextmenu', this._ctx);
     if (Coop.active) { this._offPing = bus.on('coop:pings', (all) => this.showPings(all)); }
@@ -180,9 +175,9 @@ export class ExploreScene {
         if (go) await this.app.startBattle(enc, c); else await this.retreat();
         break;
       }
-      case 'treasure': { audio.sfx('chest'); const r = sm.openTreasure(c); this.clearNode(c); this.share('loot', { title: 'Treasure Cache', r }); await lootModal(t('Treasure Cache'), r); break; }
-      case 'resource': { audio.sfx('coin'); const r = sm.gatherResource(c); this.clearNode(c); this.share('loot', { title: 'Resources Gathered', r }); await lootModal(t('Resources Gathered'), r); break; }
-      case 'rest': this.share('note', { text: 'The host found a rest site.' }); await this.restPrompt(c); break;
+      case 'treasure': { audio.sfx('chest'); const r = sm.openTreasure(c); this.clearNode(c); this.share('loot', { kind: 'treasure', cell: { q: c.q, r: c.r } }); await lootModal(t('Treasure Cache'), r); break; }
+      case 'resource': { audio.sfx('coin'); const r = sm.gatherResource(c); this.clearNode(c); this.share('loot', { kind: 'resource', cell: { q: c.q, r: c.r } }); await lootModal(t('Resources Gathered'), r); break; }
+      case 'rest': await this.restPrompt(c); break;
       case 'shop': this.share('note', { text: 'The host is browsing the merchant.' }); await this.shop(c); break;
       case 'event': case 'shrine': await this.event(c); break;
       default: break;
@@ -190,6 +185,22 @@ export class ExploreScene {
     this.refreshHud();
   }
 
+  // Co-op: the party changed (someone joined / left) — redraw the tokens without rebuilding the map.
+  rebuildParty() {
+    const w = this.world; const run = this.sm.run;
+    for (const k of [...w.units.keys()]) if (k.startsWith('party')) w.removeUnit(k);
+    this.addPartyTokens(run.pos);
+    this.refreshHud();
+  }
+  addPartyTokens(pos) {
+    const w = this.world; const party = G.state.party;
+    this.trail = party.map(() => ({ ...pos }));
+    party.slice().reverse().forEach((hero, ri) => {
+      const i = party.length - 1 - ri;
+      w.addUnit({ uid: 'party' + i, spriteKey: 'cls_' + hero.cls, look: CLASSES[hero.cls].look, scale: i === 0 ? 1 : 0.85, facing: 5 }, [pos]);
+      if (i > 0) { const U = w.units.get('party' + i); U.group.position.x -= 0.35 * i; U.group.position.z -= 0.18 * i; }
+    });
+  }
   share(type, data) { if (Coop.isHost) Coop.send({ t: type, ...data }); }
   // Guests: read-only view of an event the host resolved.
   eventView(m) {
@@ -215,7 +226,7 @@ export class ExploreScene {
   restPrompt(c) {
     return new Promise((res) => {
       const m = openModal(h('div.confirm', h('div.big-icon', icon('camp', '#7fe08a', 72)), h('p', t('A sheltered campsite. The fire is still warm. Resting restores 60% HP and MP to the whole party and revives the fallen. The site can be used once.')),
-        h('div.row.center', btn(t('Not now'), () => { m.close(); res(); }), btn(t('Rest'), () => { this.sm.rest(c); audio.sfx('heal'); this.clearNode(c); toast(t('The party is rested'), 'good'); m.close(); res(); }, { cls: 'primary' }))), { title: t('Rest Site'), closable: false, cls: 'narrow' });
+        h('div.row.center', btn(t('Not now'), () => { m.close(); res(); }), btn(t('Rest'), () => { this.sm.rest(c); this.share('rest', { cell: { q: c.q, r: c.r } }); audio.sfx('heal'); this.clearNode(c); toast(t('The party is rested'), 'good'); m.close(); res(); }, { cls: 'primary' }))), { title: t('Rest Site'), closable: false, cls: 'narrow' });
     });
   }
 
@@ -246,7 +257,7 @@ export class ExploreScene {
       body.replaceChildren(h('div.big-icon', icon(ev.icon, '#e8d8a8', 72)), h('p.event-text', ev.text),
         h('div.choices', ...ev.choices.map((ch) => btn(ch.label, async () => {
           const out = this.sm.resolveChoice(c, ch);
-          this.share('event', { title: ev.title, icon: ev.icon, text: ev.text, choice: ch.label, msg: out.msg, gains: out.gains, cell: out.fight ? null : { q: c.q, r: c.r } });
+          this.share('event', { title: ev.title, icon: ev.icon, text: ev.text, choice: ch.label, msg: out.msg, gains: out.gains, out: out.party, cell: out.fight ? null : { q: c.q, r: c.r } });
           audio.sfx(out.fight ? 'boss' : out.gains.length ? 'chest' : 'click');
           body.replaceChildren(h('div.big-icon', icon(ev.icon, '#e8d8a8', 72)), h('p.event-text', out.msg), h('div.gains', ...out.gains.map((g) => h('div.gain', g))),
             h('div.row.center', btn(t(out.fight ? 'To battle!' : 'Continue'), async () => { m.close(); if (out.fight) await this.app.startBattle(this.sm.ambush(), c); else this.clearNode(c); res(); }, { cls: 'primary' })));

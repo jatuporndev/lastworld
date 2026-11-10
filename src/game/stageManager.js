@@ -8,7 +8,7 @@ import { CARDS, RARITY, MAX_CARD_LEVEL } from '../data/cards.js';
 import { BASES, makeEquipment, makeUnique, rollRarity, CONSUMABLES, MATERIALS } from '../data/items.js';
 import { EVENTS } from '../data/events.js';
 import { CLASSES } from '../data/classes.js';
-import { G, touch, addCard, addItem, addConsumable, addMaterial, healParty, progress } from './state.js';
+import { G, touch, addCard, addItem, addConsumable, addMaterial, healParty, progress, myHeroes } from './state.js';
 import { grantExp, computeStats } from './character.js';
 
 export const NODE_INFO = {
@@ -102,7 +102,7 @@ export class StageManager {
 
   // ───── rewards ─────
   cardPool(minRarity = 'common') {
-    const classes = new Set(G.state.party.map((h) => h.cls));
+    const classes = new Set(myHeroes().map((h) => h.cls));
     const order = ['common', 'rare', 'epic', 'legendary'];
     return Object.values(CARDS).filter((c) => !c.id.startsWith('r_') && (c.cls === 'any' || classes.has(c.cls)) && order.indexOf(c.rarity) >= order.indexOf(minRarity));
   }
@@ -117,7 +117,7 @@ export class StageManager {
     return out;
   }
   rollEquip(rng, luck = 0, minRarity = null) {
-    const classes = G.state.party.map((h) => CLASSES[h.cls]);
+    const classes = myHeroes().map((h) => CLASSES[h.cls]);
     const usable = Object.keys(BASES).filter((b) => { const B = BASES[b]; return B.slot === 'accessory' || classes.some((c) => c.weaponTypes.includes(B.type) || c.armorTypes.includes(B.type)); });
     let rar = rollRarity(() => rng.float(), luck);
     const order = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
@@ -157,7 +157,7 @@ export class StageManager {
     r.items.forEach(addItem); r.cons.forEach((id) => addConsumable(id));
     Object.entries(r.mats).forEach(([m, n]) => addMaterial(m, n));
     r.fixedCards.forEach((id) => addCard(id));
-    st.party.forEach((h) => {
+    myHeroes().forEach((h) => {
       const was = h.hp <= 0;
       if (was) h.hp = Math.round(computeStats(h).hp * 0.25); // fallen heroes get back up
       const lv = grantExp(h, was ? Math.round(r.exp * 0.5) : r.exp);
@@ -179,7 +179,7 @@ export class StageManager {
   onDefeat() {
     const st = G.state; const lost = Math.round(st.gold * 0.15);
     st.gold -= lost;
-    st.party.forEach((h) => { const s = computeStats(h); h.hp = Math.round(s.hp * 0.5); h.mp = Math.round(s.mp * 0.5); });
+    myHeroes().forEach((h) => { const s = computeStats(h); h.hp = Math.round(s.hp * 0.5); h.mp = Math.round(s.mp * 0.5); });
     const start = this.startCell(); st.run.pos = { q: start.q, r: start.r };
     st.nextBuff = null;
     touch();
@@ -250,25 +250,27 @@ export class StageManager {
     const scale = Math.pow(1.5, s.id - 1);
     if (o.gold) { const g = Math.round(o.gold * scale); st.gold += g; gains.push(t('+{n} Gold', { n: g })); }
     if (o.shards) { st.shards += o.shards + s.id * 3; gains.push(t('+{n} Shards', { n: o.shards + s.id * 3 })); }
-    if (o.exp) { const e = Math.round(o.exp * scale); st.party.forEach((h) => grantExp(h, e)); gains.push(t('+{n} EXP', { n: e })); }
+    if (o.exp) { const e = Math.round(o.exp * scale); myHeroes().forEach((h) => grantExp(h, e)); gains.push(t('+{n} EXP', { n: e })); }
     if (o.healPct) healParty(o.healPct, 0, false);
     if (o.fullHeal) healParty(1, 1, true);
-    if (o.mp) st.party.forEach((h) => { h.mp = Math.min(computeStats(h).mp, h.mp + o.mp); });
-    if (o.dmgPct) st.party.forEach((h) => { if (h.hp > 0) h.hp = Math.max(1, h.hp - Math.round(computeStats(h).hp * o.dmgPct)); });
+    if (o.mp) myHeroes().forEach((h) => { h.mp = Math.min(computeStats(h).mp, h.mp + o.mp); });
+    if (o.dmgPct) myHeroes().forEach((h) => { if (h.hp > 0) h.hp = Math.max(1, h.hp - Math.round(computeStats(h).hp * o.dmgPct)); });
     if (o.buff) { st.nextBuff = o.buff; }
-    if (o.skillPoint) { st.party.forEach((h) => { h.skillPoints += 1; }); gains.push(t('+1 Skill Point (all heroes)')); }
+    if (o.skillPoint) { myHeroes().forEach((h) => { h.skillPoints += 1; }); gains.push(t('+1 Skill Point (all heroes)')); }
     if (o.item === 'random-equip') { const it = this.rollEquip(rng, 2, 'rare'); addItem(it); gains.push(it.name); }
     else if (o.item) { addConsumable(o.item); gains.push(CONSUMABLES[o.item].name); }
     if (o.card) { const id = this.rollCards(rng, 1, o.card === 'rare' ? 'rare' : 'common')[0]; addCard(id); gains.push(t('Card: {name}', { name: CARDS[id].name })); }
     if (o.mat) { s.mats.forEach((m) => { addMaterial(m, 2); gains.push(t('2× {name}', { name: MATERIALS[m].name })); }); }
     if (o.upgrade) {
-      const ids = Object.keys(st.cards).filter((id) => st.cards[id].lv < MAX_CARD_LEVEL && st.party.some((h) => h.deck.includes(id)));
+      const ids = Object.keys(st.cards).filter((id) => st.cards[id].lv < MAX_CARD_LEVEL && myHeroes().some((h) => h.deck.includes(id)));
       if (ids.length) { const id = rng.pick(ids); st.cards[id].lv++; progress('upgrade', 1); gains.push(t('{name} upgraded to +{n}', { name: CARDS[id].name, n: st.cards[id].lv })); }
     }
     progress('events', 1);
     if (!o.fight) this.markCleared(c);
     touch();
-    return { msg: o.msg || '', gains, fight: !!o.fight };
+    // effects on heroes, replayed by co-op guests on their own characters
+    const party = { healPct: o.healPct, fullHeal: o.fullHeal, mp: o.mp, dmgPct: o.dmgPct, exp: o.exp ? Math.round(o.exp * scale) : 0, skillPoint: o.skillPoint };
+    return { msg: o.msg || '', gains, fight: !!o.fight, party };
   }
 
   leave() { G.state.run = null; touch(); }

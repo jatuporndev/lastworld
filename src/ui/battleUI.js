@@ -22,10 +22,11 @@ const INTENT_ICON = { strike: 'sword', shoot: 'arrow', aoe: 'meteor', guard: 'sh
 const EL_SFX = { fire: 'fire', ice: 'ice', wind: 'wind', earth: 'earth', holy: 'holy', shadow: 'shadow', poison: 'poison', neutral: 'slash', arcane: 'magic' };
 
 export class BattleScene {
-  constructor(app, { stage, enc, seed = Date.now() }) {
+  constructor(app, { stage, enc, seed = Date.now(), party = null }) {
     this.app = app; this.world = app.world; this.stage = stage; this.enc = enc;
     this.labels = new Map(); this.pending = null; this.inputOn = false; this.hoverCell = null; this.inspect = null;
-    this.battle = new Battle({ stage, enemies: enc.enemies, kind: enc.kind, party: G.state.party, levelOf: cardLevel, inv: G.state.inv, nextBuff: G.state.nextBuff, view: this, seed });
+    // co-op battles use the party snapshot every client received (each hero carries its card levels and potions)
+    this.battle = new Battle({ stage, enemies: enc.enemies, kind: enc.kind, party: party ? JSON.parse(JSON.stringify(party)) : G.state.party, levelOf: cardLevel, inv: party ? null : G.state.inv, nextBuff: G.state.nextBuff, view: this, seed });
     // co-op lockstep: every hero action is a numbered command applied in the same order on every client
     this.cmdN = 0; this.remote = new Map(); this.applying = false;
     this.coop = Coop.active;
@@ -39,8 +40,9 @@ export class BattleScene {
 
   // ───────── co-op ─────────
   // Whether this client may act for a hero unit.
-  canControl(u) { return !this.coop || Coop.controls(G.state.party.indexOf(u.hero)); }
-  ownerName(u) { return Coop.nameOf(Coop.ownerOf(G.state.party.indexOf(u.hero))); }
+  canControl(u) { return !this.coop || Coop.controls(u.hero?.owner); }
+  ownerName(u) { return Coop.nameOf(u.hero?.owner); }
+  consOf(u) { return u.hero?.owner ? (u.hero.cons ||= {}) : G.state.inv.cons; }
   ready(u = this.hero()) { return !!u && !!this.battle._endTurn && !this.battle.busy && !this.applying && !this.battle.result; }
   inputReady() { this.ownersChanged(); this.drain(); }
   ownersChanged() {
@@ -257,7 +259,7 @@ export class BattleScene {
     E.cool.replaceChildren(...(u.cards.cooldown.length ? u.cards.cooldown.map((e) => h('div.cool-card', { style: { '--el': ELEMENTS[e.inst.card.el].color }, 'data-tip': t('{name} — ready in {n} round(s)', { name: e.inst.card.name, n: e.left }) }, icon(e.inst.card.icon, '#fff', 22), h('b', e.left))) : [h('div.cool-empty', '—')]),
       h('div.pile', { 'data-tip': t('Draw pile {d} · Discard {x}', { d: u.cards.draw.length, x: u.cards.discard.length }) }, h('span', u.cards.draw.length), h('small', t('DECK'))));
     E.exec.disabled = !active || !u.plan.length; E.end.disabled = !active; E.undo.disabled = !active || !u.plan.length;
-    const cons = Object.values(G.state.inv.cons).reduce((s, v) => s + v, 0);
+    const cons = Object.values(this.consOf(u)).reduce((s, v) => s + v, 0);
     E.items.disabled = !active || u.itemUsed || !cons; E.items.querySelector('span').textContent = t('Items ({n})', { n: cons });
     this.setHint();
   }
@@ -459,7 +461,7 @@ export class BattleScene {
 
   openItems() {
     const u = this.hero(); if (!u || !this.inputOn) return;
-    const list = Object.entries(G.state.inv.cons).map(([id, n]) => { const c = CONSUMABLES[id];
+    const list = Object.entries(this.consOf(u)).map(([id, n]) => { const c = CONSUMABLES[id];
       return h('div.item', { style: { '--rar': c.color }, onclick: async () => { m.close(); if (!this.inputOn || u.itemUsed) return; this.inputOn = false; await this.act({ k: 'item', id }); } },
         h('div.item-icon', icon(c.icon, c.color, 34)), h('div.item-info', h('div.item-name', c.name), h('div.item-sub', c.desc)), h('div.item-tag', '×' + n)); });
     const m = openModal(h('div.item-list', ...list), { title: t('Use Item — {name}', { name: u.name }), cls: 'narrow' });

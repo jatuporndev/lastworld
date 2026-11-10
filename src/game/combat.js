@@ -111,7 +111,7 @@ export class Battle {
       stats: { atk: s.atk, matk: s.matk, def: s.def, spd: s.spd, crit: s.crit, eva: s.eva, move: s.move, energy: s.energy, draw: s.draw, mpRegen: s.mpRegen },
       passives: s.passives, el: CLASSES[hero.cls].element, weak: [], resist: [],
       block: 0, status: {}, alive: true, energy: 0, moved: false, slotsUsed: 0, plan: [], lastCat: null, itemUsed: false,
-      cards: new CardEngine(hero.deck, levelOf, this.rng, () => 'c' + this.nextId()),
+      cards: new CardEngine(hero.deck, hero.cardLv ? (id) => hero.cardLv[id] || 0 : levelOf, this.rng, () => 'c' + this.nextId()),
     };
   }
 
@@ -441,10 +441,11 @@ export class Battle {
   }
 
   async useItem(u, id) {
-    if (this.busy || u.itemUsed || !this.inv || !(this.inv.cons[id] > 0)) return false;
+    const inv = u.hero?.owner ? { cons: (u.hero.cons ||= {}) } : this.inv; // co-op: each hero carries its own potions
+    if (this.busy || u.itemUsed || !inv || !(inv.cons[id] > 0)) return false;
     const use = CONSUMABLES[id].use;
     this.busy = true; u.itemUsed = true;
-    this.inv.cons[id]--; if (this.inv.cons[id] <= 0) delete this.inv.cons[id];
+    inv.cons[id]--; if (inv.cons[id] <= 0) delete inv.cons[id];
     await this.emit('item', { unit: u, id });
     if (use.healPct) await this.heal(u, u, Math.round(u.maxHp * use.healPct), true);
     if (use.mp) { u.mp = Math.min(u.maxMp, u.mp + use.mp); await this.emit('text', { unit: u, text: `+${use.mp} MP`, color: '#6aa8ff' }); }
