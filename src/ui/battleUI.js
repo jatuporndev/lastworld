@@ -144,6 +144,13 @@ export class BattleScene {
   // ── impact feedback ──
   // A full-screen flash (hurt = red edges, crit = warm burst, kill = white), and a buzz on phones.
   screenFx(kind) { const el = h('div.screen-fx.' + kind); this.hud.appendChild(el); setTimeout(() => el.remove(), 520); }
+  // Roll log (bottom right): the dice tray is gone in a moment, so each result stays here as a small line.
+  logRoll(who, color, faces, total, notes = []) {
+    const SYM = { crit: '✸', surge: '◈', star: '★' };
+    const line = h('div.dl-line', h('i.dl-dot.' + color), h('b', who), h('span.dl-faces', '🎲 ' + faces.map((f) => (f.k ? SYM[f.k] : '') + f.v).join(' + ')), faces.length > 1 || notes.length ? h('span.dl-total', '= ' + total) : null, ...notes.map((n) => h('em', n)));
+    this.el.log.appendChild(line);
+    while (this.el.log.children.length > 6) this.el.log.firstChild.remove();
+  }
   buzz(pattern) { try { navigator.vibrate?.(pattern); } catch (e) { /* not supported */ } }
   // The screen edges pulse red while one of your heroes is close to falling.
   updateDanger() { this.hud.classList.toggle('danger', this.battle.heroes().some((u) => this.canControl(u) && u.hp / u.maxHp <= 0.3)); }
@@ -167,7 +174,7 @@ export class BattleScene {
   buildHud() {
     const b = this.battle;
     this.el = {
-      order: h('div.turn-order'), round: h('div.round-label', t('Round {n}', { n: 1 })), party: h('div.b-party'), info: h('div.b-info'),
+      order: h('div.turn-order'), round: h('div.round-label', t('Round {n}', { n: 1 })), party: h('div.b-party'), info: h('div.b-info'), log: h('div.dice-log'),
       hand: h('div.hand'), slots: h('div.slots'), energy: h('div.energy-orb'), cool: h('div.cooldown-track'), heroTag: h('div.hero-tag'),
       exec: btn(t('Execute'), () => this.execute(), { cls: 'primary exec', tip: t('Resolve the cards in your Action Slots (E)') }),
       end: btn(t('End Turn'), () => this.endTurn(), { cls: 'end', tip: t("End this hero's turn (Space)") }),
@@ -175,7 +182,7 @@ export class BattleScene {
       items: btn(t('Items'), () => this.openItems(), { cls: 'small', tip: t('Use a consumable (once per turn)') }),
       hint: h('div.b-hint'),
     };
-    this.hud = h('div.battle-hud',
+    this.hud = h('div.battle-hud', this.el.log,
       h('div.b-top', h('div.b-title', h('div.b-stage', this.stage.name), this.el.round), this.el.order),
       this.el.party, this.el.info, this.el.hint,
       h('div.b-bottom',
@@ -554,6 +561,7 @@ export class BattleScene {
           }
         } else if (blocked > 0) { w.floatText(pos(tgt, 1.6), t('Blocked'), 'blocked'); audio.sfx('block'); w.burst(p, { color: 0x9fc8ff, count: 12, speed: 3 }); w.ring(pos(tgt, 0.1), 0x9fc8ff, 1.1, 220); w.shake(0.1, 140); await w.hitStop(45); }
         if (blocked > 0 && dmg > 0) w.floatText(pos(tgt, 2.0), t('-{n} block', { n: blocked }), 'blocked small');
+        { const roll = tags.find((x) => x.startsWith('🎲')); if (roll && d.src) this.logRoll(d.src.name, 'grey', [{ v: +roll.replace(/\D/g, '') }], +roll.replace(/\D/g, '')); }
         tags.forEach((t, i) => setTimeout(() => w.floatText(pos(tgt, 2.2 + i * 0.35), tr(t), d.combo && t.startsWith(d.combo) ? 'combo' : 'tag'), 90 * (i + 1)));
         if (d.combo) { audio.sfx('magic'); w.ring(pos(tgt, 0.1), elColor(el), 2); }
         this.syncLabel(tgt); this.renderParty(); this.updateDanger(); if (this.inspect === tgt) this.renderInfo();
@@ -647,6 +655,7 @@ export class BattleScene {
     clearInterval(spin);
     tray.classList.add('done');
     await wait(dice.crit || dice.stars ? 1500 : 1200);
+    this.logRoll(card.name, dice.color, dice.faces, dice.total, [dice.crit ? t('Critical!') : null, dice.surge ? t('+{n} status stacks', { n: dice.surge }) : null, dice.stars ? t('Bonus doubled!') : null].filter(Boolean));
     tray.classList.add('out'); setTimeout(() => tray.remove(), 300);
   }
 
