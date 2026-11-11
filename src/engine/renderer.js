@@ -1,6 +1,7 @@
 // Renderer — Three.js 2.5D tabletop diorama: textured 3D hex terrain pieces, soft shadows, fog,
 // billboarded sprite-sheet units, highlights, particles, camera.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import * as Hex from './hex.js';
 import { getSheet, DIR_VIEW, ANIMS, FRAMES, VIEWS, iconCanvas } from './sprites.js';
 import { terrainOf } from '../data/terrain.js';
@@ -124,6 +125,59 @@ export class World {
     this.hover.visible = false; this.turnRing.visible = false; this.turnUid = null;
     this.particles.forEach((p) => this.fxGroup.remove(p.s)); this.particles = [];
     while (this.fxGroup.children.length) this.fxGroup.remove(this.fxGroup.children[0]);
+    clearTimeout(this._bakeT); (this.baked || []).forEach((m) => m.geometry.dispose()); this.baked = [];
+  }
+
+  // Draw-call batching. A board is hundreds of small meshes (each terrain piece is a body, a lip and a
+  // few props, every one its own draw call, and again in the shadow pass). Once pieces are in place
+  // and standing still, their geometry is merged into one mesh per material; the originals stay in the
+  // scene, hidden, so picking and later reveals work exactly as before. Pieces that move (water,
+  // flames, floating props, a tile still rising into view) are left alone.
+  scheduleBake(ms = 0) { clearTimeout(this._bakeT); this._bakeT = setTimeout(() => this.bakeBoard(), ms); }
+  bakeBoard() {
+    (this.baked || []).forEach((m) => { this.boardGroup.remove(m); m.geometry.dispose(); }); this.baked = [];
+    const live = new Set(this.liveProps.map((l) => l.o));
+    const hidden = this.mat(0x0a0808); // undersides are never seen from the table camera
+    const buckets = new Map();
+    const take = (o) => {
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      if (mats.some((m) => m.transparent || !m.isMeshStandardMaterial)) return false;
+      let g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+      if (!g.attributes.normal) g.computeVertexNormals();
+      if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+      for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);
+      o.updateWorldMatrix(true, false); g.applyMatrix4(o.matrixWorld);
+      const groups = g.groups.length ? g.groups : [{ start: 0, count: g.attributes.position.count, materialIndex: 0 }];
+      for (const gr of groups) {
+        const m = mats[gr.materialIndex] || mats[0]; if (m === hidden) continue;
+        const part = new THREE.BufferGeometry();
+        for (const name of ['position', 'normal', 'uv']) { const a = g.attributes[name]; part.setAttribute(name, new THREE.BufferAttribute(a.array.slice(gr.start * a.itemSize, (gr.start + gr.count) * a.itemSize), a.itemSize)); }
+        const key = m.uuid + (o.castShadow ? 'c' : '-') + (o.receiveShadow ? 'r' : '-');
+        let b = buckets.get(key); if (!b) { b = { m, cast: o.castShadow, recv: o.receiveShadow, parts: [] }; buckets.set(key, b); }
+        b.parts.push(part);
+      }
+      g.dispose();
+      return true;
+    };
+    for (const tile of this.tiles.values()) {
+      const still = tile.group.visible && tile.group.position.y === 0;
+      const liquid = !!terrainOf(tile.t).liquid;
+      const visit = (o, skip) => {
+        skip = skip || live.has(o);
+        if (o.isMesh && !o.isInstancedMesh && !o.children.length) {
+          const moving = liquid && (o === tile.mesh || o.parent === tile.group);
+          if (o.userData.baked) { o.visible = true; o.userData.baked = false; } // put back what the last bake hid
+          if (still && !skip && !moving && o.visible && take(o)) { o.visible = false; o.userData.baked = true; }
+        }
+        for (const c of o.children) visit(c, skip);
+      };
+      visit(tile.group, false);
+    }
+    for (const b of buckets.values()) {
+      const geo = mergeGeometries(b.parts, false); b.parts.forEach((p) => p.dispose()); if (!geo) continue;
+      const mesh = new THREE.Mesh(geo, b.m); mesh.castShadow = b.cast; mesh.receiveShadow = b.recv; mesh.matrixAutoUpdate = false;
+      this.boardGroup.add(mesh); this.baked.push(mesh);
+    }
   }
 
   // Shared prop material (cached). opts: flat, roughness, emissive, emissiveIntensity, transparent, opacity
@@ -224,12 +278,13 @@ export class World {
         this.falls.push({ tile, pos: new THREE.Vector3(p.x + (dx / len) * 1.0, BASE_Y + 0.1, p.z + (dz / len) * 1.0), lava, acc: Math.random() * 200 });
       }
     }
+    this.scheduleBake();
   }
 
   revealTile(k) {
     const t = this.tiles.get(k); if (!t || t.group.visible) return;
     t.group.visible = true; t.group.position.y = -1.2;
-    tween(450 + Math.random() * 250, (e) => { t.group.position.y = -1.2 * (1 - e); }, Ease.outBack);
+    tween(450 + Math.random() * 250, (e) => { t.group.position.y = -1.2 * (1 - e); }, Ease.outBack).then(() => { t.group.position.y = 0; this.scheduleBake(250); });
   }
 
   tileTop(q, r) { return this.tiles.get(Hex.key(q, r))?.top ?? 0.3; }
@@ -268,7 +323,7 @@ export class World {
 
   // ───────── units ─────────
   addUnit(u, cells) {
-    const fs = u.scale > 1.6 ? 256 : 192; // painted large so figures stay crisp when the camera is close
+    const fs = u.scale > 1.6 ? 192 : 128; // the same sheet the UI portraits use, so each figure is painted once
     const sheet = getSheet(u.spriteKey, u.look, fs);
     let base = this.texCache.get(u.spriteKey + fs);
     if (!base) { base = new THREE.CanvasTexture(sheet.canvas); base.colorSpace = THREE.SRGBColorSpace; base.anisotropy = 4; this.texCache.set(u.spriteKey + fs, base); }
