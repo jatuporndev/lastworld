@@ -264,7 +264,12 @@ export class BattleScene {
     for (let i = 0; i < u.slotsUsed; i++) slots.push(h('div.slot.spent', h("div.slot-n", ++sn), h("span", t("Spent"))));
     u.plan.forEach((e, pi) => {
       const c = e.inst.card; const last = pi === u.plan.length - 1;
-      slots.push(h('div.slot.filled' + (last ? '.last' : '') + (c.cost === 0 ? '.free' : c.cost > 1 ? '.w' + Math.min(3, c.cost) : ''), { style: { '--el': ELEMENTS[c.el].color }, 'data-tip': last ? t('Click to remove') : diceText(describeCard(c, u).text), onclick: () => { if (last) this.undo(); } },
+      // Pointing at a planned card lifts the whole card out of its slot so it can be read. With a mouse,
+      // clicking the last one takes it back; on touch a tap opens the card, which carries a Remove button.
+      const touch = window.matchMedia('(hover: none)').matches;
+      const peek = h('div.slot-peek', cardEl(e.inst.id, e.inst.lv, { unit: u }), last && touch ? h('button.mini.slot-remove', { onclick: (ev) => { ev.stopPropagation(); this.undo(); } }, t('Remove')) : null);
+      slots.push(h('div.slot.filled' + (last ? '.last' : '') + (c.cost === 0 ? '.free' : c.cost > 1 ? '.w' + Math.min(3, c.cost) : ''), { style: { '--el': ELEMENTS[c.el].color }, 'data-tip': last && !touch ? t('Click to remove') : null,
+        onclick: (ev) => { if (touch) { const el = ev.currentTarget; const on = el.classList.contains('peek'); this.el.slots.querySelectorAll('.slot.peek').forEach((x) => x.classList.remove('peek')); if (!on) el.classList.add('peek'); } else if (last) this.undo(); } }, peek,
         h('div.slot-n', c.cost === 0 ? '★' : c.cost > 1 ? `${sn + 1}–${sn + c.cost}` : sn + 1), icon(c.icon, '#fff', 30), h('div.slot-name', c.name)));
       sn += c.cost;
     });
