@@ -55,7 +55,7 @@ export class ExploreScene {
         h('div.x-right', this.el.res, h('div.x-buttons',
           btn(t('Journal'), () => openMenu(this.app), { cls: 'small', iconName: 'book', tip: t('Heroes, equipment, deck, forge, quests (Tab)') }),
           this.spectator ? btn(t('Party Room'), () => lobbyModal(this.app), { cls: 'small', iconName: 'banner' }) : btn(t('World Map'), () => this.app.toWorldMap(), { cls: 'small', iconName: 'flag', tip: t('Leave — your progress in this stage is kept') })))),
-      this.el.party, this.el.hint,
+      this.el.party, this.el.hint, this.world.camControls(),
       h('div.x-legend', ...[['sword', '#e05a4a', 'Monsters'], ['horns', '#ff8a2a', 'Mini Boss'], ['crown', '#ff3050', 'MVP Boss'], ['chest', '#ffd24a', 'Treasure'], ['gem', '#6fe0c0', 'Resources'], ['question', '#c9a0ff', 'Event'], ['camp', '#7fe08a', 'Rest'], ['coin', '#ffc050', 'Shop'], ['shrine', '#9ad8ff', 'Shrine']].map(([i, c, n]) => h('span', icon(i, c, 16), t(n)))));
     ui().appendChild(this.hud);
     this.refreshHud();
@@ -78,7 +78,7 @@ export class ExploreScene {
   bind() {
     const cv = this.world.canvas;
     this._move = (e) => this.onMove(e); this._down = (e) => this.onDown(e);
-    this._key = (e) => { if (e.key === 'Tab') { e.preventDefault(); if (!document.querySelector('.modal-wrap')) openMenu(this.app); } };
+    this._key = (e) => { if (e.key === 'Tab') { e.preventDefault(); if (!document.querySelector('.modal-wrap')) openMenu(this.app); } else if (!document.querySelector('.modal-wrap') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) this.world.rotateBy(e.key === 'ArrowLeft' ? -1 : 1); };
     this._ctx = (e) => { if (Coop.active) e.preventDefault(); };
     cv.addEventListener('pointermove', this._move); cv.addEventListener('pointerdown', this._down); window.addEventListener('keydown', this._key); cv.addEventListener('contextmenu', this._ctx);
     if (Coop.active) { this._offPing = bus.on('coop:pings', (all) => this.showPings(all)); }

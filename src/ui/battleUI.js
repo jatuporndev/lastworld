@@ -182,7 +182,7 @@ export class BattleScene {
       items: btn(t('Items'), () => this.openItems(), { cls: 'small', tip: t('Use a consumable (once per turn)') }),
       hint: h('div.b-hint'),
     };
-    this.hud = h('div.battle-hud', this.el.log,
+    this.hud = h('div.battle-hud', this.el.log, this.world.camControls({ fit: true }),
       h('div.b-top', h('div.b-title', h('div.b-stage', this.stage.name), this.el.round), this.el.order),
       this.el.party, this.el.info, this.el.hint,
       h('div.b-bottom',
@@ -346,7 +346,7 @@ export class BattleScene {
     const cv = this.world.canvas;
     this._move = (e) => this.pointerMove(e);
     this._down = (e) => this.pointerDown(e);
-    this._ctx = (e) => { e.preventDefault(); this.cancelPending(); };
+    this._ctx = (e) => { e.preventDefault(); if (this.world.orbitMoved) { this.world.orbitMoved = false; return; } this.cancelPending(); }; // a right-drag turned the camera
     this._key = (e) => this.key(e);
     cv.addEventListener('pointermove', this._move); cv.addEventListener('pointerdown', this._down); cv.addEventListener('contextmenu', this._ctx);
     window.addEventListener('keydown', this._key);
@@ -457,6 +457,8 @@ export class BattleScene {
   key(e) {
     if (e.repeat || document.querySelector('.modal-wrap')) return;
     if (e.key === 'Escape') this.cancelPending();
+    else if (e.key === 'ArrowLeft') this.world.rotateBy(-1);
+    else if (e.key === 'ArrowRight') this.world.rotateBy(1);
     else if (e.code === 'Space') { e.preventDefault(); this.endTurn(); }
     else if (e.key === 'e' || e.key === 'E' || e.key === 'Enter') this.execute();
     else if (e.key === 'z' || e.key === 'Z' || e.key === 'Backspace') this.undo();

@@ -9,6 +9,12 @@ import { STAGES } from '../data/stages.js';
 import { EVENTS, QUESTS } from '../data/events.js';
 import { NODE_INFO } from '../game/stageManager.js';
 
+// Skill names (hero cards and monster attacks) are kept in English in every language, like "Fireball".
+const cardNames = Object.entries(CARDS).map(([id, c]) => [id, c.name]);
+const attackNames = Object.values(MONSTERS).flatMap((m) => [...(m.intents || []), ...(m.phase2 || [])]).map((it) => [it, it.name]);
+
 [CLASSES, SKILL_TREES, STAT_INFO, CARDS, ELEMENTS, CATEGORIES, RARITY, STATUS_INFO, ITEM_RARITY, BASES, UNIQUES,
   CONSUMABLES, MATERIALS, TERRAIN, MONSTERS, STAGES, EVENTS, QUESTS, NODE_INFO].forEach((tbl) => localize(tbl));
 localizeValues(STAT_LABEL);
+cardNames.forEach(([id, name]) => { CARDS[id].name = name; });
+attackNames.forEach(([it, name]) => { it.name = name; });

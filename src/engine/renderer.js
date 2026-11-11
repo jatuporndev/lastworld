@@ -56,7 +56,7 @@ export class World {
     this.texCache = new Map(); this.matCache = new Map(); this.tileMatCache = new Map();
     this.glowTex = glowTexture();
     this.kit = new PropKit((color, opts) => this.mat(color, opts)); this.theme = THEMES[0]; this.spriteTint = new THREE.Color(0xffffff);
-    this.raycaster = new THREE.Raycaster(); this.time = 0; this.ambient = null; this.ambientAcc = 0; this.mistAcc = 0;
+    this.raycaster = new THREE.Raycaster(); this.bindOrbit(); this.time = 0; this.ambient = null; this.ambientAcc = 0; this.mistAcc = 0;
     this.tileGeo = new THREE.CylinderGeometry(0.985, 0.985, 1, 6);
     this.lipGeo = new THREE.CylinderGeometry(0.925, 0.985, LIP, 6);
     this.fallGeo = new THREE.PlaneGeometry(0.985, 2.4);
@@ -126,6 +126,7 @@ export class World {
     this.particles.forEach((p) => this.fxGroup.remove(p.s)); this.particles = [];
     while (this.fxGroup.children.length) this.fxGroup.remove(this.fxGroup.children[0]);
     clearTimeout(this._bakeT); (this.baked || []).forEach((m) => m.geometry.dispose()); this.baked = [];
+    this.orbitOn = false; this.orbitFit = false; this.cam.yaw = 0; this.cam.baseSize = null;
   }
 
   // Draw-call batching. A board is hundreds of small meshes (each terrain piece is a body, a lip and a
@@ -343,8 +344,35 @@ export class World {
   unitPos(uid, up = 0) { const U = this.units.get(uid); if (!U) return new THREE.Vector3(); return U.group.position.clone().add(new THREE.Vector3(0, up * U.scale, 0)); }
   placeUnit(uid, cells) { const U = this.units.get(uid); if (U) U.group.position.copy(this.footPos(cells)); }
   setFacing(uid, dir) { const U = this.units.get(uid); if (U && dir != null) { U.dir = dir; this.applyFrame(U); } }
+  // Camera rotation. The board turns in 60° steps (one hex side) so pieces always line up; figures pick
+  // the sprite view that matches where they face on screen.
+  rotateBy(step) {
+    const c = this.cam; const S = Math.PI / 3; const from = c.yaw; const to = (Math.round(from / S) + step) * S;
+    // a wide battle board turned on its side needs more room: pull the camera back while it is turned
+    const zoom = (yaw) => 1 + 0.55 * Math.abs(Math.sin(yaw));
+    if (this.orbitFit && c.baseSize == null) c.baseSize = c.size / zoom(from);
+    const s0 = c.size, s1 = this.orbitFit ? c.baseSize * zoom(to) : c.size;
+    return tween(260, (e) => { c.yaw = from + (to - from) * e; c.size = s0 + (s1 - s0) * e; }, Ease.inOutQuad).then(() => { c.yaw = to; c.size = s1; this.refreshFrames(); });
+  }
+  refreshFrames() { for (const U of this.units.values()) this.applyFrame(U); }
+  // The two turn buttons for a HUD; also switches on right-button drag to turn the board.
+  camControls({ fit = false } = {}) {
+    this.orbitOn = true; this.orbitFit = fit;
+    const mk = (label, step, tip) => { const b = document.createElement('button'); b.className = 'cam-btn'; b.textContent = label; b.dataset.tip = tip; b.onclick = () => { audio.sfx('click'); this.rotateBy(step); }; return b; };
+    const el = document.createElement('div'); el.className = 'cam-ctl'; el.append(mk('⟲', -1, '←'), mk('⟳', 1, '→'));
+    return el;
+  }
+  bindOrbit() {
+    const cv = this.canvas; let drag = null;
+    cv.addEventListener('pointerdown', (e) => { this.orbitMoved = false; if (e.button === 2 && this.orbitOn) drag = { x: e.clientX, yaw: this.cam.yaw }; });
+    window.addEventListener('pointermove', (e) => { if (!drag) return; const dx = e.clientX - drag.x; if (Math.abs(dx) > 6) this.orbitMoved = true; if (this.orbitMoved) { this.cam.yaw = drag.yaw - dx * 0.006; this.refreshFrames(); } });
+    window.addEventListener('pointerup', () => { if (!drag) return; drag = null; if (this.orbitMoved) this.rotateBy(0); });
+    cv.addEventListener('contextmenu', (e) => { if (this.orbitOn) e.preventDefault(); });
+  }
+
   applyFrame(U) {
-    const [view, flip] = DIR_VIEW[U.dir]; const col = view * FRAMES + (U.frame % FRAMES); const row = ANIMS.indexOf(U.anim);
+    const ys = Math.round(this.cam.yaw / (Math.PI / 3));
+    const [view, flip] = DIR_VIEW[(((U.dir - ys) % 6) + 6) % 6]; const col = view * FRAMES + (U.frame % FRAMES); const row = ANIMS.indexOf(U.anim);
     if (flip) { U.tex.repeat.x = -1 / COLS; U.tex.offset.x = (col + 1) / COLS; } else { U.tex.repeat.x = 1 / COLS; U.tex.offset.x = col / COLS; }
     U.tex.offset.y = 1 - (row + 1) / ROWS;
   }

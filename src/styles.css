@@ -638,6 +638,30 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .tab:not(.on) .icon { filter: brightness(0.4); } .modal .item-icon .icon, .wm-detail .item-icon .icon { filter: brightness(0.6) saturate(1.5); }
 .hero-stage { overflow: hidden; } .hero-stage canvas { max-height: 100%; width: auto !important; height: 100% !important; }
 
+/* camera turn buttons: two round tokens on the left edge */
+.cam-ctl { position: absolute; left: 0.9em; top: 46%; display: flex; flex-direction: column; gap: 0.5em; pointer-events: auto !important; z-index: 6; }
+.cam-btn { width: 2.7em; height: 2.7em; border: 0; border-radius: 50%; background: var(--paper); color: var(--ink-d); font-size: 1.05em; font-weight: 700; line-height: 1; cursor: pointer; box-shadow: 0 0.2em 0 rgba(0, 0, 0, 0.3); pointer-events: auto !important; transition: transform 0.12s, background 0.12s; }
+.cam-btn:hover { background: var(--coin); } .cam-btn:active { transform: scale(0.92); }
+
+/* ── readability pass: journal and menus ──
+   Stronger ink, larger type and clearer rows; the title menu sits on its own paper slip. */
+:root { --paper: #f8eed6; --paper2: #ebdcb8; --paper3: #d3bf92; --ink-d: #2a1d15; --dim-d: #5f4c3a; }
+.modal.menu-modal { font-size: 1.06em; } .modal-title { font-size: 1.45em; padding-top: 0.9em; }
+.menu { gap: 1.3em; } .menu-side { width: 12.5em; padding-right: 0.9em; } .menu-tabs { gap: 0.25em; }
+.tab { padding: 0.7em 0.9em; font-size: 1.05em; color: var(--ink-d); border-radius: 0.5em; } .tab:not(.on) .icon { filter: brightness(0.25); } .tab.on { box-shadow: 0 0.2em 0 rgba(0, 0, 0, 0.18); }
+.sec-title { font-size: 0.95em; letter-spacing: 0.04em; text-transform: none; color: var(--ink-d); font-weight: 600; border-bottom: 0; padding-bottom: 0.35em; margin-bottom: 0.55em; background: linear-gradient(var(--accent), var(--accent)) left bottom / 2.2em 0.2em no-repeat; }
+.attr, .derived, .quest, .skill, .hp-item, .item { background: #fffaf0; box-shadow: 0 0.12em 0 var(--paper3); } .item { box-shadow: inset 0.35em 0 0 var(--rar, var(--paper3)), 0 0.12em 0 var(--paper3); }
+.attr { padding: 0.45em 0.7em; margin-bottom: 0.35em; } .attr-n { color: var(--accent2); font-weight: 600; } .attr b { font-family: var(--f-head); font-weight: 600; font-size: 1.2em; }
+.derived { padding: 0.35em 0.7em; } .derived span { color: var(--dim-d); } .derived b { font-family: var(--f-head); font-weight: 600; }
+.plus { width: 2em; height: 2em; font-size: 1.05em; } .plus:disabled { opacity: 1; background: var(--paper2); color: var(--paper3); filter: none; }
+.skill { padding: 0.6em 0.8em 0.6em 2.8em; } .skill-name { font-weight: 600; font-size: 1.02em; color: var(--ink-d); } .skill.locked { opacity: 1; } .skill.locked .skill-name, .skill.locked .skill-desc { color: #9a8870; } .skill.known { background: color-mix(in srgb, var(--accent2) 18%, #fffaf0); }
+.skill-tier { color: var(--accent2); font-size: 1.05em; } .skill-desc, .q-desc, .item-sub { color: var(--dim-d); font-size: 0.86em; }
+.hero-name { font-size: 1.5em; font-weight: 600; } .lvl { font-family: var(--f-head); } .tab-hero .bar, .hero-col .bar { height: 1.15em; border-radius: 0.3em; } .hero-col .bar-text { font-size: 0.74em; }
+.item-name { font-weight: 600; } .eq-label { font-size: 0.78em; letter-spacing: 0.06em; color: var(--dim-d); font-weight: 600; }
+.menu-res .res { font-size: 1.1em; padding: 0.2em 0; }
+.title-menu { background: var(--paper); padding: 0.9em 1.1em 1em; border-radius: 0.6em; box-shadow: 0 0.35em 0 rgba(0, 0, 0, 0.28), 0 0.9em 2em rgba(0, 0, 0, 0.45); --ink: var(--ink-d); --tshadow: none; gap: 0.1em; } .title-menu::before { display: none; }
+.title-menu .btn { color: var(--ink-d); text-shadow: none; width: 100%; } .title-menu .btn:hover:not(:disabled) { color: var(--accent); } .title-menu .btn.primary, .title-menu .btn.primary:hover:not(:disabled) { color: #fff; width: auto; margin-bottom: 0.25em; } .title-menu .btn:not(.primary) .icon { filter: brightness(0.25); }
+
 /* ── phones ──
    The game is a wide tabletop, so phones play it in landscape. A short screen gets a larger base
    font than the desktop formula would give (text stays readable) and a compact HUD to make room. */
@@ -688,6 +712,8 @@ html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent
   .hand .card:hover, .hand .card.selected { transform: translateY(-3.4em) scale(1.3); }
   .dice-tray { top: 36%; padding: 0.6em 1em; gap: 0.4em; } .die { width: 2.9em; height: 2.9em; }
   .banner { top: 22%; padding: 0.6em 0; }
+  .cam-ctl { left: 0.6em; top: 30%; gap: 0.4em; } .cam-btn { width: 2.9em; height: 2.9em; }
+  .modal.menu-modal { font-size: 1em; } .menu-side { width: 10em; } .tab { padding: 0.5em 0.7em; font-size: 1em; } .title-menu { padding: 0.6em 0.8em; }
   .dice-log { right: 0.6em; bottom: 13.4em; font-size: 0.72em; } .dl-line:nth-last-child(n+4) { display: none; }
 }
 /* touch screens have no hover: keep buttons from sticking in their hover state, and let a tapped
