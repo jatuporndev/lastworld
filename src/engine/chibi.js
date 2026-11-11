@@ -1,6 +1,7 @@
 // Chibi painter for every humanoid figure (heroes and humanoid monsters).
-// Big head, small body, small plain eyes, hair in locks, cel shading and an outline in each
-// shape's own darkened colour. It reads the same `look` fields the data files already use, so a new
+// Big head, small body, small plain eyes, hair in locks. Every shape is shaded as a rounded form lit
+// from the upper left, parts cast soft shadows on each other, and outlines are each shape's own
+// darkened colour. It reads the same `look` fields the data files already use, so a new
 // class or monster needs no art — only a look: colours, helm, weapon, offhand, cape, robe, female…
 //
 // Drawn in a 120 x 150 cell (feet on y = 128, centre x = 60) facing left, then mirrored and placed
@@ -21,20 +22,36 @@ function trace(c, pts) {
   for (let i = 0; i < n; i++) { const p = pts[i], q = pts[(i + 1) % n], m = mid(p, q); if (p[2]) { c.lineTo(p[0], p[1]); c.lineTo(m[0], m[1]); } else c.quadraticCurveTo(p[0], p[1], m[0], m[1]); }
   c.closePath();
 }
-// filled shape with a cel shadow on its far side and foot, an optional highlight, and an outline
+// A shape with volume: lit from the upper left. The fill runs from a light tone to a dark one, a soft
+// shadow gathers on the far lower side, a soft highlight sits on the near upper side, the lit edge
+// gets a thin bright line, and the outline is the shape's own colour darkened.
 function blob(c, pts, color, o = {}) {
   let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (const p of pts) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }
-  const w = x1 - x0, h = y1 - y0, cx = (x0 + x1) / 2, dir = o.flip ? -1 : 1;
-  trace(c, pts); c.fillStyle = color; c.fill();
+  const w = x1 - x0, h = y1 - y0, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, dir = o.flip ? -1 : 1, R = Math.max(w, h);
+  trace(c, pts);
+  if (o.shade === 0) c.fillStyle = color;
+  else { const g = c.createLinearGradient(cx - dir * w * 0.5, y0, cx + dir * w * 0.5, y1); g.addColorStop(0, tone(color, 0.2)); g.addColorStop(0.42, color); g.addColorStop(1, tone(color, -0.3)); c.fillStyle = g; }
+  c.fill();
   if (o.shade !== 0) {
     c.save(); trace(c, pts); c.clip();
-    c.fillStyle = tone(color, o.shade ?? -0.2); c.beginPath();
-    c.moveTo(cx + dir * w * (o.cut ?? 0.16), y0 - 2); c.lineTo(cx + dir * (w / 2 + 6), y0 - 2); c.lineTo(cx + dir * (w / 2 + 6), y1 + 4); c.lineTo(cx - dir * w * 0.12, y1 + 4); c.closePath(); c.fill();
-    c.fillStyle = tone(color, (o.shade ?? -0.2) * 1.7); c.fillRect(x0 - 2, y1 - h * (o.foot ?? 0.12), w + 4, h);
-    if (o.light) { c.fillStyle = tone(color, o.light); c.beginPath(); c.ellipse(cx - dir * w * 0.2, y0 + h * 0.24, w * 0.2, h * 0.1, -0.5 * dir, 0, 7); c.fill(); }
+    // core shadow: dark, soft-edged, on the far lower side
+    let g = c.createRadialGradient(cx + dir * w * 0.42, y1 - h * 0.08, R * 0.05, cx + dir * w * 0.42, y1 - h * 0.08, R * 0.85);
+    g.addColorStop(0, 'rgba(18, 12, 40, 0.5)'); g.addColorStop(0.55, 'rgba(18, 12, 40, 0.2)'); g.addColorStop(1, 'rgba(18, 12, 40, 0)'); c.fillStyle = g; c.fillRect(x0 - 2, y0 - 2, w + 4, h + 4);
+    // highlight: soft, on the near upper side (stronger on shiny things)
+    const hl = o.light ? 0.2 + o.light * 0.9 : 0.16;
+    g = c.createRadialGradient(cx - dir * w * 0.24, y0 + h * 0.22, 0, cx - dir * w * 0.24, y0 + h * 0.22, R * 0.42);
+    g.addColorStop(0, `rgba(255, 252, 240, ${Math.min(0.7, hl)})`); g.addColorStop(1, 'rgba(255, 252, 240, 0)'); c.fillStyle = g; c.fillRect(x0 - 2, y0 - 2, w + 4, h + 4);
+    // lit edge
+    c.translate(dir * 0.8, 0.9); trace(c, pts); c.strokeStyle = 'rgba(255, 250, 235, 0.34)'; c.lineWidth = 1.1; c.stroke();
     c.restore();
   }
-  if (o.line !== 0) { trace(c, pts); c.strokeStyle = o.lineColor || tone(color, -0.62); c.lineWidth = o.line ?? 1.5; c.lineJoin = 'round'; c.stroke(); }
+  if (o.line !== 0) { trace(c, pts); c.strokeStyle = o.lineColor || tone(color, -0.66); c.lineWidth = o.line ?? 1.6; c.lineJoin = 'round'; c.stroke(); }
+}
+// a soft shadow that one part casts on the shape traced by `pts`
+function castShadow(c, pts, x, y, rx, ry, a = 0.3) {
+  c.save(); trace(c, pts); c.clip();
+  const g = c.createRadialGradient(x, y, 0, x, y, 1); g.addColorStop(0, `rgba(20, 12, 44, ${a})`); g.addColorStop(0.6, `rgba(20, 12, 44, ${a * 0.6})`); g.addColorStop(1, 'rgba(20, 12, 44, 0)');
+  c.translate(x, y); c.scale(rx, ry); c.translate(-x, -y); c.fillStyle = g; c.beginPath(); c.arc(x, y, 1, 0, 7); c.fill(); c.restore();
 }
 const disc = (c, x, y, rx, ry, color, o) => blob(c, [[x - rx * 1.33, y - ry * 1.33], [x + rx * 1.33, y - ry * 1.33], [x + rx * 1.33, y + ry * 1.33], [x - rx * 1.33, y + ry * 1.33]], color, o);
 function glow(c, x, y, r, color, alpha = 0.6) { const g = c.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, color); g.addColorStop(1, 'rgba(0,0,0,0)'); c.save(); c.globalAlpha = alpha; c.globalCompositeOperation = 'lighter'; c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); c.restore(); }
@@ -52,8 +69,8 @@ function palette(L) {
 function legs(c, P, back, p) {
   [-1, 1].forEach((s) => {
     const sw = s * p.leg * 5, lift = Math.max(0, s * p.leg) * 4, x = 60 + s * 5.5 + sw, far = (s > 0) !== back;
-    blob(c, [[60 + s * 5.5 - 3.8, 98], [60 + s * 5.5 + 3.8, 98], [x + 3.2, 122 - lift], [x - 3.2, 122 - lift]], far ? tone(P.sock, -0.16) : P.sock, { line: 1.3, shade: 0 });
-    blob(c, [[x - 4.6, 117 - lift], [x + 4.6, 117 - lift], [x + 5.4, 127.5 - lift], [x - 5.6, 127.5 - lift]], far ? tone(P.boot, -0.16) : P.boot, { line: 1.3, shade: 0 });
+    blob(c, [[60 + s * 5.5 - 3.8, 98], [60 + s * 5.5 + 3.8, 98], [x + 3.2, 122 - lift], [x - 3.2, 122 - lift]], far ? tone(P.sock, -0.2) : P.sock, { line: 1.3 });
+    blob(c, [[x - 4.6, 117 - lift], [x + 4.6, 117 - lift], [x + 5.4, 127.5 - lift], [x - 5.6, 127.5 - lift]], far ? tone(P.boot, -0.2) : P.boot, { line: 1.3, light: 0.2 });
     c.fillStyle = P.bootTrim; c.fillRect(x - 4.2, 117 - lift, 8.4, 1.8);
   });
 }
@@ -72,6 +89,7 @@ function body(c, L, P, back, p) {
     else { c.strokeStyle = tone(L.armor, -0.35); c.lineWidth = 1; c.beginPath(); c.moveTo(60, 80); c.lineTo(60, 98); c.stroke(); }
   }
   c.restore();
+  castShadow(c, shape, 60, 78, 15, 7, 0.4);
   c.fillStyle = P.belt; c.fillRect(49.5 - wide, 88.2, 21 + wide * 2, 2.6); c.fillStyle = P.trim; c.fillRect(58.4, 87.6, 3.2, 3.8);
   if (L.apron && !back) blob(c, [[53, 81], [67, 81], [68.5, 101], [51.5, 101]], L.apron, { line: 1.2 });
   if (L.skeleton && !back) { c.strokeStyle = L.skin; c.lineWidth = 1.6; for (let i = 0; i < 3; i++) { c.beginPath(); c.moveTo(54, 82 + i * 4); c.quadraticCurveTo(60, 84.5 + i * 4, 66, 82 + i * 4); c.stroke(); } }
@@ -93,8 +111,9 @@ function wings(c, L, p) {
 }
 
 // ── head ──
+const FACE = [[40.5, 62], [41.5, 49], [52, 43], [66, 43], [77, 49.5], [78.5, 62], [74, 74.5], [61, 79.5], [49, 76.5]];
 function face(c, L, P) {
-  blob(c, [[40.5, 62], [41.5, 49], [52, 43], [66, 43], [77, 49.5], [78.5, 62], [74, 74.5], [61, 79.5], [49, 76.5]], P.skin, { shade: -0.1, cut: 0.3, foot: 0.06, lineColor: tone(P.skin, -0.5) });
+  blob(c, FACE, P.skin, { shade: -0.1, cut: 0.3, foot: 0.06, lineColor: tone(P.skin, -0.5) });
   if (L.skeleton) { // skull: hollow sockets, a nose notch and a row of teeth
     for (const [x, rx] of [[47.5, 3.6], [62.5, 4.6]]) { c.fillStyle = '#1a1014'; c.beginPath(); c.ellipse(x, 64, rx, 5, 0, 0, 7); c.fill(); if (L.glowEyes) { glow(c, x, 64, 7, L.glowEyes, 0.9); c.fillStyle = L.glowEyes; c.beginPath(); c.arc(x, 64, 1.5, 0, 7); c.fill(); } }
     c.fillStyle = '#1a1014'; c.beginPath(); c.moveTo(54.5, 69); c.lineTo(56.6, 72.5); c.lineTo(52.6, 72.5); c.closePath(); c.fill();
@@ -119,7 +138,8 @@ function hairBack(c, P, len) {
 }
 function bangs(c, P) {
   blob(c, [[38.5, 61], [40, 47], [51, 39.5], [66, 39], [79, 46], [81, 61], [80, 67, 1], [76.5, 57], [72, 62.5, 1], [67, 53.5], [60.5, 60, 1], [55, 52.5], [50, 60.5, 1], [45.5, 54], [41.5, 66, 1]], P.hair, { light: 0.3, foot: 0 });
-  c.strokeStyle = tone(P.hair, 0.5); c.lineWidth = 1.6; c.lineCap = 'round'; c.beginPath(); c.moveTo(47, 47); c.quadraticCurveTo(58, 42.5, 70, 46.5); c.stroke();
+  c.lineCap = 'round'; c.strokeStyle = tone(P.hair, 0.3); c.globalAlpha = 0.55; c.lineWidth = 4.2; c.beginPath(); c.moveTo(46, 48.5); c.quadraticCurveTo(58, 43.5, 71, 48); c.stroke(); c.globalAlpha = 1;
+  c.strokeStyle = tone(P.hair, 0.62); c.lineWidth = 1.5; c.beginPath(); c.moveTo(48, 46.6); c.quadraticCurveTo(58, 42.6, 68, 46); c.stroke();
   const sl = P.male ? 74 : 88;
   blob(c, [[38.5, 60], [42, 62], [41.5, sl - 6], [38.6, sl - 1, 1], [36.5, sl - 12]], P.hair, { line: 1.2 }); blob(c, [[78, 62], [81.5, 60], [83.5, sl - 12], [81.5, sl, 1], [78.5, sl - 6]], P.hair, { line: 1.2, flip: 1 });
 }
@@ -204,7 +224,7 @@ export function paintChibi(c, L, view, p, anim, kit) {
     if (P.armoured || L.bulky) { disc(c, 48, 81, 5, 4, tone(L.armor, 0.3), { line: 1.2, light: 0.4 }); disc(c, 72, 81, 5.5, 4.4, tone(L.armor, 0.2), { line: 1.2, flip: 1 }); }
     else if (L.robe || L.gown) { blob(c, [[54, 78], [66, 78], [63, 84], [60, 86.5, 1], [57, 84]], tone(L.armor, 0.6), { line: 1 }); disc(c, 60, 82, 1.8, 1.8, L.cloth || '#ff5c8a', { line: 0.8, light: 0.6 }); }
     if (L.scarf) { blob(c, [[50, 77], [70, 77], [72, 83], [60, 87], [48, 83]], L.scarf, { line: 1.1 }); blob(c, [[66, 82], [71, 82], [73, 96, 1], [68, 92]], L.scarf, { line: 1.1, flip: 1 }); }
-    if (!helmed) face(c, L, P);
+    if (!helmed) { face(c, L, P); castShadow(c, FACE, 60, L.helm === 'wizard' || L.helm === 'hood' || L.helm === 'mask' ? 49 : 46, 22, L.helm === 'wizard' ? 10 : 8, 0.34); }
     if (hairy) bangs(c, P);
     headgear(c, L, P, false);
     hold(L.weapon, wHand, a, false); sleeve(c, L, P, 50, 82, wHand[0], wHand[1]);
