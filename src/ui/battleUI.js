@@ -119,7 +119,7 @@ export class BattleScene {
     const w = this.world; const b = this.battle;
     w.addUnit(u, b.cellsOf(u));
     const el = h('div.unit-label' + (u.side === 'enemy' ? '.enemy' : '.ally') + (u.rank === 'mvp' ? '.mvp' : u.rank === 'mini' ? '.mini' : ''),
-      h('div.ul-inner', h('div.ul-intent'), h('div.ul-status'), h('div.ul-row', h('div.ul-block'), h('div.ul-hp', h('div.ul-hp-fill')))));
+      h('div.ul-inner', h('div.ul-intent'), h('div.ul-status'), h('div.ul-row', h('div.ul-block'), h('div.ul-hp', h('div.ul-hp-ghost'), h('div.ul-hp-fill')))));
     const anchor = w.attach(el, () => (u.alive ? w.unitPos(u.uid, u.construct ? 1.1 : 2.0) : null));
     this.labels.set(u.uid, { el, anchor, u });
     this.syncLabel(u);
@@ -128,7 +128,8 @@ export class BattleScene {
   syncLabel(u) {
     const L = this.labels.get(u.uid); if (!L) return;
     const el = L.el;
-    el.querySelector('.ul-hp-fill').style.width = Math.max(0, (u.hp / u.maxHp) * 100) + '%';
+    const pct = Math.max(0, (u.hp / u.maxHp) * 100) + '%';
+    el.querySelector('.ul-hp-fill').style.width = pct; el.querySelector('.ul-hp-ghost').style.width = pct; // the pale ghost bar trails behind to show what a hit took
     const blk = el.querySelector('.ul-block'); blk.textContent = u.block > 0 ? Math.round(u.block) : ''; blk.classList.toggle('on', u.block > 0);
     const st = el.querySelector('.ul-status'); st.replaceChildren(...statusChips(u));
     const it = el.querySelector('.ul-intent');
@@ -139,7 +140,13 @@ export class BattleScene {
       it.dataset.tip = this.intentText(u);
     } else { it.className = 'ul-intent'; it.replaceChildren(); }
   }
-  syncAll() { for (const u of this.battle.units) this.syncLabel(u); this.renderParty(); this.renderInfo(); }
+  syncAll() { for (const u of this.battle.units) this.syncLabel(u); this.renderParty(); this.renderInfo(); this.updateDanger(); }
+  // ── impact feedback ──
+  // A full-screen flash (hurt = red edges, crit = warm burst, kill = white), and a buzz on phones.
+  screenFx(kind) { const el = h('div.screen-fx.' + kind); this.hud.appendChild(el); setTimeout(() => el.remove(), 520); }
+  buzz(pattern) { try { navigator.vibrate?.(pattern); } catch (e) { /* not supported */ } }
+  // The screen edges pulse red while one of your heroes is close to falling.
+  updateDanger() { this.hud.classList.toggle('danger', this.battle.heroes().some((u) => this.canControl(u) && u.hp / u.maxHp <= 0.3)); }
 
   intentText(u) {
     const i = u.intent; if (!i) return '';
@@ -530,21 +537,31 @@ export class BattleScene {
         const { tgt, dmg, blocked, crit, el, tags, dot, killed } = d;
         const p = pos(tgt, 1.1);
         if (dmg > 0) {
-          w.hitFlash(tgt.uid, crit);
-          w.floatText(pos(tgt, 1.6), (crit ? '✦ ' : '') + dmg, `dmg el-${el}${crit ? ' crit' : ''}${dot ? ' dot' : ''}${tgt.side === 'hero' ? ' on-ally' : ''}`);
-          w.burst(p, { color: elColor(el), count: crit ? 22 : dot ? 6 : 12, speed: crit ? 4.5 : 3 });
+          // every blow answers on several channels at once; how hard depends on how much it took
+          const sev = dmg / tgt.maxHp; const heavy = crit || killed || sev >= 0.25; const onHero = tgt.side === 'hero' && !tgt.construct;
+          w.hitFlash(tgt.uid, heavy, d.src && d.src !== tgt ? pos(d.src, 0) : null);
+          const num = w.floatText(pos(tgt, 1.6), (crit ? '✦ ' : '') + dmg, `dmg el-${el}${crit ? ' crit' : ''}${dot ? ' dot' : ''}${tgt.side === 'hero' ? ' on-ally' : ''}`);
+          if (!dot) num.style.fontSize = (crit ? 2.8 : 1.9) * Math.min(1.9, 0.85 + sev * 2.4) + 'em';
+          w.burst(p, { color: elColor(el), count: crit ? 26 : dot ? 6 : heavy ? 18 : 12, speed: crit ? 5 : heavy ? 4 : 3 });
+          if (heavy && !dot) w.ring(pos(tgt, 0.1), elColor(el), crit ? 1.8 : 1.2, 260);
           audio.sfx(crit ? 'crit' : dot ? (el === 'fire' ? 'fire' : 'poison') : 'hit');
-          if (crit || dmg > tgt.maxHp * 0.25) w.shake(crit ? 0.4 : 0.25, 260);
-        } else if (blocked > 0) { w.floatText(pos(tgt, 1.6), t('Blocked'), 'blocked'); audio.sfx('block'); w.burst(p, { color: 0x9fc8ff, count: 8, speed: 2 }); }
+          if (!dot) {
+            if (heavy || onHero) w.shake(crit ? 0.45 : killed ? 0.32 : onHero ? 0.2 : 0.25, crit ? 320 : 240);
+            if (crit || killed) w.punch(crit ? 0.07 : 0.045);
+            if (crit) this.screenFx('crit'); else if (onHero) this.screenFx('hurt');
+            if (onHero) this.buzz(heavy ? [30, 40, 60] : 35); else if (crit) this.buzz(25);
+            await w.hitStop(crit ? 120 : killed ? 95 : onHero ? 45 : heavy ? 75 : 35);
+          }
+        } else if (blocked > 0) { w.floatText(pos(tgt, 1.6), t('Blocked'), 'blocked'); audio.sfx('block'); w.burst(p, { color: 0x9fc8ff, count: 12, speed: 3 }); w.ring(pos(tgt, 0.1), 0x9fc8ff, 1.1, 220); w.shake(0.1, 140); await w.hitStop(45); }
         if (blocked > 0 && dmg > 0) w.floatText(pos(tgt, 2.0), t('-{n} block', { n: blocked }), 'blocked small');
         tags.forEach((t, i) => setTimeout(() => w.floatText(pos(tgt, 2.2 + i * 0.35), tr(t), d.combo && t.startsWith(d.combo) ? 'combo' : 'tag'), 90 * (i + 1)));
         if (d.combo) { audio.sfx('magic'); w.ring(pos(tgt, 0.1), elColor(el), 2); }
-        this.syncLabel(tgt); this.renderParty(); if (this.inspect === tgt) this.renderInfo();
+        this.syncLabel(tgt); this.renderParty(); this.updateDanger(); if (this.inspect === tgt) this.renderInfo();
         await sleep(killed ? 60 : dot ? 240 : 170);
         break;
       }
       case 'miss': { w.floatText(pos(d.tgt, 1.6), t('Miss'), 'miss'); audio.sfx('miss'); await sleep(180); break; }
-      case 'heal': { if (d.amount > 0) { w.floatText(pos(d.tgt, 1.6), '+' + d.amount, 'heal'); w.rise(pos(d.tgt, 0.2), { color: 0x7fffa0, count: 12 }); audio.sfx('heal'); } this.syncLabel(d.tgt); this.renderParty(); await sleep(200); break; }
+      case 'heal': { if (d.amount > 0) { w.floatText(pos(d.tgt, 1.6), '+' + d.amount, 'heal'); w.rise(pos(d.tgt, 0.2), { color: 0x7fffa0, count: 12 }); audio.sfx('heal'); } this.syncLabel(d.tgt); this.renderParty(); this.updateDanger(); await sleep(200); break; }
       case 'block': { w.floatText(pos(d.unit, 1.6), t('+{n} Block', { n: d.amount }), 'blocked'); w.ring(pos(d.unit, 0.1), 0x9fc8ff, 1.2, 300); audio.sfx('block'); this.syncLabel(d.unit); this.renderParty(); await sleep(170); break; }
       case 'status': {
         const info = STATUS_INFO[d.st];
@@ -558,6 +575,9 @@ export class BattleScene {
         const u = d.unit; audio.sfx(u.rank === 'mvp' ? 'explosion' : 'death');
         const L = this.labels.get(u.uid); if (L) { w.detach(L.anchor); this.labels.delete(u.uid); }
         const p = pos(u, 0.8);
+        // the blow that ends the fight plays out in slow motion
+        if (u.side === 'enemy' && !b.enemies().length) { w.slowMo(0.3, 700); this.screenFx('kill'); w.punch(0.09, 700); this.buzz([40, 50, 90]); }
+        if (u.side === 'enemy') w.floatText(pos(u, 2.4), t('KO!'), 'ko');
         if (u.rank === 'mvp') { w.shake(0.7, 1200); for (let i = 0; i < 6; i++) { w.burst(p.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 2, (Math.random() - 0.5) * 2)), { color: elColor(u.el), count: 20, speed: 5 }); audio.sfx('explosion'); await sleep(170); } w.ring(pos(u, 0), 0xffffff, 8, 900); }
         w.burst(p, { color: u.side === 'enemy' ? 0xc0a0ff : 0xff6060, count: 20, speed: 3.5 });
         w.rise(p, { color: 0xffffff, count: 10 });
@@ -584,7 +604,7 @@ export class BattleScene {
       case 'end': {
         this.inputOn = false; this.renderHand(); w.clearLayers(); w.setTurnRing(null);
         audio.stopMusic();
-        if (d.result === 'victory') { audio.sfx('victory'); b.heroes().forEach((u) => { w.playOnce(u.uid, 'cast'); w.rise(pos(u, 0.2), { color: 0xffe080, count: 14 }); }); await banner(t('VICTORY'), b.kind === 'boss' ? t('{stage} is liberated', { stage: this.stage.name }) : '', 'victory', 1700); }
+        if (d.result === 'victory') { audio.sfx('victory'); b.heroes().forEach((u) => { w.playOnce(u.uid, 'cast'); w.rise(pos(u, 0.2), { color: 0xffe080, count: 14 }); [0xffe080, 0x7fd0ff, 0xff8ad0, 0x9affb0].forEach((c, i) => setTimeout(() => w.burst(pos(u, 1.6 + Math.random()), { color: c, count: 16, speed: 4.5, gravity: 3, life: 900 }), 180 * i)); }); await banner(t('VICTORY'), b.kind === 'boss' ? t('{stage} is liberated', { stage: this.stage.name }) : '', 'victory', 1700); }
         else { audio.sfx('defeat'); await banner(t('DEFEAT'), t('The party has fallen…'), 'defeat', 2000); }
         break;
       }
@@ -619,6 +639,8 @@ export class BattleScene {
       const el = els[i]; const f = dice.faces[i];
       el.classList.remove('rolling'); el.replaceChildren(...faceEl(f));
       el.classList.add('landed', f.v === 0 ? 'f-blank' : 'f-' + (f.k || 'num'));
+      tray.classList.remove('thump'); void tray.offsetWidth; tray.classList.add('thump'); // the tray jolts as each die lands
+      if (f.k === 'crit' || f.k === 'star') { this.screenFx('crit'); this.buzz(30); this.world.shake(0.18, 200); }
       audio.sfx(f.v === 0 ? 'place' : f.k === 'crit' || f.k === 'star' ? 'crit' : 'coin');
       await wait(480);
     }

@@ -325,11 +325,13 @@ export class World {
     await tween(110, (e) => { U.group.position.copy(from).addScaledVector(dir, e); }, Ease.outQuad);
     tween(200, (e) => { U.group.position.copy(from).addScaledVector(dir, 1 - e); }, Ease.inOutQuad);
   }
-  hitFlash(uid, strong = false) {
+  hitFlash(uid, strong = false, from = null) {
     const U = this.units.get(uid); if (!U) return;
-    const base = U.group.position.clone();
+    const dir = from ? U.group.position.clone().sub(from).setY(0) : new THREE.Vector3();
+    if (dir.lengthSq() > 0.001) dir.normalize(); else dir.set(0, 0, 0);
+    const kb = (strong ? 0.42 : 0.2) * (U.size > 1.5 ? 0.35 : 1), sq = strong ? 0.22 : 0.12;
     if (!U.once) this.playOnce(uid, 'hurt').then(() => { if (this.units.has(uid)) this.setAnim(uid, 'idle'); });
-    const tn = this.spriteTint; tween(260, (e, k) => { U.mat.color.setRGB(tn.r, tn.g * (0.35 + 0.65 * e), tn.b * (0.35 + 0.65 * e)); U.sprite.position.x = Math.sin(k * 30) * (strong ? 0.16 : 0.08) * (1 - k); });
+    const tn = this.spriteTint; tween(260, (e, k) => { U.mat.color.setRGB(tn.r, tn.g * (0.35 + 0.65 * e), tn.b * (0.35 + 0.65 * e)); const a = Math.sin(Math.min(1, k) * Math.PI); U.sprite.position.x = Math.sin(k * 30) * (strong ? 0.16 : 0.08) * (1 - k) + dir.x * kb * a; U.sprite.position.z = dir.z * kb * a; U.sprite.scale.set(U.size * (1 + sq * a), U.size * (1 - sq * a), 1); }).then(() => { if (this.units.has(uid)) { U.sprite.position.x = 0; U.sprite.position.z = 0; U.sprite.scale.set(U.size, U.size, 1); } });
   }
   async fadeOut(uid, ms = 600) {
     const U = this.units.get(uid); if (!U) return;
@@ -446,6 +448,7 @@ export class World {
     const el = document.createElement('div'); el.className = 'float-text ' + cls; el.textContent = text;
     const p = this.project(pos); el.style.left = p.x + (Math.random() - 0.5) * 30 + 'px'; el.style.top = p.y + 'px';
     this.labelsEl.appendChild(el); setTimeout(() => el.remove(), 1300);
+    return el;
   }
   pick(clientX, clientY, { units = null } = {}) {
     const rect = this.canvas.getBoundingClientRect(); const x = clientX - rect.left, y = clientY - rect.top;
@@ -462,7 +465,17 @@ export class World {
   }
 
   // ───────── frame ─────────
+  // Impact frames: the world holds still for a moment when a blow lands (the camera may still shake).
+  hitStop(ms) { this.freezeT = Math.max(this.freezeT || 0, ms); return new Promise((res) => setTimeout(res, ms)); }
+  slowMo(scale = 0.35, ms = 600) { this.timeScale = scale; clearTimeout(this._slow); this._slow = setTimeout(() => { this.timeScale = 1; }, ms); }
+  // Camera punch: a quick push-in that eases back out.
+  punch(amount = 0.06, ms = 280) {
+    const c = this.cam; if (c.punching) return; c.punching = true; const base = c.size;
+    tween(ms, (e) => { c.size = base * (1 - amount * (1 - e)); }, Ease.outQuad).then(() => { c.size = base; c.punching = false; });
+  }
+
   update(dt) {
+    if (this.freezeT > 0) { this.freezeT -= dt; dt = 0; } else dt *= this.timeScale ?? 1;
     this.time += dt; const T = this.time / 1000;
     // slow machine guard: if the first seconds average under ~28 fps, drop real-time shadows and retina scaling
     if (!this.perfChecked) { this.perfN = (this.perfN || 0) + 1; this.perfT = (this.perfT || 0) + dt; if (this.perfN >= 150) { this.perfChecked = true; if (this.perfT / this.perfN > 36) { this.sun.castShadow = false; this.renderer.setPixelRatio(1); this.resize(); } } }

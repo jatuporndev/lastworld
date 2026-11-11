@@ -315,7 +315,7 @@ export const TH = {
   "Your character keeps everything earned.": "ของที่ได้ทั้งหมดเก็บอยู่ในตัวละครของคุณ",
   'Red': 'แดง', 'Blue': 'น้ำเงิน', 'Green': 'เขียว',
   '{c} die ×{n}': 'เต๋า{c} ×{n}',
-  'Rolled {n}': 'ทอยได้ {n}',
+  'Rolled {n}': 'ทอยได้ {n}', 'KO!': 'KO!',
   'Rolled {n} damage': 'ทอยได้ +{n} ความเสียหาย',
   'Blocked': 'บล็อก',
   '-{n} block': '-{n} บล็อก',
