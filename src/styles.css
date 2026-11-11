@@ -711,6 +711,13 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .slot-chg:hover:not(:disabled) { background: var(--coin); } .slot-chg:disabled { opacity: 0.35; cursor: default; }
 .slot.charged { box-shadow: 0 0.22em 0 rgba(0, 0, 0, 0.35), inset 0 0 0 0.18em var(--coin); }
 
+/* battle header: stage name, then the turn queue, then the hint — each on its own line, never overlapping
+   (the current unit's token is enlarged, so the queue keeps room above and below it) */
+.b-top { gap: 0; } .b-title { line-height: 1.2; } .turn-order { margin: 0.75em 0 0.7em; }
+.to-unit.current { transform: scale(1.28); margin: 0 0.45em; }
+.battle-hud .b-hint { top: 8.9em; max-width: 70vw; overflow: hidden; text-overflow: ellipsis; }
+.ul-intent { white-space: nowrap; }
+
 /* ── phones ──
    The game is a wide tabletop, so phones play it in landscape. A short screen gets a larger base
    font than the desktop formula would give (text stays readable) and a compact HUD to make room. */
@@ -747,8 +754,8 @@ html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent
   /* exploration */
   .x-top { top: 0.5em; left: 0.8em; right: 0.8em; } .x-stage { font-size: 1.4em; } .x-legend { display: none; } .x-party { bottom: 0.6em; left: 0.8em; }
   /* battle */
-  .b-top { top: 0.3em; } .b-stage { font-size: 1em; } .turn-order { padding: 0.2em 0.7em; } .to-unit { width: 2.3em; height: 2.3em; }
-  .battle-hud .b-hint { top: 6.2em; font-size: 0.8em; max-width: 60vw; overflow: hidden; text-overflow: ellipsis; }
+  .b-top { top: 0.3em; } .b-stage { font-size: 1em; } .turn-order { padding: 0; margin: 0.55em 0 0.5em; } .to-unit { width: 2.3em; height: 2.3em; }
+  .battle-hud .b-hint { top: 7.6em; font-size: 0.8em; max-width: 60vw; overflow: hidden; text-overflow: ellipsis; }
   .b-party { top: 0.5em; left: 0.6em; } .b-party .p-card { width: 12.5em; } .p-portrait { width: 2.9em; height: 2.9em; }
   .b-info { top: 0.5em; right: 0.6em; width: 15.5em; padding: 0.4em 0.6em; font-size: 0.86em; max-height: 46vh; overflow: hidden; } .i-portrait { width: 3em; height: 3em; }
   .b-bottom { height: 13em; padding: 0 0.6em 0.4em; transform: translateY(7em); }
