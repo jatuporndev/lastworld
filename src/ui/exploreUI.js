@@ -7,7 +7,7 @@ import { ELEMENTS } from '../data/cards.js';
 import { audio } from '../core/audio.js';
 import { G, touch, addCard, claimableQuests } from '../game/state.js';
 import { computeStats } from '../game/character.js';
-import { CLASSES } from '../data/classes.js';
+import { CLASSES, heroLook } from '../data/classes.js';
 import { MONSTERS } from '../data/monsters.js';
 import { CARDS } from '../data/cards.js';
 import { CONSUMABLES, MATERIALS } from '../data/items.js';
@@ -67,7 +67,7 @@ export class ExploreScene {
     const q = claimableQuests();
     this.el.res.replaceChildren(h('div.res', icon('coin', '#ffd24a', 18), fmt(st.gold)), h('div.res', icon('gem', '#9ad8ff', 18), fmt(st.shards)), q ? h('div.res.alert', { onclick: () => openMenu(this.app, 'quests') }, t('{n} quest(s) ready', { n: q })) : null);
     this.el.party.replaceChildren(...st.party.map((hero) => { const s = computeStats(hero);
-      return h('div.p-card' + (hero.hp <= 0 ? '.dead' : ''), { onclick: () => openMenu(this.app, 'hero') }, h('div.p-portrait', heroSprite(hero.cls, { size: 64, zoom: 1.5, oy: 0.3 })),
+      return h('div.p-card' + (hero.hp <= 0 ? '.dead' : ''), { onclick: () => openMenu(this.app, 'hero') }, h('div.p-portrait', heroSprite(hero, { size: 64, zoom: 1.5, oy: 0.3 })),
         h('div.p-body', h('div.p-name', hero.name, h('span', ` Lv ${hero.level}`), hero.statPoints + hero.skillPoints > 0 ? h('i.pip', '!') : null), bar('hp', hero.hp, s.hp), bar('mp', hero.mp, s.mp))); }));
     const left = [...sm.cells.values()].filter((c) => sm.activeNode(c));
     const boss = left.find((c) => c.node.type === 'boss');
@@ -197,7 +197,7 @@ export class ExploreScene {
     this.trail = party.map(() => ({ ...pos }));
     party.slice().reverse().forEach((hero, ri) => {
       const i = party.length - 1 - ri;
-      w.addUnit({ uid: 'party' + i, spriteKey: 'cls_' + hero.cls, look: CLASSES[hero.cls].look, scale: i === 0 ? 1 : 0.85, facing: 5 }, [pos]);
+      w.addUnit({ uid: 'party' + i, spriteKey: heroLook(hero).key, look: heroLook(hero).look, scale: i === 0 ? 1 : 0.85, facing: 5 }, [pos]);
       if (i > 0) { const U = w.units.get('party' + i); U.group.position.x -= 0.35 * i; U.group.position.z -= 0.18 * i; }
     });
   }
@@ -298,7 +298,7 @@ export function rewardsModal(r, kind, { view = false } = {}) {
       h('div.row.center', btn(t('Skip (+8 shards)'), () => { G.state.shards += 8; touch(); finish(); }, { cls: 'small' }))) : h('div.row.center', btn(t('Continue'), finish, { cls: 'primary' }));
     body.replaceChildren(
       h('div.loot-list', ...lootRows(r)),
-      r.levelUps.length ? h('div.levelups', ...r.levelUps.map((l) => h('div.levelup', heroSprite(l.hero.cls, { size: 72, zoom: 1.3, oy: 0.15, anim: 'cast' }), h('div', h('b', t('{name} reached Level {lv}!', { name: l.hero.name, lv: l.hero.level })), h('small', t('+{n} stat points', { n: l.levels * 3 }) + (l.hero.skillPoints ? t(' · skill points available') : '')))))) : null,
+      r.levelUps.length ? h('div.levelups', ...r.levelUps.map((l) => h('div.levelup', heroSprite(l.hero, { size: 72, zoom: 1.3, oy: 0.15, anim: 'cast' }), h('div', h('b', t('{name} reached Level {lv}!', { name: l.hero.name, lv: l.hero.level })), h('small', t('+{n} stat points', { n: l.levels * 3 }) + (l.hero.skillPoints ? t(' · skill points available') : '')))))) : null,
       r.items.length ? h('div.item-list', ...r.items.map((it) => itemEl(it, { tag: it.unique ? t('UNIQUE') : null }))) : null,
       r.fixedCards.length ? h('div.card-grid.center', ...r.fixedCards.map((id) => { const el = cardEl(id, 0); el.classList.add('reward-glow'); return el; })) : null,
       choices);

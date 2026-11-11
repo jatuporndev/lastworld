@@ -32,7 +32,7 @@ export function openMenu(app, tab = 'hero') {
 
 function heroPicker(render) {
   return h('div.hero-picker', ...myHeroes().map((hero, i) => h('div.hp-item' + (i === sel ? '.on' : ''), { onclick: () => { sel = i; audio.sfx('click'); render(); } },
-    heroSprite(hero.cls, { size: 60, zoom: 1.4, oy: 0.26 }), h('div', h('b', hero.name), h('small', `Lv ${hero.level} ${CLASSES[hero.cls].name}`)),
+    heroSprite(hero, { size: 60, zoom: 1.4, oy: 0.26 }), h('div', h('b', hero.name), h('small', `Lv ${hero.level} ${CLASSES[hero.cls].name}`)),
     hero.statPoints + hero.skillPoints > 0 ? h('i.pip', '!') : null)));
 }
 
@@ -50,7 +50,7 @@ function heroTab(render) {
   }));
   return h('div.tab-hero', heroPicker(render),
     h('div.hero-sheet',
-      h('div.hero-col.portrait', h('div.hero-stage', heroSprite(hero.cls, { size: 220, zoom: 1.1 })), h('div.hero-name', hero.name), h('div.hero-class', `${C.name} · ${C.title}`),
+      h('div.hero-col.portrait', h('div.hero-stage', heroSprite(hero, { size: 220, zoom: 1.1 })), h('div.hero-name', hero.name), h('div.hero-class', `${C.name} · ${C.title}`),
         h('div.lvl', t('Level {n}', { n: hero.level })), bar('exp', hero.exp, expToNext(hero.level)), bar('hp', hero.hp, s.hp), bar('mp', hero.mp, s.mp)),
       h('div.hero-col', h('div.sec-title', t('Attributes'), h('span.points' + (hero.statPoints ? '.has' : ''), t('{n} points', { n: hero.statPoints }))), ...['str', 'agi', 'vit', 'int', 'dex'].map(attrRow),
         h('div.sec-title', t('Combat Stats')),

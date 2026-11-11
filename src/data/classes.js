@@ -45,6 +45,18 @@ export const CLASSES = {
   },
 };
 
+// Male or female is chosen when a character is created. The female build is the same class look with
+// long hair, a slimmer frame and no beard; everything else (armour, colours, weapon) is shared.
+const FEMALE_LOOK = {
+  knight: { hair: '#d9a14a' }, mage: { hair: '#b78ad8' }, archer: { hair: '#c9873a' },
+  assassin: { hair: '#2a2030' }, priest: { hair: '#e8c46a' }, blacksmith: { hair: '#b8431a', beard: null, bulky: false },
+};
+// The sprite key and look for a hero ({ cls, gender }) or a bare class id.
+export function heroLook(hero) {
+  const cls = typeof hero === 'string' ? hero : hero.cls; const female = typeof hero !== 'string' && hero.gender === 'f';
+  return female ? { key: 'cls_' + cls + '_f', look: { ...CLASSES[cls].look, female: true, ...FEMALE_LOOK[cls] } } : { key: 'cls_' + cls, look: CLASSES[cls].look };
+}
+
 export const CLASS_ORDER = ['knight', 'mage', 'archer', 'assassin', 'priest', 'blacksmith'];
 
 // Skill trees: two branches, three tiers each. Each node costs 1 skill point (tier 3 costs 2).

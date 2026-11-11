@@ -718,6 +718,10 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .battle-hud .b-hint { top: 8.9em; max-width: 70vw; overflow: hidden; text-overflow: ellipsis; }
 .ul-intent { white-space: nowrap; }
 
+/* male / female choice on the character creation screen */
+.cs-genders { display: flex; gap: 0.4em; } .cs-gender { padding: 0.55em 1.1em; border: 0; border-radius: 0.5em; background: var(--paper2); color: var(--ink-d); font-family: var(--f-head); font-size: 1.05em; font-weight: 500; cursor: pointer; box-shadow: 0 0.2em 0 rgba(0, 0, 0, 0.3); }
+.cs-gender:hover { background: var(--paper3); } .cs-gender.on { background: var(--accent2); color: var(--scene); }
+
 /* ── phones ──
    The game is a wide tabletop, so phones play it in landscape. A short screen gets a larger base
    font than the desktop formula would give (text stays readable) and a compact HUD to make room. */

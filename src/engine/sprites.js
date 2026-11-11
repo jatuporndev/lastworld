@@ -217,6 +217,7 @@ function head(ctx, look, view, y) {
     });
     if (look.skeleton) { ctx.fillStyle = '#1a1010'; ctx.fillRect(hx - 6 + (view === 'side' ? 8 : 0), y + 10, 12, 2); }
     else if (!look.beard) { const mx = hx + (view === 'side' ? 10 : 0); ctx.beginPath(); ctx.moveTo(mx - 3, y + 10); ctx.lineTo(mx + 3, y + 10); path(ctx, null, '#6a3a30', 1.6); }
+    if (look.female) ex.forEach((x) => { const s = view === 'side' ? 1 : Math.sign(x); ctx.beginPath(); ctx.moveTo(hx + x + s * 2, y - 2.5); ctx.lineTo(hx + x + s * 5.5, y - 5); path(ctx, null, '#2a1a1a', 1.6); }); // lashes
     if (!look.skeleton) ex.forEach((x) => { const s = view === 'side' ? 1 : Math.sign(x); ctx.beginPath(); ctx.moveTo(hx + x - s * 4.5, y - 3.5); ctx.lineTo(hx + x + s * 3.5, y - 6.5); path(ctx, null, look.glowEyes ? '#120c0c' : shade(look.hair || '#3a2a1a', -0.45), 2.2); });
   }
   if (look.beard && view !== 'back') {
@@ -281,7 +282,10 @@ function PAINTERS_INIT() {
       ctx.translate(0, -10); // the body rides 10 higher on longer legs; the ground is at y = 10 from here on
       if (L.hunch) ctx.translate(0, 6);
       const side = view === 'side';
-      const sw = L.bulky ? 18 : 15;
+      const sw = L.bulky ? 18 : L.female ? 13 : 15;
+      // long hair falls behind the shoulders (front and side views; the back view draws it over the body below)
+      const longHair = (x0, x1) => { ctx.beginPath(); ctx.moveTo(x0, -80); ctx.lineTo(x1, -80); ctx.quadraticCurveTo(x1 + 3, -58, x1 - 1 + p.leg * 2, -40); ctx.quadraticCurveTo((x0 + x1) / 2, -34, x0 + 1 + p.leg * 2, -40); ctx.quadraticCurveTo(x0 - 3, -58, x0, -80); path(ctx, grad(ctx, -80, -38, L.hair, shade(L.hair, -0.3))); };
+      if (L.female && L.hair && view !== 'back') longHair(side ? -20 : -15, side ? 2 : 15);
       const wpn = L.weapon, off = L.offhand;
       // wings (demon)
       if (L.wings) {
@@ -320,7 +324,7 @@ function PAINTERS_INIT() {
         ctx.beginPath(); ctx.moveTo(-w + 2 + p.leg * 3, 3); ctx.quadraticCurveTo(0, 9, w - 2 + p.leg * 3, 3); path(ctx, null, L.cloth, 2.5);
       }
       // torso
-      const tw = side ? 22 : (L.bulky ? 36 : 30);
+      const tw = side ? (L.female ? 19 : 22) : (L.bulky ? 36 : L.female ? 26 : 30);
       ctx.beginPath(); ctx.moveTo(-tw / 2, -60); ctx.lineTo(tw / 2, -60); ctx.lineTo(tw / 2 - 3, -30); ctx.lineTo(-tw / 2 + 3, -30); ctx.closePath();
       path(ctx, grad(ctx, -60, -30, shade(L.armor, 0.25), L.armor2));
       if (L.skeleton) { for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(-tw / 2 + 5, -54 + i * 7); ctx.quadraticCurveTo(0, -50 + i * 7, tw / 2 - 5, -54 + i * 7); path(ctx, null, L.skin, 2.5); } }
@@ -338,6 +342,7 @@ function PAINTERS_INIT() {
         arm(ctx, -sw + 2, shoulderY, p.off, 20, L, -1, off, true, p.glow);
       }
       ctx.save(); ctx.translate(0, -62); ctx.scale(0.82, 0.82); ctx.translate(0, 62); head(ctx, L, view, -80); ctx.restore();
+      if (L.female && L.hair && view === 'back') longHair(-14, 14);
       // back cape over body
       if (L.cape && view === 'back') {
         ctx.beginPath(); ctx.moveTo(-16, -60); ctx.quadraticCurveTo(-22, -30, -20 + p.leg * 3, 6); ctx.lineTo(20 + p.leg * 3, 6); ctx.quadraticCurveTo(22, -30, 16, -60); ctx.closePath(); path(ctx, grad(ctx, -60, 6, L.cape, shade(L.cape, -0.35)));

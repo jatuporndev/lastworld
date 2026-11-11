@@ -9,10 +9,10 @@ const STARTER_GEAR = {
   assassin: ['dagger', 'light'], priest: ['mace', 'robe'], blacksmith: ['hammer', 'heavy'],
 };
 
-export function createHero(cls, name) {
+export function createHero(cls, name, gender = 'm') {
   const [w, a] = STARTER_GEAR[cls];
   const hero = {
-    id: uid(), cls, name: name || CLASSES[cls].name, level: 1, exp: 0,
+    id: uid(), cls, gender: gender === 'f' ? 'f' : 'm', name: name || CLASSES[cls].name, level: 1, exp: 0,
     statPoints: 0, skillPoints: 0,
     alloc: { str: 0, agi: 0, vit: 0, int: 0, dex: 0 },
     skills: [],

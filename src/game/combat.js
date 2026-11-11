@@ -7,7 +7,7 @@ import { terrainOf } from '../data/terrain.js';
 import { parseLayout } from '../data/stages.js';
 import { MONSTERS } from '../data/monsters.js';
 import { STATUS_INFO, ELEMENTS, DICE, MONSTER_DIE, diceOf } from '../data/cards.js';
-import { CLASSES } from '../data/classes.js';
+import { CLASSES, heroLook } from '../data/classes.js';
 import { CONSUMABLES } from '../data/items.js';
 import { computeStats } from './character.js';
 import { CardEngine, HAND_SIZE } from './cardEngine.js';
@@ -105,7 +105,7 @@ export class Battle {
   _heroUnit(hero, levelOf) {
     const s = computeStats(hero);
     return {
-      uid: 'u' + this.nextId(), side: 'hero', hero, name: hero.name, cls: hero.cls, look: CLASSES[hero.cls].look, spriteKey: 'cls_' + hero.cls,
+      uid: 'u' + this.nextId(), side: 'hero', hero, name: hero.name, cls: hero.cls, look: heroLook(hero).look, spriteKey: heroLook(hero).key,
       size: 1, scale: 1, q: 0, r: 0, facing: 0, level: hero.level,
       hp: Math.min(hero.hp, s.hp), maxHp: s.hp, mp: Math.min(hero.mp, s.mp), maxMp: s.mp,
       stats: { atk: s.atk, matk: s.matk, def: s.def, spd: s.spd, crit: s.crit, eva: s.eva, move: s.move, energy: s.energy, draw: s.draw, mpRegen: s.mpRegen },

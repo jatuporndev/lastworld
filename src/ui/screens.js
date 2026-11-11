@@ -149,7 +149,7 @@ export function playScreen(app, sel = {}) {
       if (!c) return h('button.ps-char.empty', { onclick: () => app.toCharCreate({ world: worldId }) }, h('div.ps-plus', '+'), h('b', t('Create Character')), h('small', t('Slot {n}', { n: i + 1 })));
       const hero = c.hero; const C = CLASSES[hero.cls];
       return h('div.ps-char' + (c.id === charId ? '.sel' : ''), { style: { '--c': C.color }, onclick: () => { charId = c.id; audio.sfx('click'); render(); } },
-        h('div.ps-sprite', heroSprite(hero.cls, { size: 120, zoom: 1.15, oy: 0.1 })),
+        h('div.ps-sprite', heroSprite(hero, { size: 120, zoom: 1.15, oy: 0.1 })),
         h('b.ps-cname', hero.name), h('small', `${C.name} · Lv ${hero.level}`),
         h('div.ps-cstats', h('span', icon('coin', '#ffd24a', 14), fmt(c.gold)), h('span', icon('book', '#c9a0ff', 14), Object.values(c.cards).reduce((s, x) => s + x.n, 0))),
         h('button.ps-del', { 'data-tip': t('Delete character'), onclick: async (e) => { e.stopPropagation();
@@ -192,12 +192,12 @@ export function newWorldModal(done) {
 // ───────── Character creation ─────────
 // One hero per character. `back` = selection to return to on the Characters & Worlds screen.
 export function charCreateScreen(app, back = {}) {
-  let focus = 'knight'; let name = '';
+  let focus = 'knight'; let name = ''; let gender = 'm';
   const list = h('div.cs-list'); const detail = h('div.cs-detail'); const foot = h('div.cs-party');
   const nameInput = h('input', { placeholder: CLASSES[focus].name, maxlength: 14, oninput: (e) => { name = e.target.value; } });
   const create = () => {
     if (charList().length >= MAX_CHARS) { toast(t('You already have {n} characters. Delete one first.', { n: MAX_CHARS }), 'bad'); return; }
-    const c = createCharacter(focus, name.trim() || CLASSES[focus].name);
+    const c = createCharacter(focus, name.trim() || CLASSES[focus].name, gender);
     audio.sfx('levelup'); app.saveNow();
     if (back.join) { back.join(c.id); return; }
     app.toPlay({ ...back, char: c.id });
@@ -207,19 +207,20 @@ export function charCreateScreen(app, back = {}) {
       return h('div.cs-card' + (focus === cls ? '.focus.picked' : ''), { style: { '--c': C.color, animationDelay: `${i * 70}ms` },
         onclick: () => { audio.sfx('click'); focus = cls; nameInput.placeholder = C.name; render(); },
         onmouseenter: (e) => { const cv = e.currentTarget.querySelector('canvas'); if (cv?._sprite) cv._sprite.anim = 'walk'; audio.sfx('hover'); }, onmouseleave: (e) => { const cv = e.currentTarget.querySelector('canvas'); if (cv?._sprite) cv._sprite.anim = 'idle'; } },
-        heroSprite(cls, { size: 150, zoom: 1.05 }), h('div.cs-name', C.name), h('div.cs-role', C.role));
+        heroSprite({ cls, gender }, { size: 150, zoom: 1.05 }), h('div.cs-name', C.name), h('div.cs-role', C.role));
     }));
     const C = CLASSES[focus]; const s = computeStats(createHero(focus));
     const statBar = (label, v, max) => h('div.cs-stat', h('span', label), h('div.cs-bar', h('i', { style: { width: Math.min(100, (v / max) * 100) + '%' } })), h('b', v));
     const anims = ['idle', 'attack', 'cast', 'walk'];
-    const big = heroSprite(focus, { size: 260, zoom: 1.05, cls: 'cs-big' });
+    const big = heroSprite({ cls: focus, gender }, { size: 260, zoom: 1.05, cls: 'cs-big' });
     let ai = 0; clearInterval(render._t); render._t = setInterval(() => { if (!big.isConnected) return clearInterval(render._t); ai = (ai + 1) % anims.length; big._sprite.anim = anims[ai]; big._sprite.dir = [5, 0, 5, 4][ai]; }, 1400);
     detail.replaceChildren(
       h('div.cs-hero', h('div.cs-pedestal'), big),
       h('div.cs-info', h('div.cs-title', { style: { color: C.color } }, C.name), h('div.cs-sub', `${C.title} · ${ELEMENTS[C.element].name}`), h('p', C.desc),
         h('div.cs-stats', statBar('HP', s.hp, 130), statBar('MP', s.mp, 60), statBar('ATK', s.atk, 26), statBar('MATK', s.matk, 26), statBar('DEF', s.def, 14), statBar('SPD', s.spd, 34), statBar(t('MOVE'), s.move, 5)),
         h('div.cs-deck-title', t('Starting Deck')), h('div.cs-deck', ...[...new Set(STARTER_DECKS[focus])].map((id) => cardEl(id, 0, { small: true })))));
-    foot.replaceChildren(h('div.cs-slot', heroSprite(focus, { size: 64, zoom: 1.4, oy: 0.25 }), h('label', h('small', t('Character name')), nameInput)));
+    const pick = (g, label) => h('button.cs-gender' + (gender === g ? '.on' : ''), { onclick: () => { audio.sfx('click'); gender = g; render(); } }, label);
+    foot.replaceChildren(h('div.cs-genders', pick('m', '♂ ' + t('Male')), pick('f', '♀ ' + t('Female'))), h('div.cs-slot', heroSprite({ cls: focus, gender }, { size: 64, zoom: 1.4, oy: 0.25 }), h('label', h('small', t('Character name')), nameInput)));
   };
   render();
   return mount(h('div.screen.cs-screen', h('div.cs-head', h('h2', t('Create Character')), btn(t('Back'), () => (back.cancel ? back.cancel() : app.toPlay(back)), { cls: 'small' })),
@@ -252,7 +253,7 @@ export function worldMapScreen(app) {
   const q = claimableQuests();
   const el = h('div.screen.wm-screen',
     h('div.wm-top', h('h2', G.profile.worlds[st.worldId]?.name || t('The Sundered Realms')),
-      h('div.wm-party', ...st.party.map((p) => { const cs = computeStats(p); return h('div.p-card', { onclick: () => openMenu(app, 'hero') }, h('div.p-portrait', heroSprite(p.cls, { size: 64, zoom: 1.5, oy: 0.3 })), h('div.p-body', h('div.p-name', p.name, h('span', ` Lv ${p.level}`), p.statPoints + p.skillPoints > 0 ? h('i.pip', '!') : null), bar('hp', p.hp, cs.hp), bar('mp', p.mp, cs.mp))); })),
+      h('div.wm-party', ...st.party.map((p) => { const cs = computeStats(p); return h('div.p-card', { onclick: () => openMenu(app, 'hero') }, h('div.p-portrait', heroSprite(p, { size: 64, zoom: 1.5, oy: 0.3 })), h('div.p-body', h('div.p-name', p.name, h('span', ` Lv ${p.level}`), p.statPoints + p.skillPoints > 0 ? h('i.pip', '!') : null), bar('hp', p.hp, cs.hp), bar('mp', p.mp, cs.mp))); })),
       h('div.wm-actions', h('div.res', icon('coin', '#ffd24a', 18), fmt(st.gold)), h('div.res', icon('gem', '#9ad8ff', 18), fmt(st.shards)),
         btn(q ? t('Journal ({n})', { n: q }) : t('Journal'), () => openMenu(app), { cls: 'small', iconName: 'book' }), btn(t('Forge'), () => openMenu(app, 'forge'), { cls: 'small', iconName: 'anvil' }), Coop.active ? null : btn(t('Invite Friends'), () => inviteFriends(app), { cls: 'small', iconName: 'banner', tip: t('Open this world to friends (online co-op)'), disabled: !Net.online }), btn(t('Title'), () => app.toTitle(), { cls: 'small' }))),
     h('div.wm-main', h('div.wm-map', h('div.wm-parchment'), svg, nodes, h('div.wm-compass', '✦')), detail));

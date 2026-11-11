@@ -23,8 +23,8 @@ const newId = (p) => p + Date.now().toString(36) + Math.random().toString(36).sl
 export function emptyProfile() { return { version: SAVE_VERSION, created: Date.now(), updated: 0, settings: { music: 0.45, sfx: 0.7 }, chars: {}, worlds: {}, last: {} }; }
 function touchProfile() { G.profile.updated = Date.now(); bus.emit('state:changed'); }
 
-export function createCharacter(cls, name) {
-  const hero = createHero(cls, name);
+export function createCharacter(cls, name, gender = 'm') {
+  const hero = createHero(cls, name, gender);
   const cards = {};
   STARTER_DECKS[cls].forEach((id) => { (cards[id] ||= { n: 0, lv: 0 }).n++; });
   cards.n_sprint = { n: 1, lv: 0 }; cards.n_secondwind = { n: 1, lv: 0 };

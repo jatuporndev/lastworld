@@ -79,7 +79,7 @@ export function lobbyModal(app) {
     const ids = Coop.partyIds();
     const playerRow = (id) => { const hero = id === Coop.me ? G.state?.party.find((x) => !x.remote) : Coop.heroOf(id);
       return h('div.lb-hero', { style: { '--pc': Coop.colorOf(id) } },
-        hero ? h('div.lb-portrait', heroSprite(hero.cls, { size: 56, zoom: 1.5, oy: 0.3 })) : h('div.lb-portrait'),
+        hero ? h('div.lb-portrait', heroSprite(hero, { size: 56, zoom: 1.5, oy: 0.3 })) : h('div.lb-portrait'),
         h('div.lb-hinfo', h('b', { style: { color: Coop.colorOf(id) } }, Coop.nameOf(id), id === Coop.hostId ? h('span.tag', t('Host')) : null, id === Coop.me ? h('span.tag.me', t('You')) : null),
           hero ? h('small', `${hero.name} · ${CLASSES[hero.cls].name} Lv ${hero.level}`) : h('small', '…')),
         Coop.isHost && id !== Coop.me ? h('button.mini', { onclick: () => Coop.kick(id), 'data-tip': t('Remove from room') }, '✕') : null); };

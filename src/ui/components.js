@@ -5,7 +5,7 @@ import { audio } from '../core/audio.js';
 import { getSheet, drawFrame, iconCanvas, FRAMES } from '../engine/sprites.js';
 import { CARDS, cardStats, describeCard, ELEMENTS, CATEGORIES, RARITY, STATUS_INFO, DICE_NAME, diceLabel } from '../data/cards.js';
 import { ITEM_RARITY, STAT_LABEL } from '../data/items.js';
-import { CLASSES } from '../data/classes.js';
+import { CLASSES, heroLook } from '../data/classes.js';
 import { MONSTERS } from '../data/monsters.js';
 
 export const ui = () => document.getElementById('ui');
@@ -34,7 +34,8 @@ export function spriteCanvas(key, look, { size = 128, anim = 'idle', dir = 5, zo
   if (!looping) { looping = true; requestAnimationFrame(loop); }
   return canvas;
 }
-export const heroSprite = (cls, opts) => spriteCanvas('cls_' + cls, CLASSES[cls].look, opts);
+// `hero` is a hero ({ cls, gender }) or a bare class id
+export const heroSprite = (hero, opts) => { const L = heroLook(hero); return spriteCanvas(L.key, L.look, opts); };
 export const monsterSprite = (id, opts) => spriteCanvas('mon_' + id, MONSTERS[id].look, opts);
 export const unitSprite = (u, opts) => spriteCanvas(u.spriteKey, u.look, opts);
 
