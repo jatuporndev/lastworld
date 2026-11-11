@@ -724,6 +724,9 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 
 .cs-card.still { animation: none; }
 
+/* a lifted hand card sits above the Action Slot row, not under it */
+.hand { position: relative; z-index: 75; }
+
 /* ── phones ──
    The game is a wide tabletop, so phones play it in landscape. A short screen gets a larger base
    font than the desktop formula would give (text stays readable) and a compact HUD to make room. */
