@@ -312,7 +312,8 @@ class App {
       case 'battle': {
         this.closeGuestModals();
         st.nextBuff = m.nextBuff || null;
-        await this.runBattle({ stage: STAGE_BY_ID[m.stageId], enc: m.enc, seed: m.seed, party: m.party, cell: cellOf(m.cell) });
+        // the database drops empty lists (a new hero's skills), so put them back before the battle reads them
+        await this.runBattle({ stage: STAGE_BY_ID[m.stageId], enc: m.enc, seed: m.seed, party: (m.party || []).map(fixHero), cell: cellOf(m.cell) });
         break;
       }
       default: break;
