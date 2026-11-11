@@ -1,5 +1,5 @@
 // Chibi painter for every humanoid figure (heroes and humanoid monsters).
-// Big head, small body, large two-tone eyes, hair in locks, cel shading and an outline in each
+// Big head, small body, small plain eyes, hair in locks, cel shading and an outline in each
 // shape's own darkened colour. It reads the same `look` fields the data files already use, so a new
 // class or monster needs no art — only a look: colours, helm, weapon, offhand, cape, robe, female…
 //
@@ -39,12 +39,10 @@ function blob(c, pts, color, o = {}) {
 const disc = (c, x, y, rx, ry, color, o) => blob(c, [[x - rx * 1.33, y - ry * 1.33], [x + rx * 1.33, y - ry * 1.33], [x + rx * 1.33, y + ry * 1.33], [x - rx * 1.33, y + ry * 1.33]], color, o);
 function glow(c, x, y, r, color, alpha = 0.6) { const g = c.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, color); g.addColorStop(1, 'rgba(0,0,0,0)'); c.save(); c.globalAlpha = alpha; c.globalCompositeOperation = 'lighter'; c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); c.restore(); }
 
-const EYES = ['#3a7fd8', '#2fa88a', '#b0662a', '#7a52c8', '#d0682e', '#3aa0c8'];
 function palette(L) {
   const armoured = L.helm === 'knight' || L.helm === 'horned';
-  let h = 0; for (const ch of (L.hair || L.armor)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return {
-    skin: L.skin, hair: L.hair || L.armor2, eye: L.glowEyes || EYES[h % EYES.length], male: !L.female, armoured,
+    skin: L.skin, hair: L.hair || L.armor2, male: !L.female, armoured,
     dress: L.armor, dress2: armoured ? tone(L.armor, 0.35) : tone(L.armor, 0.55), sleeve: tone(L.armor, armoured ? 0.12 : -0.06),
     trim: L.cloth || '#e9c46a', belt: tone(L.armor2, -0.25), sock: L.skeleton ? L.skin : tone(L.armor2, -0.05), boot: L.skeleton ? L.skin : '#4a3426', bootTrim: L.cloth || '#e9c46a',
   };
@@ -103,17 +101,14 @@ function face(c, L, P) {
     c.strokeStyle = '#1a1014'; c.lineWidth = 1; c.beginPath(); c.moveTo(47, 75); c.lineTo(63, 75); for (let x = 49; x <= 61; x += 3) { c.moveTo(x, 73.6); c.lineTo(x, 76.4); } c.stroke();
     return;
   }
-  const ry = P.male ? 4.3 : 5.5;
-  for (const [x, rx] of [[47.5, 3.3], [62.5, 4.6]]) { // big eyes: lash, two-tone iris, pupil, highlights
-    c.fillStyle = '#fff'; c.beginPath(); c.ellipse(x, 64.8, rx + 0.5, ry + 0.6, 0, 0, 7); c.fill();
-    const g = c.createLinearGradient(0, 59, 0, 71); g.addColorStop(0, tone(P.eye, -0.55)); g.addColorStop(0.55, P.eye); g.addColorStop(1, tone(P.eye, 0.45));
-    c.fillStyle = g; c.beginPath(); c.ellipse(x, 65.4, rx, ry, 0, 0, 7); c.fill();
-    c.fillStyle = tone(P.eye, -0.75); c.beginPath(); c.ellipse(x, 65.2, rx * 0.5, ry * 0.52, 0, 0, 7); c.fill();
-    c.strokeStyle = '#2a1c2a'; c.lineWidth = 1.8; c.lineCap = 'round'; c.beginPath(); c.moveTo(x - rx - 1.2, 66.2 - ry); c.quadraticCurveTo(x, 62.4 - ry + (P.male ? 1.2 : 0), x + rx + 1.4, 65.8 - ry); c.stroke();
-    c.fillStyle = '#fff'; c.beginPath(); c.arc(x - rx * 0.4, 66.6 - ry * 0.7, 1.4, 0, 7); c.fill(); c.beginPath(); c.arc(x + rx * 0.45, 65.6 + ry * 0.4, 0.8, 0, 7); c.fill();
+  // plain eyes: a small dark oval with one glint (no iris, no big lashes); a glowing colour replaces it
+  for (const [x, rx] of [[47.5, 1.9], [62.5, 2.4]]) {
+    c.fillStyle = L.glowEyes || '#241a22'; c.beginPath(); c.ellipse(x, 65, rx, 3.1, 0, 0, 7); c.fill();
+    c.fillStyle = '#fff'; c.beginPath(); c.arc(x + rx * 0.3, 63.8, 0.8, 0, 7); c.fill();
+    if (!P.male) { c.strokeStyle = '#241a22'; c.lineWidth = 1.1; c.lineCap = 'round'; c.beginPath(); c.moveTo(x + rx, 62.6); c.lineTo(x + rx + 1.8, 61.4); c.stroke(); }
     if (L.glowEyes) glow(c, x, 65, 8, L.glowEyes, 0.8);
   }
-  c.strokeStyle = tone(P.hair, -0.45); c.lineWidth = P.male ? 1.6 : 1.1; c.beginPath(); c.moveTo(43.5, 57.2); c.lineTo(50, P.male ? 58.2 : 56.6); c.moveTo(58.5, P.male ? 58.2 : 56.4); c.lineTo(66.5, 57.2); c.stroke();
+  c.strokeStyle = tone(P.hair, -0.45); c.lineWidth = P.male ? 1.6 : 1.1; c.beginPath(); c.moveTo(44.5, 59.6); c.lineTo(50, P.male ? 60.2 : 59); c.moveTo(59.5, P.male ? 60.2 : 58.8); c.lineTo(66, 59.6); c.stroke();
   c.fillStyle = P.male ? 'rgba(255,120,130,0.2)' : 'rgba(255,120,130,0.45)'; c.beginPath(); c.ellipse(44.5, 71, 2.8, 1.5, 0, 0, 7); c.fill(); c.beginPath(); c.ellipse(68, 71, 3.4, 1.7, 0, 0, 7); c.fill();
   if (L.beard) blob(c, [[44, 69], [53, 72], [66, 72], [74, 68], [72, 80], [61, 87], [49, 81]], L.beard, { line: 1.2, light: 0.2 });
   else if (P.male) { c.strokeStyle = '#9a4a4a'; c.lineWidth = 1.1; c.beginPath(); c.moveTo(52.6, 73.6); c.quadraticCurveTo(54.6, 74.6, 56.8, 73.4); c.stroke(); }
