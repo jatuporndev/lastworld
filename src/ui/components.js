@@ -5,6 +5,7 @@ import { audio } from '../core/audio.js';
 import { getSheet, drawFrame, iconCanvas, FRAMES } from '../engine/sprites.js';
 import { CARDS, cardStats, describeCard, ELEMENTS, CATEGORIES, RARITY, STATUS_INFO, DICE_NAME, diceLabel } from '../data/cards.js';
 import { ITEM_RARITY, STAT_LABEL } from '../data/items.js';
+import { cardArt } from './cardArt.js';
 import { CLASSES, heroLook } from '../data/classes.js';
 import { MONSTERS } from '../data/monsters.js';
 
@@ -58,13 +59,13 @@ export function cardEl(id, level = 0, { unit = null, small = false, count = null
   const d = describeCard(c, unit);
   const el = ELEMENTS[c.el]; const cat = CATEGORIES[c.cat];
   const range = c.tg === 'self' ? (c.shape === 'burst' ? t('Burst {n}', { n: c.size }) : t('Self')) : `${t('Range {n}', { n: c.range })}${d.shape ? ' · ' + d.shape : ''}`;
-  return h(`div.card.cat-${c.cat}.rar-${c.rarity}${small ? '.small' : ''}`, { style: { '--el': c.el === 'neutral' ? cat.color : el.color, '--elg': el.glow, '--cat': cat.color, '--rar': RARITY[c.rarity].color }, 'data-id': id },
+  return h(`div.card.cat-${c.cat}.rar-${c.rarity}${small ? '.small' : ''}`, { style: { '--el': c.el === 'neutral' ? cat.color : el.color, '--elg': el.glow, '--cat': cat.color, '--rar': RARITY[c.rarity].color, '--art': `url(${cardArt(id)})` }, 'data-id': id },
     h('div.card-frame'),
     h('div.card-cost', { 'data-tip': t('Action Slots this card takes') }, c.cost),
     c.mp ? h('div.card-mp', { 'data-tip': t('MP cost') }, c.mp) : null,
     count != null ? h('div.card-count', '×' + count) : null,
     h('div.card-name', c.name),
-    h('div.card-art', h('div.card-art-glow'), h('img', { src: iconCanvas(c.icon, '#ffffff', 96), draggable: 'false' })),
+    h('div.card-art'),
     h('div.card-type', `${cat.name}${c.el !== 'neutral' ? ' · ' + el.name : ''}`),
     h('div.card-text', ...richText(d.text)),
     h('div.card-foot', h('span', range), h('span.cd', c.cd ? t('CD {n}', { n: c.cd }) : t('No CD'))),
