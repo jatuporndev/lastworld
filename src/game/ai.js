@@ -35,8 +35,8 @@ export function chooseIntent(b, u) {
     it.center = { q: tgt.q, r: tgt.r };
     it.cells = Hex.spiral(it.center, it.size).filter((h) => b.cell(h));
   }
-  if (it.dmg) it.power = b.intentPower(u, it);
-  if (it.k === 'guard') it.blockValue = Math.round(it.block * (1 + (d.tier - 1) * 0.7));
+  if (it.dmg) { it.power = b.intentPower(u, it); it.dice = d.dice || 1; }
+  if (it.k === 'guard') it.blockValue = it.block + (d.tier - 1);
   return it;
 }
 
@@ -132,7 +132,7 @@ export async function monsterAct(b, u) {
       const pool = it.self ? [u] : b.enemies();
       const t = pool.sort((a, c) => a.hp / a.maxHp - c.hp / c.maxHp)[0];
       await b.emit('cast', { unit: u, card: { name: it.name, el: 'holy', cat: 'buff' }, cells: b.cellsOf(t), targets: [t], target: t, monster: true });
-      await b.heal(u, t, u.stats.matk * it.v * 1.5 + t.maxHp * 0.04);
+      await b.heal(u, t, u.stats.matk * it.v * 2 + t.maxHp * 0.04);
       break;
     }
     case 'summon': {

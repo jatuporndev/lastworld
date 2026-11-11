@@ -6,7 +6,7 @@ import { t } from '../core/i18n.js';
 import { terrainOf } from '../data/terrain.js';
 import { parseLayout } from '../data/stages.js';
 import { MONSTERS } from '../data/monsters.js';
-import { STATUS_INFO, ELEMENTS, DICE, diceOf } from '../data/cards.js';
+import { STATUS_INFO, ELEMENTS, DICE, MONSTER_DIE, diceOf } from '../data/cards.js';
 import { CLASSES } from '../data/classes.js';
 import { CONSUMABLES } from '../data/items.js';
 import { computeStats } from './character.js';
@@ -256,8 +256,8 @@ export class Battle {
       const t = this.terrain(u);
       if (t?.onEnd) {
         const e = t.onEnd;
-        if (e.heal) await this.heal(null, u, e.heal + Math.round(u.maxHp * 0.03), true);
-        if (e.dmg) await this.applyDamage(null, u, e.dmg + Math.round(u.maxHp * 0.03), { el: e.el || 'neutral', dot: true, tags: [t.name] });
+        if (e.heal) await this.heal(null, u, e.heal, true);
+        if (e.dmg) await this.applyDamage(null, u, e.dmg, { el: e.el || 'neutral', dot: true, tags: [t.name] });
         if (e.status && u.alive) await this.addStatus(null, u, e.status, e.n);
         if (e.mp && u.maxMp) u.mp = Math.max(0, u.mp + e.mp);
       }
@@ -453,7 +453,7 @@ export class Battle {
     if (use.block) await this.addBlock(u, use.block);
     if (use.bomb) {
       const t = this.enemies().sort((a, b) => this.dist(u, a) - this.dist(u, b))[0];
-      if (t) { await this.emit('cast', { unit: u, card: { name: t('Alchemist Bomb'), el: 'fire', proj: 'fire', cat: 'attack' }, cells: this.cellsOf(t), targets: [t], target: this.nearestCell(u, t) }); await this.applyDamage(u, t, use.bomb + u.level * 3, { el: 'fire', tags: [] }); }
+      if (t) { await this.emit('cast', { unit: u, card: { name: t('Alchemist Bomb'), el: 'fire', proj: 'fire', cat: 'attack' }, cells: this.cellsOf(t), targets: [t], target: this.nearestCell(u, t) }); await this.applyDamage(u, t, use.bomb, { el: 'fire', tags: [] }); }
     }
     this.busy = false;
     this._afterAction(u);
@@ -520,9 +520,9 @@ export class Battle {
           for (const v of tgts) {
             for (let i = 0; i < (f.hits || 1); i++) {
               if (!v.alive) break;
-              let raw = f.v + (f.s ? u.stats[f.s] * f.m : 0);
+              let raw = f.v + (f.s ? u.stats[f.s] : 0); // small fixed bonus; the dice carry the hit
               if (f.fromBlock) raw += u.block * f.fromBlock;
-              if (comboCat && firstDmg && card.combo.bonus.dmg) raw += card.combo.bonus.dmg + u.stats.atk * 0.3;
+              if (comboCat && firstDmg && card.combo.bonus.dmg) raw += card.combo.bonus.dmg;
               const diceFirst = dice && !diceHit.has(v); // dice bonus lands once per target, on its first hit
               if (diceFirst) { diceHit.add(v); raw += dice.dmgBonus; }
               if (f.execute && v.hp / v.maxHp <= f.execute) raw *= 2;
@@ -532,8 +532,8 @@ export class Battle {
           }
           firstDmg = false; break;
         }
-        case 'block': for (const v of tgts) await this.addBlock(v, Math.round(f.v + (f.s ? u.stats[f.s] * f.m : 0) + (dice?.supBonus || 0))); break;
-        case 'heal': for (const v of tgts) if (v.alive) await this.heal(u, v, f.v + (f.s ? u.stats[f.s] * f.m : 0) + (dice?.supBonus || 0)); break;
+        case 'block': for (const v of tgts) await this.addBlock(v, Math.round(f.v + (dice?.supBonus || 0))); break;
+        case 'heal': for (const v of tgts) if (v.alive) await this.heal(u, v, f.v + (f.s ? u.stats[f.s] : 0) + (dice?.supBonus || 0)); break;
         case 'status': for (const v of tgts) if (v.alive && !evaded.has(v)) await this.addStatus(u, v, f.st, f.n + (dice?.surge && !NO_STACK.includes(f.st) ? dice.surge : 0)); break;
         case 'push': case 'pull': for (const v of tgts) if (v.alive && !evaded.has(v)) await this.shove(u, v, f.v, f.t === 'pull'); break;
         case 'draw': { const d = []; for (let i = 0; i < f.v; i++) { const c = u.cards.drawOne(); if (c) d.push(c); } await this.emit('draw', { unit: u, drawn: d }); break; }
@@ -578,8 +578,8 @@ export class Battle {
     if (!this.canStand({ size: 1 }, at) || this.unitAt(at)) return;
     const u = this._monsterUnit(id);
     const bonus = 1 + (owner.passives.turretBonus || 0);
-    u.maxHp = u.hp = Math.round((u.hp + owner.level * 4) * bonus);
-    u.stats.atk = Math.round((owner.stats.atk * 0.5 + 4) * bonus); u.stats.def += Math.round(owner.level / 2);
+    u.maxHp = u.hp = Math.round((u.hp + Math.floor(owner.level / 3)) * bonus);
+    u.stats.atk = Math.round((owner.stats.atk + 2) * bonus);
     u.owner = owner.uid; u.q = at.q; u.r = at.r; u.facing = owner.facing; u.level = owner.level;
     this.units.push(u);
     await this.emit('spawn', { unit: u });
@@ -622,7 +622,12 @@ export class Battle {
 
   // ───────── dice ─────────
   // Heroes roll the dice printed on the card (see diceOf in data/cards.js); the faces' values are
-  // added as-is to the card's flat value. Only the side playing the card rolls.
+  // added as-is to the card's small flat value. Monsters roll grey dice for their attacks.
+  monsterRoll(u) {
+    let sum = 0; for (let i = 0; i < (u.def?.dice || 1); i++) sum += this.rng.pick(MONSTER_DIE);
+    return sum;
+  }
+
   rollDice(u, card) {
     if (!u.hero) return null;
     const d = diceOf(card); if (!d) return null;
@@ -647,7 +652,7 @@ export class Battle {
     }
     let dmg = o.raw; const el = o.el || 'neutral';
     const P = src?.passives || {};
-    dmg += (src.status.strength?.n || 0) * 2 * (1 + (src.level || 1) * 0.1);
+    dmg += src.status.strength?.n || 0;
     if (src.status.weak) dmg *= 0.75;
     if (P.dmgPct) dmg *= 1 + P.dmgPct;
     if (P.elemPct?.[el]) dmg *= 1 + P.elemPct[el];
@@ -673,13 +678,12 @@ export class Battle {
     if (tgt.status.vulnerable) dmg *= 1.25;
     // defense
     const tdef = tgt.size === 1 ? (this.terrain(tgt)?.def || 0) : 0;
-    dmg = Math.max(1, dmg * 100 / (100 + (tgt.stats.def + tdef * (1 + tgt.level * 0.15)) * 1.5));
-    dmg = Math.round(dmg);
+    dmg = Math.max(1, Math.round(dmg) - tgt.stats.def - tdef); // DEF is flat armour; a hit always does at least 1
     const res = await this.applyDamage(src, tgt, dmg, { el, crit, tags, combo });
     if (res.dealt > 0) {
       const ls = (P.lifesteal || 0) + (o.drain || 0);
       if (ls && src.alive) await this.heal(src, src, Math.max(1, res.dealt * ls), true);
-      if (tgt.passives.thorns && src.alive && !o.aoe && this.dist(src, tgt) <= 1) await this.applyDamage(null, src, Math.round(tgt.passives.thorns * (1 + tgt.level * 0.25)), { el: 'neutral', dot: true, tags: ['Thorns'] });
+      if (tgt.passives.thorns && src.alive && !o.aoe && this.dist(src, tgt) <= 1) await this.applyDamage(null, src, tgt.passives.thorns, { el: 'neutral', dot: true, tags: ['Thorns'] });
       if (P.onHitStatus && tgt.alive) await this.addStatus(src, tgt, P.onHitStatus.st, P.onHitStatus.n);
     }
     for (const fn of post) if (tgt.alive) await fn();
@@ -736,7 +740,7 @@ export class Battle {
       tgt.ccUntil = this.round + 3;
     }
     n += src?.passives?.statusBonus?.[st] || 0;
-    const power = src ? Math.max(1, (Math.max(src.stats.atk, src.stats.matk) * (st === 'regen' ? 0.12 : 0.14))) : 2 + (this.stage.id - 1) * 2;
+    const power = 1; // one point per stack, whoever applied it
     const cur = tgt.status[st];
     if (NO_STACK.includes(st)) tgt.status[st] = { n: Math.max(cur?.n || 0, n), p: power, by: src?.uid };
     else tgt.status[st] = { n: (cur?.n || 0) + n, p: Math.max(cur?.p || 0, power), by: src?.uid };
@@ -749,15 +753,17 @@ export class Battle {
   }
 
   // ───────── monster actions (called by AI) ─────────
-  intentPower(u, it) { return Math.round(u.stats.atk * (it.dmg || 0) + 2); }
+  // The fixed part of a monster attack; its grey dice are rolled on top when it lands.
+  intentPower(u, it) { return Math.round(u.stats.atk * (it.dmg || 0)); }
 
   async monsterAttack(u, tgt, it) {
     const tc = this.nearestCell(u, tgt);
     u.facing = Hex.directionTo(this.nearestCell(tc, u), tc);
     await this.emit('cast', { unit: u, card: { name: it.name, el: it.el || u.el, proj: (it.range || 1) > 1 ? (it.el || u.el || 'arcane') : null, cat: 'attack' }, cells: this.cellsOf(tgt), targets: [tgt], target: tc, monster: true });
+    const roll = this.monsterRoll(u); // lands once, on the first hit
     for (let i = 0; i < (it.hits || 1); i++) {
       if (!tgt.alive) break;
-      const res = await this.hit(u, tgt, { raw: this.intentPower(u, it), el: it.el || 'neutral', drain: it.drain, tags: [] });
+      const res = await this.hit(u, tgt, { raw: this.intentPower(u, it) + (i === 0 ? roll : 0), el: it.el || 'neutral', drain: it.drain, tags: i === 0 ? ['🎲 ' + roll] : [] });
       if (!res.evaded && it.status && tgt.alive && i === 0) await this.addStatus(u, tgt, it.status.st, it.status.n);
     }
   }
@@ -765,8 +771,9 @@ export class Battle {
   async monsterAoe(u, it, cells, origin) {
     const victims = this.heroSide().filter((v) => this.cellsOf(v).some((c) => cells.some((x) => Hex.hexEq(x, c))));
     await this.emit('cast', { unit: u, card: { name: it.name, el: it.el || u.el, cat: 'attack', shape: it.shape, big: true }, cells, targets: victims, target: origin, monster: true });
+    const roll = this.monsterRoll(u); // one roll for the whole area
     for (const v of victims) {
-      const res = await this.hit(u, v, { raw: this.intentPower(u, it), el: it.el || 'neutral', aoe: true, tags: [] });
+      const res = await this.hit(u, v, { raw: this.intentPower(u, it) + roll, el: it.el || 'neutral', aoe: true, tags: ['🎲 ' + roll] });
       if (!res.evaded && it.status && v.alive) await this.addStatus(u, v, it.status.st, it.status.n);
     }
   }

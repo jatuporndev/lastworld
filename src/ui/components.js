@@ -172,5 +172,7 @@ export function initTooltips() {
 }
 
 export function toggleFullscreen() {
-  if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.().catch(() => {});
+  if (document.fullscreenElement) document.exitFullscreen();
+  // on phones, going fullscreen also turns the game to landscape where the browser allows it
+  else document.documentElement.requestFullscreen?.().then(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => {});
 }

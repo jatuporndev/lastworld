@@ -10,27 +10,30 @@ export const ITEM_RARITY = {
   legendary: { name: 'Legendary', color: '#ffb347', mul: 1.8, affixes: 3 },
 };
 
-// Base equipment templates. Stats scale with tier (1-6).
+// Base equipment templates. Board-game scale: ATK / MATK / DEF are small bonuses that rise by 1 every
+// two tiers; HP, MP, crit, evasion and speed scale with tier (1-6) and rarity.
 export const BASES = {
-  sword: { slot: 'weapon', type: 'sword', names: ['Iron Sword', 'Steel Longsword', 'Frostbrand', 'Gravecleaver', 'Starforged Blade', 'Doomedge'], stats: { atk: 6 }, icon: 'sword' },
-  mace: { slot: 'weapon', type: 'mace', names: ['Oak Mace', 'Flanged Mace', 'Rimehammer', 'Bonecrusher', 'Sunmace', 'Abyssal Maul'], stats: { atk: 5, def: 1 }, icon: 'mace' },
-  staff: { slot: 'weapon', type: 'staff', names: ['Ashwood Staff', 'Ember Rod', 'Glacial Scepter', 'Soulbinder', 'Astral Staff', 'Voidcaller'], stats: { matk: 7, mp: 4 }, icon: 'staff' },
-  bow: { slot: 'weapon', type: 'bow', names: ['Hunting Bow', 'Recurve Bow', 'Frostwind Bow', 'Ghostwood Bow', 'Comet Longbow', 'Hellstring'], stats: { atk: 5, crit: 3 }, icon: 'bow' },
-  dagger: { slot: 'weapon', type: 'dagger', names: ['Rusty Dirk', 'Kris Blade', 'Icicle Shiv', 'Venomfang', 'Moonsliver', 'Nightreaver'], stats: { atk: 5, crit: 4 }, icon: 'dagger' },
-  hammer: { slot: 'weapon', type: 'hammer', names: ['Smithing Hammer', 'War Hammer', 'Glacier Breaker', 'Tombhammer', 'Meteor Maul', 'Hellforge Hammer'], stats: { atk: 7 }, icon: 'hammer' },
-  heavy: { slot: 'armor', type: 'heavy', names: ['Chainmail', 'Iron Plate', 'Frostguard Plate', 'Deathknight Plate', 'Celestial Aegis', 'Abyssal Carapace'], stats: { def: 5, hp: 12 }, icon: 'armor' },
-  light: { slot: 'armor', type: 'light', names: ['Leather Vest', 'Ranger Coat', 'Snowfox Garb', 'Shadeweave', 'Starsilk Mantle', 'Voidskin'], stats: { def: 3, hp: 8, eva: 2 }, icon: 'vest' },
-  robe: { slot: 'armor', type: 'robe', names: ['Linen Robe', 'Acolyte Robe', 'Frostweave Robe', 'Lich Shroud', 'Aether Vestment', 'Robe of Ending'], stats: { def: 2, mp: 8, matk: 2 }, icon: 'robe' },
-  ring: { slot: 'accessory', type: 'ring', names: ['Copper Ring', 'Silver Band', 'Frost Signet', 'Bone Ring', 'Star Ring', 'Ring of the Abyss'], stats: { crit: 3, atk: 2 }, icon: 'ring' },
-  amulet: { slot: 'accessory', type: 'amulet', names: ['Wooden Charm', 'Sun Amulet', 'Snowflake Pendant', 'Soul Locket', 'Aether Pendant', 'Heart of Night'], stats: { hp: 10, matk: 2 }, icon: 'amulet' },
+  sword: { slot: 'weapon', type: 'sword', names: ['Iron Sword', 'Steel Longsword', 'Frostbrand', 'Gravecleaver', 'Starforged Blade', 'Doomedge'], stats: { atk: 1, crit: 2 }, icon: 'sword' },
+  mace: { slot: 'weapon', type: 'mace', names: ['Oak Mace', 'Flanged Mace', 'Rimehammer', 'Bonecrusher', 'Sunmace', 'Abyssal Maul'], stats: { atk: 1, hp: 2 }, icon: 'mace' },
+  staff: { slot: 'weapon', type: 'staff', names: ['Ashwood Staff', 'Ember Rod', 'Glacial Scepter', 'Soulbinder', 'Astral Staff', 'Voidcaller'], stats: { matk: 1, mp: 4 }, icon: 'staff' },
+  bow: { slot: 'weapon', type: 'bow', names: ['Hunting Bow', 'Recurve Bow', 'Frostwind Bow', 'Ghostwood Bow', 'Comet Longbow', 'Hellstring'], stats: { atk: 1, crit: 3 }, icon: 'bow' },
+  dagger: { slot: 'weapon', type: 'dagger', names: ['Rusty Dirk', 'Kris Blade', 'Icicle Shiv', 'Venomfang', 'Moonsliver', 'Nightreaver'], stats: { atk: 1, crit: 4 }, icon: 'dagger' },
+  hammer: { slot: 'weapon', type: 'hammer', names: ['Smithing Hammer', 'War Hammer', 'Glacier Breaker', 'Tombhammer', 'Meteor Maul', 'Hellforge Hammer'], stats: { atk: 1, hp: 3 }, icon: 'hammer' },
+  heavy: { slot: 'armor', type: 'heavy', names: ['Chainmail', 'Iron Plate', 'Frostguard Plate', 'Deathknight Plate', 'Celestial Aegis', 'Abyssal Carapace'], stats: { def: 1, hp: 3 }, icon: 'armor' },
+  light: { slot: 'armor', type: 'light', names: ['Leather Vest', 'Ranger Coat', 'Snowfox Garb', 'Shadeweave', 'Starsilk Mantle', 'Voidskin'], stats: { def: 0, hp: 2, eva: 2 }, icon: 'vest' },
+  robe: { slot: 'armor', type: 'robe', names: ['Linen Robe', 'Acolyte Robe', 'Frostweave Robe', 'Lich Shroud', 'Aether Vestment', 'Robe of Ending'], stats: { def: 0, hp: 1, mp: 8 }, icon: 'robe' },
+  ring: { slot: 'accessory', type: 'ring', names: ['Copper Ring', 'Silver Band', 'Frost Signet', 'Bone Ring', 'Star Ring', 'Ring of the Abyss'], stats: { crit: 4 }, icon: 'ring' },
+  amulet: { slot: 'accessory', type: 'amulet', names: ['Wooden Charm', 'Sun Amulet', 'Snowflake Pendant', 'Soul Locket', 'Aether Pendant', 'Heart of Night'], stats: { hp: 3, mp: 4 }, icon: 'amulet' },
   boots: { slot: 'accessory', type: 'boots', names: ['Traveler Boots', 'Dune Striders', 'Snowtread Boots', 'Grave Walkers', 'Skystep Boots', 'Hellwalkers'], stats: { spd: 3, eva: 2 }, icon: 'boots' },
 };
 
 const AFFIXES = [
-  { stat: 'atk', v: 3, name: 'of Might' }, { stat: 'matk', v: 3, name: 'of Sorcery' }, { stat: 'def', v: 2, name: 'of the Bulwark' },
-  { stat: 'hp', v: 10, name: 'of Vigor' }, { stat: 'mp', v: 6, name: 'of Insight' }, { stat: 'crit', v: 3, name: 'of Precision' },
+  { stat: 'atk', v: 1, name: 'of Might' }, { stat: 'matk', v: 1, name: 'of Sorcery' }, { stat: 'def', v: 1, name: 'of the Bulwark' },
+  { stat: 'hp', v: 2, name: 'of Vigor' }, { stat: 'mp', v: 6, name: 'of Insight' }, { stat: 'crit', v: 3, name: 'of Precision' },
   { stat: 'eva', v: 2, name: 'of Shadows' }, { stat: 'spd', v: 2, name: 'of Haste' },
 ];
+
+const SMALL = ['atk', 'matk', 'def'];
 
 export const STAT_LABEL = { atk: 'ATK', matk: 'MATK', def: 'DEF', hp: 'Max HP', mp: 'Max MP', crit: 'Crit %', eva: 'Evasion %', spd: 'Speed', move: 'Move', energy: 'Energy' };
 
@@ -38,12 +41,19 @@ export function makeEquipment(baseId, tier, rarity, rng = Math.random) {
   const base = BASES[baseId];
   const r = ITEM_RARITY[rarity];
   const tierMul = 1 + (tier - 1) * 0.85;
+  const hpMul = 1 + (tier - 1) * 0.5;
+  const step = Math.floor((tier - 1) / 2); // +1 ATK / MATK / DEF at tiers 3 and 5
   const stats = {};
-  for (const [k, v] of Object.entries(base.stats)) stats[k] = Math.max(1, Math.round(v * tierMul * r.mul));
-  const affixNames = [];
+  for (const [k, v] of Object.entries(base.stats)) {
+    const n = SMALL.includes(k) ? v + (v > 0 ? step : 0) + (rarity === 'legendary' && v > 0 ? 1 : 0) : k === 'hp' ? Math.round(v * hpMul * r.mul) : Math.max(1, Math.round(v * tierMul * r.mul));
+    if (n > 0) stats[k] = n;
+  }
+  const affixNames = []; const used = new Set();
   for (let i = 0; i < r.affixes; i++) {
-    const a = AFFIXES[Math.floor(rng() * AFFIXES.length)];
-    stats[a.stat] = (stats[a.stat] || 0) + Math.round(a.v * tierMul * (0.8 + rng() * 0.4));
+    const a = AFFIXES[Math.floor(rng() * AFFIXES.length)]; const roll = 0.8 + rng() * 0.4;
+    if (used.has(a.stat)) continue; // each bonus at most once per item
+    used.add(a.stat);
+    stats[a.stat] = (stats[a.stat] || 0) + (SMALL.includes(a.stat) ? a.v : a.stat === 'hp' ? Math.round(a.v * hpMul * roll) : Math.round(a.v * tierMul * roll));
     affixNames.push(t(a.name));
   }
   const name = base.names[Math.min(5, tier - 1)] + (affixNames[0] ? ' ' + affixNames[0] : '');
@@ -52,12 +62,12 @@ export function makeEquipment(baseId, tier, rarity, rng = Math.random) {
 
 // Unique stage reward equipment (granted by MVP bosses)
 export const UNIQUES = {
-  guardian_heart: { kind: 'equip', base: 'amulet', slot: 'accessory', type: 'amulet', tier: 2, rarity: 'legendary', name: "Guardian's Heartwood", stats: { hp: 40, def: 4, matk: 4 }, icon: 'amulet', value: 400, unique: 'Regenerate 3 HP each round.', passive: { regenFlat: 3 } },
-  tyrant_fang: { kind: 'equip', base: 'ring', slot: 'accessory', type: 'ring', tier: 3, rarity: 'legendary', name: 'Tyrant Fang Ring', stats: { atk: 12, crit: 8 }, icon: 'ring', value: 600, unique: '+20% damage to bosses.', passive: { bossDmg: 0.2 } },
-  queen_tiara: { kind: 'equip', base: 'amulet', slot: 'accessory', type: 'amulet', tier: 4, rarity: 'legendary', name: 'Tiara of Endless Winter', stats: { matk: 16, mp: 25 }, icon: 'amulet', value: 800, unique: 'Attacks apply Chill 1.', passive: { onHitStatus: { st: 'chill', n: 1 } } },
-  lich_phylactery: { kind: 'equip', base: 'amulet', slot: 'accessory', type: 'amulet', tier: 5, rarity: 'legendary', name: 'Shattered Phylactery', stats: { hp: 60, matk: 14, atk: 14 }, icon: 'amulet', value: 1100, unique: 'Heal 10% of damage dealt.', passive: { lifesteal: 0.1 } },
-  dragon_scale: { kind: 'equip', base: 'boots', slot: 'accessory', type: 'boots', tier: 6, rarity: 'legendary', name: 'Aurelion Scale Treads', stats: { spd: 12, eva: 8, def: 10, hp: 50 }, icon: 'boots', value: 1500, unique: '+1 Movement and +1 Energy.', passive: { move: 1, energy: 1 } },
-  overlord_crown: { kind: 'equip', base: 'ring', slot: 'accessory', type: 'ring', tier: 7, rarity: 'legendary', name: 'Crown of the Last World', stats: { atk: 25, matk: 25, hp: 80, crit: 10 }, icon: 'ring', value: 3000, unique: 'All damage +25%.', passive: { dmgPct: 0.25 } },
+  guardian_heart: { kind: 'equip', base: 'amulet', slot: 'accessory', type: 'amulet', tier: 2, rarity: 'legendary', name: "Guardian's Heartwood", stats: { hp: 6, def: 1, matk: 1 }, icon: 'amulet', value: 400, unique: 'Regenerate 1 HP each round.', passive: { regenFlat: 1 } },
+  tyrant_fang: { kind: 'equip', base: 'ring', slot: 'accessory', type: 'ring', tier: 3, rarity: 'legendary', name: 'Tyrant Fang Ring', stats: { atk: 2, crit: 8 }, icon: 'ring', value: 600, unique: '+20% damage to bosses.', passive: { bossDmg: 0.2 } },
+  queen_tiara: { kind: 'equip', base: 'amulet', slot: 'accessory', type: 'amulet', tier: 4, rarity: 'legendary', name: 'Tiara of Endless Winter', stats: { matk: 2, mp: 25 }, icon: 'amulet', value: 800, unique: 'Attacks apply Chill 1.', passive: { onHitStatus: { st: 'chill', n: 1 } } },
+  lich_phylactery: { kind: 'equip', base: 'amulet', slot: 'accessory', type: 'amulet', tier: 5, rarity: 'legendary', name: 'Shattered Phylactery', stats: { hp: 8, matk: 2, atk: 2 }, icon: 'amulet', value: 1100, unique: 'Heal 10% of damage dealt.', passive: { lifesteal: 0.1 } },
+  dragon_scale: { kind: 'equip', base: 'boots', slot: 'accessory', type: 'boots', tier: 6, rarity: 'legendary', name: 'Aurelion Scale Treads', stats: { spd: 12, eva: 8, def: 2, hp: 8 }, icon: 'boots', value: 1500, unique: '+1 Movement and +1 Energy.', passive: { move: 1, energy: 1 } },
+  overlord_crown: { kind: 'equip', base: 'ring', slot: 'accessory', type: 'ring', tier: 7, rarity: 'legendary', name: 'Crown of the Last World', stats: { atk: 3, matk: 3, hp: 12, crit: 10 }, icon: 'ring', value: 3000, unique: 'All damage +25%.', passive: { dmgPct: 0.25 } },
 };
 export function makeUnique(id) { return { ...UNIQUES[id], stats: { ...UNIQUES[id].stats }, uid: uid(), uniqueId: id }; }
 
@@ -65,9 +75,9 @@ export const CONSUMABLES = {
   potion: { name: 'Health Potion', desc: 'Restore 40% HP.', icon: 'potion', color: '#e04040', price: 30, use: { healPct: 0.4 } },
   hipotion: { name: 'Greater Potion', desc: 'Restore 80% HP.', icon: 'potion', color: '#ff6080', price: 80, use: { healPct: 0.8 } },
   ether: { name: 'Ether', desc: 'Restore 25 MP.', icon: 'potion', color: '#4080ff', price: 35, use: { mp: 25 } },
-  antidote: { name: 'Panacea', desc: 'Remove all debuffs and grant 5 Block.', icon: 'potion', color: '#60d060', price: 25, use: { cleanse: true, block: 5 } },
+  antidote: { name: 'Panacea', desc: 'Remove all debuffs and grant 2 Block.', icon: 'potion', color: '#60d060', price: 25, use: { cleanse: true, block: 2 } },
   elixir: { name: 'Phoenix Elixir', desc: 'Fully restore HP and MP. Can revive a fallen ally outside battle.', icon: 'potion', color: '#ffb030', price: 200, use: { healPct: 1, mp: 999, revive: true } },
-  bomb: { name: 'Alchemist Bomb', desc: 'Deal 25 Fire damage to an enemy (battle only).', icon: 'bomb', color: '#ff7020', price: 45, use: { bomb: 25 } },
+  bomb: { name: 'Alchemist Bomb', desc: 'Deal 8 Fire damage to an enemy (battle only).', icon: 'bomb', color: '#ff7020', price: 45, use: { bomb: 8 } },
 };
 
 export const MATERIALS = {

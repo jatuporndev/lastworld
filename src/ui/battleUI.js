@@ -18,6 +18,8 @@ import { Coop } from '../net/coop.js';
 import { bus } from '../core/util.js';
 import { ui, cardEl, unitSprite, statusChips, bar, btn, icon, toast, banner, openModal, diceChip } from './components.js';
 
+// A monster attack reads as its dice plus the fixed bonus, e.g. 🎲+2.
+const pw = (i) => '🎲'.repeat(i.dice || 1) + '+' + i.power;
 const INTENT_ICON = { strike: 'sword', shoot: 'arrow', aoe: 'meteor', guard: 'shield', buff: 'star', heal: 'cross', summon: 'skull' };
 const EL_SFX = { fire: 'fire', ice: 'ice', wind: 'wind', earth: 'earth', holy: 'holy', shadow: 'shadow', poison: 'poison', neutral: 'slash', arcane: 'magic' };
 
@@ -131,7 +133,7 @@ export class BattleScene {
     const st = el.querySelector('.ul-status'); st.replaceChildren(...statusChips(u));
     const it = el.querySelector('.ul-intent');
     if (u.intent && u.alive) {
-      const i = u.intent; const val = i.power ? (i.hits > 1 ? `${i.power}×${i.hits}` : i.power) : i.blockValue || '';
+      const i = u.intent; const val = i.power != null ? (i.hits > 1 ? `${pw(i)}×${i.hits}` : pw(i)) : i.blockValue || '';
       it.className = 'ul-intent on k-' + i.k;
       it.replaceChildren(icon(INTENT_ICON[i.k], '#fff', 16), val ? h('b', val) : null);
       it.dataset.tip = this.intentText(u);
@@ -143,9 +145,9 @@ export class BattleScene {
     const i = u.intent; if (!i) return '';
     const st = i.status ? t(' Applies {st}.', { st: STATUS_INFO[i.status.st].name }) : '';
     switch (i.k) {
-      case 'strike': return t('{name}: melee attack for {p}{hits}.{st}', { name: i.name, p: i.power, hits: i.hits > 1 ? ' ×' + i.hits : '', st });
-      case 'shoot': return t('{name}: ranged attack (range {r}) for {p}.{st}', { name: i.name, r: i.range, p: i.power, st });
-      case 'aoe': return t('{name}: {shape} attack for {p}.{st}{warn}', { name: i.name, shape: t(i.shape), p: i.power, st, warn: i.shape === 'area' ? t(' Target area is marked on the board — move out!') : '' });
+      case 'strike': return t('{name}: melee attack for {p}{hits}.{st}', { name: i.name, p: pw(i), hits: i.hits > 1 ? ' ×' + i.hits : '', st });
+      case 'shoot': return t('{name}: ranged attack (range {r}) for {p}.{st}', { name: i.name, r: i.range, p: pw(i), st });
+      case 'aoe': return t('{name}: {shape} attack for {p}.{st}{warn}', { name: i.name, shape: t(i.shape), p: pw(i), st, warn: i.shape === 'area' ? t(' Target area is marked on the board — move out!') : '' });
       case 'guard': return t('{name}: gains {n} Block.', { name: i.name, n: i.blockValue });
       case 'buff': return t('{name}: grants {st} {n}{allies}.', { name: i.name, st: STATUS_INFO[i.st].name, n: i.n, allies: i.allies ? t(' to nearby allies') : '' });
       case 'heal': return t('{name}: heals a wounded ally.', { name: i.name });
@@ -424,7 +426,7 @@ export class BattleScene {
       }
     };
     const up = (ev) => {
-      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel);
       this.drag = null; this.hud.classList.remove('dragging');
       if (ghost) ghost.remove(); el.classList.remove('drag-src');
       if (!dragging) { if (this.pending?.inst === inst) this.cancelPending(); else this.choose(inst); return; }
@@ -433,7 +435,9 @@ export class BattleScene {
       if (ev.clientY < handTop - 4) this.choose(inst, wasPending ? { x: ev.clientX, y: ev.clientY } : null);
       else { this.renderHand(); this.refreshBoard(); }
     };
-    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    // if the browser takes a touch drag away (pointercancel), the card goes back to the hand
+    const cancel = () => { const was = dragging; dragging = true; up({ clientX: 0, clientY: Infinity }); if (!was) { this.renderHand(); this.refreshBoard(); } };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', cancel);
   }
 
   key(e) {

@@ -268,7 +268,7 @@ export class World {
 
   // ───────── units ─────────
   addUnit(u, cells) {
-    const fs = u.scale > 1.6 ? 192 : 128;
+    const fs = u.scale > 1.6 ? 256 : 192; // painted large so figures stay crisp when the camera is close
     const sheet = getSheet(u.spriteKey, u.look, fs);
     let base = this.texCache.get(u.spriteKey + fs);
     if (!base) { base = new THREE.CanvasTexture(sheet.canvas); base.colorSpace = THREE.SRGBColorSpace; base.anisotropy = 4; this.texCache.set(u.spriteKey + fs, base); }

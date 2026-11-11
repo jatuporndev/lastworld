@@ -37,12 +37,36 @@ export function getSheet(key, look, frameSize = 128) {
         ctx.scale(u, u);
         paint(ctx, look, VIEWS[v], ANIMS[a], f);
         ctx.restore();
+        shadeFrame(ctx, (v * FRAMES + f) * frameSize, a * frameSize, frameSize);
       }
     }
   }
+  rimLight(canvas, ctx, frameSize);
   const sheet = { canvas, frameSize, cols, rows };
   cache.set(ck, sheet);
   return sheet;
+}
+
+// Volume: every figure is lit from above and falls into cool shadow toward its feet.
+function shadeFrame(ctx, x, y, size) {
+  const g = ctx.createLinearGradient(0, y, 0, y + size);
+  g.addColorStop(0, 'rgba(255, 240, 205, 0.2)'); g.addColorStop(0.42, 'rgba(255, 255, 255, 0)'); g.addColorStop(1, 'rgba(16, 12, 52, 0.4)');
+  ctx.save(); ctx.globalCompositeOperation = 'source-atop'; ctx.fillStyle = g; ctx.fillRect(x, y, size, size); ctx.restore();
+}
+// Rim light: a warm key light catches the upper-left edge of every silhouette and a cool back light the
+// lower-right one, which lifts the flat painted figures off the board.
+function rimLight(canvas, ctx, frameSize) {
+  const r = Math.max(1.5, frameSize * 0.02);
+  const edge = (dx, dy, color, alpha) => {
+    const tmp = document.createElement('canvas'); tmp.width = canvas.width; tmp.height = canvas.height;
+    const c = tmp.getContext('2d');
+    c.drawImage(canvas, 0, 0);
+    c.globalCompositeOperation = 'destination-out'; c.drawImage(canvas, dx, dy);
+    c.globalCompositeOperation = 'source-in'; c.fillStyle = color; c.fillRect(0, 0, tmp.width, tmp.height);
+    ctx.save(); ctx.globalCompositeOperation = 'source-atop'; ctx.globalAlpha = alpha; ctx.drawImage(tmp, 0, 0); ctx.restore();
+  };
+  edge(r, r, '#fff1cc', 0.7);
+  edge(-r, -r, '#6f9bff', 0.45);
 }
 
 // Draw a single frame onto an external 2D context (used for UI portraits / previews).
@@ -192,8 +216,8 @@ function head(ctx, look, view, y) {
       else { ellipse(ctx, hx + x, y + 1, 3, 4, eyeC, null); ellipse(ctx, hx + x + 1, y - 0.5, 1.1, 1.3, '#fff', null); if (look.glowEyes) glowCircle(ctx, hx + x, y + 1, 6, look.glowEyes, 0.8); }
     });
     if (look.skeleton) { ctx.fillStyle = '#1a1010'; ctx.fillRect(hx - 6 + (view === 'side' ? 8 : 0), y + 10, 12, 2); }
-    else if (!look.beard) { ctx.beginPath(); ctx.arc(hx + (view === 'side' ? 9 : 0), y + 9, 3, 0.2, Math.PI - 0.2); path(ctx, null, '#8a4a3a', 1.5); }
-    ctx.globalAlpha = 0.35; ellipse(ctx, hx + (view === 'side' ? 6 : -11), y + 6, 3.5, 2, '#ff8a8a', null); if (view !== 'side') ellipse(ctx, hx + 11, y + 6, 3.5, 2, '#ff8a8a', null); ctx.globalAlpha = 1;
+    else if (!look.beard) { const mx = hx + (view === 'side' ? 10 : 0); ctx.beginPath(); ctx.moveTo(mx - 3, y + 10); ctx.lineTo(mx + 3, y + 10); path(ctx, null, '#6a3a30', 1.6); }
+    if (!look.skeleton) ex.forEach((x) => { const s = view === 'side' ? 1 : Math.sign(x); ctx.beginPath(); ctx.moveTo(hx + x - s * 4.5, y - 3.5); ctx.lineTo(hx + x + s * 3.5, y - 6.5); path(ctx, null, look.glowEyes ? '#120c0c' : shade(look.hair || '#3a2a1a', -0.45), 2.2); });
   }
   if (look.beard && view !== 'back') {
     ctx.beginPath(); ctx.moveTo(hx - 14 + (view === 'side' ? 10 : 0), y + 4); ctx.quadraticCurveTo(hx + (view === 'side' ? 8 : 0), y + 30, hx + 14, y + 4); ctx.quadraticCurveTo(hx, y + 12, hx - 14 + (view === 'side' ? 10 : 0), y + 4); path(ctx, look.beard);
@@ -253,7 +277,8 @@ function PAINTERS_INIT() {
   PAINTERS = {
     humanoid(ctx, L, view, p, f, anim) {
       const big = L.demon ? 1.05 : 1;
-      ctx.translate(p.dx, p.bob); ctx.rotate(p.lean); ctx.scale(big, big);
+      ctx.translate(p.dx, p.bob); ctx.rotate(p.lean); ctx.scale(big * 0.94, big * 0.94);
+      ctx.translate(0, -10); // the body rides 10 higher on longer legs; the ground is at y = 10 from here on
       if (L.hunch) ctx.translate(0, 6);
       const side = view === 'side';
       const sw = L.bulky ? 18 : 15;
@@ -265,7 +290,7 @@ function PAINTERS_INIT() {
       }
       // cape (behind)
       if (L.cape && view !== 'back') {
-        ctx.beginPath(); ctx.moveTo(-14, -58); ctx.quadraticCurveTo(-24 - (side ? 8 : 0), -24, -18 - (side ? 12 : 0) + p.leg * 4, -6); ctx.lineTo(18 - (side ? 14 : 0), -6); ctx.quadraticCurveTo(20, -30, 14, -58); ctx.closePath(); path(ctx, shade(L.cape, -0.25));
+        ctx.beginPath(); ctx.moveTo(-14, -58); ctx.quadraticCurveTo(-24 - (side ? 8 : 0), -24, -18 - (side ? 12 : 0) + p.leg * 4, 4); ctx.lineTo(18 - (side ? 14 : 0), 4); ctx.quadraticCurveTo(20, -30, 14, -58); ctx.closePath(); path(ctx, shade(L.cape, -0.25));
       }
       // far arm (side view) behind body
       const shoulderY = -56;
@@ -278,11 +303,11 @@ function PAINTERS_INIT() {
           [[-1, -p.leg], [1, p.leg]].forEach(([s, a], i) => {
             if ((i === 0) !== front) return;
             ctx.save(); ctx.translate(s * 2, -32); ctx.rotate(a);
-            rrect(ctx, -5, 0, 10, 26, 4, i === 0 ? shade(lc, -0.2) : lc); rrect(ctx, -5, 18, 13, 10, 4, boot);
+            rrect(ctx, -5, 0, 10, 36, 4, i === 0 ? shade(lc, -0.2) : lc); rrect(ctx, -5, 32, 13, 10, 4, boot);
             ctx.restore();
           });
         } else if (front) {
-          [-1, 1].forEach((s, i) => { const lift = (i ? 1 : -1) * p.leg * 6; rrect(ctx, s * 7 - 5, -32 - Math.max(0, lift), 10, 26, 4, lc); rrect(ctx, s * 7 - 6, -10 - Math.max(0, lift), 12, 10, 4, boot); });
+          [-1, 1].forEach((s, i) => { const lift = (i ? 1 : -1) * p.leg * 6; rrect(ctx, s * 7 - 5, -32 - Math.max(0, lift), 10, 36, 4, lc); rrect(ctx, s * 7 - 6, -Math.max(0, lift), 12, 10, 4, boot); });
         }
       };
       legs(false);
@@ -290,9 +315,9 @@ function PAINTERS_INIT() {
       // robe / gown skirt
       if (L.robe || L.gown) {
         const w = L.gown ? 30 : 22;
-        ctx.beginPath(); ctx.moveTo(-14, -40); ctx.lineTo(14, -40); ctx.lineTo(w + p.leg * 3, -4); ctx.quadraticCurveTo(0, 2, -w + p.leg * 3, -4); ctx.closePath();
-        path(ctx, grad(ctx, -40, 0, L.armor, shade(L.armor, -0.35)));
-        ctx.beginPath(); ctx.moveTo(-w + 2 + p.leg * 3, -7); ctx.quadraticCurveTo(0, -1, w - 2 + p.leg * 3, -7); path(ctx, null, L.cloth, 2.5);
+        ctx.beginPath(); ctx.moveTo(-14, -40); ctx.lineTo(14, -40); ctx.lineTo(w + p.leg * 3, 6); ctx.quadraticCurveTo(0, 12, -w + p.leg * 3, 6); ctx.closePath();
+        path(ctx, grad(ctx, -40, 10, L.armor, shade(L.armor, -0.35)));
+        ctx.beginPath(); ctx.moveTo(-w + 2 + p.leg * 3, 3); ctx.quadraticCurveTo(0, 9, w - 2 + p.leg * 3, 3); path(ctx, null, L.cloth, 2.5);
       }
       // torso
       const tw = side ? 22 : (L.bulky ? 36 : 30);
@@ -312,10 +337,10 @@ function PAINTERS_INIT() {
         arm(ctx, sw - 2, shoulderY, p.arm, 20, L, 1, wpn, false, p.glow);
         arm(ctx, -sw + 2, shoulderY, p.off, 20, L, -1, off, true, p.glow);
       }
-      head(ctx, L, view, -80);
+      ctx.save(); ctx.translate(0, -62); ctx.scale(0.82, 0.82); ctx.translate(0, 62); head(ctx, L, view, -80); ctx.restore();
       // back cape over body
       if (L.cape && view === 'back') {
-        ctx.beginPath(); ctx.moveTo(-16, -60); ctx.quadraticCurveTo(-22, -30, -20 + p.leg * 3, -4); ctx.lineTo(20 + p.leg * 3, -4); ctx.quadraticCurveTo(22, -30, 16, -60); ctx.closePath(); path(ctx, grad(ctx, -60, -4, L.cape, shade(L.cape, -0.35)));
+        ctx.beginPath(); ctx.moveTo(-16, -60); ctx.quadraticCurveTo(-22, -30, -20 + p.leg * 3, 6); ctx.lineTo(20 + p.leg * 3, 6); ctx.quadraticCurveTo(22, -30, 16, -60); ctx.closePath(); path(ctx, grad(ctx, -60, 6, L.cape, shade(L.cape, -0.35)));
       }
       if (view === 'front') {
         arm(ctx, -sw + 2, shoulderY, p.off, 20, L, -1, off, true, p.glow);

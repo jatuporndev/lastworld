@@ -51,16 +51,16 @@ export const CLASS_ORDER = ['knight', 'mage', 'archer', 'assassin', 'priest', 'b
 // p: passive effects — flat stats, or combat hooks interpreted by the Combat Resolver.
 export const SKILL_TREES = {
   knight: [
-    { id: 'kn1', branch: 0, tier: 1, name: 'Plate Mastery', desc: '+3 DEF, +15 Max HP.', p: { def: 3, hp: 15 } },
-    { id: 'kn2', branch: 0, tier: 2, name: 'Bastion', desc: 'Start every battle with 8 Block.', p: { startBlock: 8 }, req: 'kn1' },
-    { id: 'kn3', branch: 0, tier: 3, name: 'Retribution', desc: 'Enemies that hit you take 3 damage (Thorns).', p: { thorns: 3 }, req: 'kn2', cost: 2 },
-    { id: 'kn4', branch: 1, tier: 1, name: 'Weapon Training', desc: '+4 ATK.', p: { atk: 4 } },
+    { id: 'kn1', branch: 0, tier: 1, name: 'Plate Mastery', desc: '+1 DEF, +3 Max HP.', p: { def: 1, hp: 3 } },
+    { id: 'kn2', branch: 0, tier: 2, name: 'Bastion', desc: 'Start every battle with 3 Block.', p: { startBlock: 3 }, req: 'kn1' },
+    { id: 'kn3', branch: 0, tier: 3, name: 'Retribution', desc: 'Enemies that hit you take 1 damage (Thorns).', p: { thorns: 1 }, req: 'kn2', cost: 2 },
+    { id: 'kn4', branch: 1, tier: 1, name: 'Weapon Training', desc: '+1 ATK.', p: { atk: 1 } },
     { id: 'kn5', branch: 1, tier: 2, name: 'Momentum', desc: '+1 Movement.', p: { move: 1 }, req: 'kn4' },
     { id: 'kn6', branch: 1, tier: 3, name: 'Champion', desc: '+1 Energy per turn.', p: { energy: 1 }, req: 'kn5', cost: 2 },
   ],
   mage: [
     { id: 'mg1', branch: 0, tier: 1, name: 'Pyromancy', desc: 'Burn you apply has +1 stack.', p: { statusBonus: { burn: 1 } } },
-    { id: 'mg2', branch: 0, tier: 2, name: 'Searing Mind', desc: '+5 MATK.', p: { matk: 5 }, req: 'mg1' },
+    { id: 'mg2', branch: 0, tier: 2, name: 'Searing Mind', desc: '+1 MATK.', p: { matk: 1 }, req: 'mg1' },
     { id: 'mg3', branch: 0, tier: 3, name: 'Archmage', desc: '+1 Energy per turn.', p: { energy: 1 }, req: 'mg2', cost: 2 },
     { id: 'mg4', branch: 1, tier: 1, name: 'Cryomancy', desc: 'Chill you apply has +1 stack.', p: { statusBonus: { chill: 1 } } },
     { id: 'mg5', branch: 1, tier: 2, name: 'Mana Well', desc: '+15 Max MP, +2 MP regen per round.', p: { mp: 15, mpRegen: 2 }, req: 'mg4' },
@@ -75,7 +75,7 @@ export const SKILL_TREES = {
     { id: 'ar6', branch: 1, tier: 3, name: 'Quiver of Plenty', desc: 'Draw +1 card each round.', p: { draw: 1 }, req: 'ar5', cost: 2 },
   ],
   assassin: [
-    { id: 'as1', branch: 0, tier: 1, name: 'Lethality', desc: '+4 ATK.', p: { atk: 4 } },
+    { id: 'as1', branch: 0, tier: 1, name: 'Lethality', desc: '+1 ATK.', p: { atk: 1 } },
     { id: 'as2', branch: 0, tier: 2, name: 'Vital Strikes', desc: '+8% crit chance.', p: { crit: 8 }, req: 'as1' },
     { id: 'as3', branch: 0, tier: 3, name: 'Bloodthirst', desc: 'Heal 15% of damage dealt.', p: { lifesteal: 0.15 }, req: 'as2', cost: 2 },
     { id: 'as4', branch: 1, tier: 1, name: 'Shadowstep', desc: '+8% evasion.', p: { eva: 8 } },
@@ -84,28 +84,28 @@ export const SKILL_TREES = {
   ],
   priest: [
     { id: 'pr1', branch: 0, tier: 1, name: 'Devotion', desc: 'Healing is 20% stronger.', p: { healPct: 0.2 } },
-    { id: 'pr2', branch: 0, tier: 2, name: 'Aegis', desc: 'Allies start battles with 5 Block.', p: { teamBlock: 5 }, req: 'pr1' },
+    { id: 'pr2', branch: 0, tier: 2, name: 'Aegis', desc: 'Allies start battles with 2 Block.', p: { teamBlock: 2 }, req: 'pr1' },
     { id: 'pr3', branch: 0, tier: 3, name: 'Saint', desc: '+1 Energy per turn.', p: { energy: 1 }, req: 'pr2', cost: 2 },
-    { id: 'pr4', branch: 1, tier: 1, name: 'Zealotry', desc: '+4 MATK.', p: { matk: 4 } },
+    { id: 'pr4', branch: 1, tier: 1, name: 'Zealotry', desc: '+1 MATK.', p: { matk: 1 } },
     { id: 'pr5', branch: 1, tier: 2, name: 'Wellspring', desc: '+20 Max MP, +2 MP regen.', p: { mp: 20, mpRegen: 2 }, req: 'pr4' },
     { id: 'pr6', branch: 1, tier: 3, name: 'Wrath of Light', desc: 'Holy damage +30%.', p: { elemPct: { holy: 0.3 } }, req: 'pr5', cost: 2 },
   ],
   blacksmith: [
-    { id: 'bs1', branch: 0, tier: 1, name: 'Tough Hide', desc: '+20 Max HP.', p: { hp: 20 } },
+    { id: 'bs1', branch: 0, tier: 1, name: 'Tough Hide', desc: '+4 Max HP.', p: { hp: 4 } },
     { id: 'bs2', branch: 0, tier: 2, name: 'Master Engineer', desc: 'Turrets and Barricades gain +50% HP and damage.', p: { turretBonus: 0.5 }, req: 'bs1' },
     { id: 'bs3', branch: 0, tier: 3, name: 'Anvil Heart', desc: 'Start each battle with 2 Strength.', p: { startStrength: 2 }, req: 'bs2', cost: 2 },
-    { id: 'bs4', branch: 1, tier: 1, name: 'Heavy Swing', desc: '+4 ATK.', p: { atk: 4 } },
+    { id: 'bs4', branch: 1, tier: 1, name: 'Heavy Swing', desc: '+1 ATK.', p: { atk: 1 } },
     { id: 'bs5', branch: 1, tier: 2, name: 'Forgefire', desc: 'Fire damage +25%, Burn +1 stack.', p: { elemPct: { fire: 0.25 }, statusBonus: { burn: 1 } }, req: 'bs4' },
     { id: 'bs6', branch: 1, tier: 3, name: 'Relentless', desc: '+1 Energy per turn.', p: { energy: 1 }, req: 'bs5', cost: 2 },
   ],
 };
 
 export const STAT_INFO = {
-  str: { name: 'STR', full: 'Strength', desc: '+2 ATK per point.' },
+  str: { name: 'STR', full: 'Strength', desc: '+1 ATK per 6 points.' },
   agi: { name: 'AGI', full: 'Agility', desc: '+2 Speed, +1% Evasion per point.' },
-  vit: { name: 'VIT', full: 'Vitality', desc: '+6 Max HP, +1 DEF per point.' },
-  int: { name: 'INT', full: 'Intelligence', desc: '+2 MATK, +3 Max MP per point.' },
-  dex: { name: 'DEX', full: 'Dexterity', desc: '+1.2% Crit, +1 Speed per point.' },
+  vit: { name: 'VIT', full: 'Vitality', desc: '+1 Max HP per point, +1 DEF per 10 points.' },
+  int: { name: 'INT', full: 'Intelligence', desc: '+3 Max MP per point, +1 MATK per 6 points.' },
+  dex: { name: 'DEX', full: 'Dexterity', desc: '+1.2% Crit, +1 Speed per point, +1 ATK per 12 points.' },
 };
 
 export const expToNext = (level) => Math.round(40 * Math.pow(level, 1.45) + 20);

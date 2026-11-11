@@ -28,7 +28,7 @@ export function createHero(cls, name) {
 export function attributes(hero) {
   const base = CLASSES[hero.cls].base;
   const out = {};
-  for (const k of Object.keys(base)) out[k] = Math.floor(base[k] * (1 + 0.12 * (hero.level - 1))) + (hero.alloc[k] || 0);
+  for (const k of Object.keys(base)) out[k] = base[k] + (hero.alloc[k] || 0);
   return out;
 }
 
@@ -36,11 +36,12 @@ export function computeStats(hero) {
   const cls = CLASSES[hero.cls];
   const a = attributes(hero);
   const s = {
-    hp: 40 + a.vit * 6 + hero.level * 6,
+    // board-game scale: attack and defence are small bonuses (+1, +2, +3…) added to the dice
+    hp: 10 + a.vit + Math.floor(hero.level / 2),
     mp: 10 + a.int * 3 + hero.level * 2,
-    atk: a.str * 2 + Math.floor(a.dex * 0.5) + hero.level,
-    matk: a.int * 2 + hero.level,
-    def: a.vit + Math.floor(hero.level / 2),
+    atk: Math.floor(a.str / 6 + a.dex / 12),
+    matk: Math.floor(a.int / 6),
+    def: Math.floor(a.vit / 10),
     spd: 5 + a.agi * 2 + a.dex,
     crit: 5 + a.dex * 1.2,
     eva: a.agi,
@@ -76,7 +77,7 @@ export function grantExp(hero, amount) {
   while (hero.level < MAX_LEVEL && hero.exp >= expToNext(hero.level)) {
     hero.exp -= expToNext(hero.level);
     hero.level++; gained++;
-    hero.statPoints += 3;
+    hero.statPoints += 1;
     if (hero.level % 2 === 0) hero.skillPoints += 1;
   }
   if (gained) { const s = computeStats(hero); hero.hp = s.hp; hero.mp = s.mp; }

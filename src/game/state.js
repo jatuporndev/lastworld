@@ -5,9 +5,9 @@ import { t } from '../core/i18n.js';
 import { createHero, computeStats, canEquip, clampVitals } from './character.js';
 import { CARDS, STARTER_DECKS, RARITY, MAX_CARD_LEVEL, upgradeCost, DECK_MIN, DECK_MAX } from '../data/cards.js';
 import { QUESTS } from '../data/events.js';
-import { CONSUMABLES } from '../data/items.js';
+import { CONSUMABLES, UNIQUES, makeEquipment } from '../data/items.js';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 export const MAX_CHARS = 3;
 export const MAX_WORLDS = 6;
 // G.profile — everything saved for this player: up to 3 characters and up to 6 worlds.
@@ -88,6 +88,22 @@ function fixWorld(w) {
   if (w.run) { w.run.cleared = w.run.cleared || {}; w.run.seen = w.run.seen || {}; w.run.shop = w.run.shop || {}; } else w.run = null;
   return w;
 }
+// Version 3 moved the whole game to board-game numbers (HP in the tens, ATK / DEF of +1…+3, one stat
+// point per level). An older character keeps its level, cards and items, gets its stat points back to
+// spend again, and has its equipment re-rolled at the same base, tier and rarity.
+function rescaleItem(it) {
+  if (!it || it.kind !== 'equip') return it;
+  if (it.uniqueId && UNIQUES[it.uniqueId]) return Object.assign(it, { stats: { ...UNIQUES[it.uniqueId].stats }, passive: UNIQUES[it.uniqueId].passive });
+  const n = makeEquipment(it.base, it.tier, it.rarity);
+  return Object.assign(it, { stats: n.stats, name: n.name, value: n.value });
+}
+function rescaleChar(c) {
+  const h = c.hero;
+  h.alloc = { str: 0, agi: 0, vit: 0, int: 0, dex: 0 }; h.statPoints = Math.max(0, (h.level || 1) - 1);
+  Object.values(h.equip).forEach(rescaleItem); c.inv.equip.forEach(rescaleItem);
+  const s = computeStats(h); h.hp = s.hp; h.mp = s.mp;
+  return c;
+}
 // Load any save into the current profile shape. A version-1 save (one campaign with a 1–3 hero party)
 // becomes one world plus one character per hero; the first hero keeps the gold, bag and cards.
 export function normalizeProfile(s) {
@@ -105,12 +121,15 @@ export function normalizeProfile(s) {
         cards, gold: first ? s.gold : 0, shards: first ? s.shards : 0,
         inv: first ? s.inv : { equip: [], cons: {}, mats: {} }, quests: first ? s.quests : {}, stats: first ? s.stats : { bosses: { ...(s.stats?.bosses || {}) } } });
     });
+    Object.values(P.chars).forEach(rescaleChar);
     P.last = { world: 'w1', char: 'c1' };
     return P;
   }
+  const old = (s.version || 1) < 3;
   s.version = SAVE_VERSION; s.settings = { music: 0.45, sfx: 0.7, ...(s.settings || {}) };
   s.chars = s.chars || {}; s.worlds = s.worlds || {}; s.last = s.last || {};
   Object.values(s.chars).forEach(fixChar); Object.values(s.worlds).forEach(fixWorld);
+  if (old) Object.values(s.chars).forEach(rescaleChar);
   return s;
 }
 // A session snapshot received over the network (co-op) — same repairs as a save.
