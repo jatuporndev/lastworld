@@ -186,7 +186,7 @@ export class BattleScene {
       h('div.b-top', h('div.b-title', h('div.b-stage', this.stage.name), this.el.round), this.el.order),
       this.el.party, this.el.info, this.el.hint,
       h('div.b-bottom',
-        h('div.b-left', this.el.heroTag, this.el.energy),
+        h('div.b-left', this.el.heroTag),
         h('div.b-center', h('div.slots-wrap', h('div.slots-label', t('ACTION SLOTS')), this.el.slots), this.el.hand),
         h('div.b-right', h('div.cool-wrap', h('div.slots-label', t('COOLDOWN')), this.el.cool), h('div.b-buttons', this.el.undo, this.el.items, this.el.exec, this.el.end))),
     );
@@ -259,17 +259,16 @@ export class BattleScene {
     }));
     // action slots
     const slots = [];
-    for (let i = 0; i < ACTION_SLOTS; i++) {
-      if (i < u.slotsUsed) slots.push(h('div.slot.spent', h('span', t('Spent'))));
-      else {
-        const e = u.plan[i - u.slotsUsed];
-        if (e) {
-          const c = e.inst.card; const last = i - u.slotsUsed === u.plan.length - 1;
-          slots.push(h('div.slot.filled' + (last ? '.last' : ''), { style: { '--el': ELEMENTS[c.el].color }, 'data-tip': last ? t('Click to remove') : diceText(describeCard(c, u).text), onclick: () => { if (last) this.undo(); } },
-            h('div.slot-n', i + 1), icon(c.icon, '#fff', 30), h('div.slot-name', c.name)));
-        } else slots.push(h('div.slot.empty' + (this.pending && i === u.slotsUsed + u.plan.length ? '.awaiting' : ''), h('div.slot-n', i + 1), h('span', this.pending && i === u.slotsUsed + u.plan.length ? t('Choose target') : t('Drop card'))));
-      }
-    }
+    // spent slots, then the planned cards (a card is as wide as the slots it takes; free cards are a small chip), then what is still open
+    let sn = 0;
+    for (let i = 0; i < u.slotsUsed; i++) slots.push(h('div.slot.spent', h("div.slot-n", ++sn), h("span", t("Spent"))));
+    u.plan.forEach((e, pi) => {
+      const c = e.inst.card; const last = pi === u.plan.length - 1;
+      slots.push(h('div.slot.filled' + (last ? '.last' : '') + (c.cost === 0 ? '.free' : c.cost > 1 ? '.w' + Math.min(3, c.cost) : ''), { style: { '--el': ELEMENTS[c.el].color }, 'data-tip': last ? t('Click to remove') : diceText(describeCard(c, u).text), onclick: () => { if (last) this.undo(); } },
+        h('div.slot-n', c.cost === 0 ? '★' : c.cost > 1 ? `${sn + 1}–${sn + c.cost}` : sn + 1), icon(c.icon, '#fff', 30), h('div.slot-name', c.name)));
+      sn += c.cost;
+    });
+    for (let i = 0; i < u.energy; i++) slots.push(h('div.slot.empty' + (this.pending && i === 0 ? '.awaiting' : ''), h('div.slot-n', ++sn), h('span', this.pending && i === 0 ? t('Choose target') : t('Drop card'))));
     E.slots.replaceChildren(...slots);
     // cooldown track
     E.cool.replaceChildren(...(u.cards.cooldown.length ? u.cards.cooldown.map((e) => h('div.cool-card', { style: { '--el': ELEMENTS[e.inst.card.el].color }, 'data-tip': t('{name} — ready in {n} round(s)', { name: e.inst.card.name, n: e.left }) }, icon(e.inst.card.icon, '#fff', 22), h('b', e.left))) : [h('div.cool-empty', '—')]),
@@ -534,7 +533,7 @@ export class BattleScene {
       case 'dash': { audio.sfx('wind'); w.setFacing(d.unit.uid, Hex.directionTo(d.unit, d.to)); w.setAnim(d.unit.uid, 'walk'); const p0 = pos(d.unit, 0.5); await w.leapUnit(d.unit.uid, w.footPos(b.cellsOf(d.unit, d.to)), 230, 0.5); w.setAnim(d.unit.uid, 'idle'); w.burst(p0, { color: 0xffffff, count: 8, speed: 1.5 }); break; }
       case 'shove': { await w.leapUnit(d.unit.uid, w.footPos(b.cellsOf(d.unit, d.to)), 200, 0.35); w.burst(pos(d.unit, 0.1), { color: 0xd0c0a0, count: 6, speed: 1.5, up: 0.6 }); break; }
       case 'cardPlay': {
-        const slot = this.el.slots.children[d.slot]; if (slot) slot.classList.add('firing');
+        const slot = this.el.slots.querySelector('.slot.filled:not(.firing)') || this.el.slots.querySelector('.slot.empty'); if (slot) slot.classList.add('firing');
         w.floatText(pos(d.unit, 2.3), d.card.name, 'card-name');
         if (d.combo) { w.floatText(pos(d.unit, 2.7), t('COMBO!'), 'combo'); audio.sfx('buff'); }
         await sleep(160);

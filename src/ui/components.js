@@ -55,7 +55,7 @@ export function cardEl(id, level = 0, { unit = null, small = false, count = null
   const range = c.tg === 'self' ? (c.shape === 'burst' ? t('Burst {n}', { n: c.size }) : t('Self')) : `${t('Range {n}', { n: c.range })}${d.shape ? ' · ' + d.shape : ''}`;
   return h(`div.card.cat-${c.cat}.rar-${c.rarity}${small ? '.small' : ''}`, { style: { '--el': c.el === 'neutral' ? cat.color : el.color, '--elg': el.glow, '--cat': cat.color, '--rar': RARITY[c.rarity].color }, 'data-id': id },
     h('div.card-frame'),
-    h('div.card-cost', { 'data-tip': t('Energy cost') }, c.cost),
+    h('div.card-cost', { 'data-tip': t('Action Slots this card takes') }, c.cost),
     c.mp ? h('div.card-mp', { 'data-tip': t('MP cost') }, c.mp) : null,
     count != null ? h('div.card-count', '×' + count) : null,
     h('div.card-name', c.name),

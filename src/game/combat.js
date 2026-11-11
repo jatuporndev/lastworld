@@ -10,7 +10,7 @@ import { STATUS_INFO, ELEMENTS, DICE, MONSTER_DIE, diceOf } from '../data/cards.
 import { CLASSES } from '../data/classes.js';
 import { CONSUMABLES } from '../data/items.js';
 import { computeStats } from './character.js';
-import { CardEngine, HAND_SIZE, ACTION_SLOTS } from './cardEngine.js';
+import { CardEngine, HAND_SIZE } from './cardEngine.js';
 import { chooseIntent, monsterAct } from './ai.js';
 
 const FOOT = {
@@ -295,8 +295,9 @@ export class Battle {
 
   whyNot(u, inst) {
     const c = inst.card;
-    if (u.slotsUsed + u.plan.length >= ACTION_SLOTS) return t('No free Action Slot');
-    if (u.energy < c.cost) return t('Not enough Energy');
+    // Action Slots are the one thing a turn spends: a card takes as many slots as its cost (0 = free).
+    // u.energy holds the slots still open this turn.
+    if (u.energy < c.cost) return c.cost > 1 ? t('Needs {n} free Action Slots', { n: c.cost }) : t('No free Action Slot');
     if (u.mp < c.mp) return t('Not enough MP');
     return null;
   }
@@ -416,7 +417,7 @@ export class Battle {
     const plan = u.plan; u.plan = [];
     for (let i = 0; i < plan.length; i++) {
       const e = plan[i];
-      u.slotsUsed++;
+      u.slotsUsed += e.inst.card.cost;
       if (u.alive && !this.result) await this.resolveCard(u, e, i);
       u.cards.spend(e.inst);
       await this.emit('cardSpent', { unit: u, inst: e.inst, slot: u.slotsUsed - 1 });
@@ -537,7 +538,7 @@ export class Battle {
         case 'status': for (const v of tgts) if (v.alive && !evaded.has(v)) await this.addStatus(u, v, f.st, f.n + (dice?.surge && !NO_STACK.includes(f.st) ? dice.surge : 0)); break;
         case 'push': case 'pull': for (const v of tgts) if (v.alive && !evaded.has(v)) await this.shove(u, v, f.v, f.t === 'pull'); break;
         case 'draw': { const d = []; for (let i = 0; i < f.v; i++) { const c = u.cards.drawOne(); if (c) d.push(c); } await this.emit('draw', { unit: u, drawn: d }); break; }
-        case 'energy': u.energy += f.v; await this.emit('text', { unit: u, text: t('+{n} Energy', { n: f.v }), color: '#ffd76a' }); break;
+        case 'energy': u.energy += f.v; await this.emit('text', { unit: u, text: t('+{n} Action Slot', { n: f.v }), color: '#ffd76a' }); break;
         case 'mp': u.mp = Math.min(u.maxMp, u.mp + f.v); await this.emit('text', { unit: u, text: `+${f.v} MP`, color: '#6aa8ff' }); break;
         case 'cleanse': for (const v of tgts) { this.cleanse(v); await this.emit('text', { unit: v, text: t('Cleansed'), color: '#bfffe0' }); } break;
         case 'taunt': for (const v of this.foesOf(u)) if (this.dist(u, v) <= card.size) await this.addStatus(u, v, 'taunt', 2); break;

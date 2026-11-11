@@ -56,12 +56,12 @@ export const SKILL_TREES = {
     { id: 'kn3', branch: 0, tier: 3, name: 'Retribution', desc: 'Enemies that hit you take 1 damage (Thorns).', p: { thorns: 1 }, req: 'kn2', cost: 2 },
     { id: 'kn4', branch: 1, tier: 1, name: 'Weapon Training', desc: '+1 ATK.', p: { atk: 1 } },
     { id: 'kn5', branch: 1, tier: 2, name: 'Momentum', desc: '+1 Movement.', p: { move: 1 }, req: 'kn4' },
-    { id: 'kn6', branch: 1, tier: 3, name: 'Champion', desc: '+1 Energy per turn.', p: { energy: 1 }, req: 'kn5', cost: 2 },
+    { id: 'kn6', branch: 1, tier: 3, name: 'Champion', desc: '+1 Action Slot per turn.', p: { energy: 1 }, req: 'kn5', cost: 2 },
   ],
   mage: [
     { id: 'mg1', branch: 0, tier: 1, name: 'Pyromancy', desc: 'Burn you apply has +1 stack.', p: { statusBonus: { burn: 1 } } },
     { id: 'mg2', branch: 0, tier: 2, name: 'Searing Mind', desc: '+1 MATK.', p: { matk: 1 }, req: 'mg1' },
-    { id: 'mg3', branch: 0, tier: 3, name: 'Archmage', desc: '+1 Energy per turn.', p: { energy: 1 }, req: 'mg2', cost: 2 },
+    { id: 'mg3', branch: 0, tier: 3, name: 'Archmage', desc: '+1 Action Slot per turn.', p: { energy: 1 }, req: 'mg2', cost: 2 },
     { id: 'mg4', branch: 1, tier: 1, name: 'Cryomancy', desc: 'Chill you apply has +1 stack.', p: { statusBonus: { chill: 1 } } },
     { id: 'mg5', branch: 1, tier: 2, name: 'Mana Well', desc: '+15 Max MP, +2 MP regen per round.', p: { mp: 15, mpRegen: 2 }, req: 'mg4' },
     { id: 'mg6', branch: 1, tier: 3, name: 'Elemental Fusion', desc: 'Melt and Quench combos deal +50% more.', p: { comboPct: 0.5 }, req: 'mg5', cost: 2 },
@@ -80,12 +80,12 @@ export const SKILL_TREES = {
     { id: 'as3', branch: 0, tier: 3, name: 'Bloodthirst', desc: 'Heal 15% of damage dealt.', p: { lifesteal: 0.15 }, req: 'as2', cost: 2 },
     { id: 'as4', branch: 1, tier: 1, name: 'Shadowstep', desc: '+8% evasion.', p: { eva: 8 } },
     { id: 'as5', branch: 1, tier: 2, name: 'Venomcraft', desc: 'Poison and Bleed you apply have +1 stack.', p: { statusBonus: { poison: 1, bleed: 1 } }, req: 'as4' },
-    { id: 'as6', branch: 1, tier: 3, name: 'Phantom', desc: '+1 Energy per turn.', p: { energy: 1 }, req: 'as5', cost: 2 },
+    { id: 'as6', branch: 1, tier: 3, name: 'Phantom', desc: '+1 Action Slot per turn.', p: { energy: 1 }, req: 'as5', cost: 2 },
   ],
   priest: [
     { id: 'pr1', branch: 0, tier: 1, name: 'Devotion', desc: 'Healing is 20% stronger.', p: { healPct: 0.2 } },
     { id: 'pr2', branch: 0, tier: 2, name: 'Aegis', desc: 'Allies start battles with 2 Block.', p: { teamBlock: 2 }, req: 'pr1' },
-    { id: 'pr3', branch: 0, tier: 3, name: 'Saint', desc: '+1 Energy per turn.', p: { energy: 1 }, req: 'pr2', cost: 2 },
+    { id: 'pr3', branch: 0, tier: 3, name: 'Saint', desc: '+1 Action Slot per turn.', p: { energy: 1 }, req: 'pr2', cost: 2 },
     { id: 'pr4', branch: 1, tier: 1, name: 'Zealotry', desc: '+1 MATK.', p: { matk: 1 } },
     { id: 'pr5', branch: 1, tier: 2, name: 'Wellspring', desc: '+20 Max MP, +2 MP regen.', p: { mp: 20, mpRegen: 2 }, req: 'pr4' },
     { id: 'pr6', branch: 1, tier: 3, name: 'Wrath of Light', desc: 'Holy damage +30%.', p: { elemPct: { holy: 0.3 } }, req: 'pr5', cost: 2 },
@@ -96,7 +96,7 @@ export const SKILL_TREES = {
     { id: 'bs3', branch: 0, tier: 3, name: 'Anvil Heart', desc: 'Start each battle with 2 Strength.', p: { startStrength: 2 }, req: 'bs2', cost: 2 },
     { id: 'bs4', branch: 1, tier: 1, name: 'Heavy Swing', desc: '+1 ATK.', p: { atk: 1 } },
     { id: 'bs5', branch: 1, tier: 2, name: 'Forgefire', desc: 'Fire damage +25%, Burn +1 stack.', p: { elemPct: { fire: 0.25 }, statusBonus: { burn: 1 } }, req: 'bs4' },
-    { id: 'bs6', branch: 1, tier: 3, name: 'Relentless', desc: '+1 Energy per turn.', p: { energy: 1 }, req: 'bs5', cost: 2 },
+    { id: 'bs6', branch: 1, tier: 3, name: 'Relentless', desc: '+1 Action Slot per turn.', p: { energy: 1 }, req: 'bs5', cost: 2 },
   ],
 };
 

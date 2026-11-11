@@ -35,7 +35,7 @@ const AFFIXES = [
 
 const SMALL = ['atk', 'matk', 'def'];
 
-export const STAT_LABEL = { atk: 'ATK', matk: 'MATK', def: 'DEF', hp: 'Max HP', mp: 'Max MP', crit: 'Crit %', eva: 'Evasion %', spd: 'Speed', move: 'Move', energy: 'Energy' };
+export const STAT_LABEL = { atk: 'ATK', matk: 'MATK', def: 'DEF', hp: 'Max HP', mp: 'Max MP', crit: 'Crit %', eva: 'Evasion %', spd: 'Speed', move: 'Move', energy: 'Action Slots' };
 
 export function makeEquipment(baseId, tier, rarity, rng = Math.random) {
   const base = BASES[baseId];
@@ -66,7 +66,7 @@ export const UNIQUES = {
   tyrant_fang: { kind: 'equip', base: 'ring', slot: 'accessory', type: 'ring', tier: 3, rarity: 'legendary', name: 'Tyrant Fang Ring', stats: { atk: 2, crit: 8 }, icon: 'ring', value: 600, unique: '+20% damage to bosses.', passive: { bossDmg: 0.2 } },
   queen_tiara: { kind: 'equip', base: 'amulet', slot: 'accessory', type: 'amulet', tier: 4, rarity: 'legendary', name: 'Tiara of Endless Winter', stats: { matk: 2, mp: 25 }, icon: 'amulet', value: 800, unique: 'Attacks apply Chill 1.', passive: { onHitStatus: { st: 'chill', n: 1 } } },
   lich_phylactery: { kind: 'equip', base: 'amulet', slot: 'accessory', type: 'amulet', tier: 5, rarity: 'legendary', name: 'Shattered Phylactery', stats: { hp: 8, matk: 2, atk: 2 }, icon: 'amulet', value: 1100, unique: 'Heal 10% of damage dealt.', passive: { lifesteal: 0.1 } },
-  dragon_scale: { kind: 'equip', base: 'boots', slot: 'accessory', type: 'boots', tier: 6, rarity: 'legendary', name: 'Aurelion Scale Treads', stats: { spd: 12, eva: 8, def: 2, hp: 8 }, icon: 'boots', value: 1500, unique: '+1 Movement and +1 Energy.', passive: { move: 1, energy: 1 } },
+  dragon_scale: { kind: 'equip', base: 'boots', slot: 'accessory', type: 'boots', tier: 6, rarity: 'legendary', name: 'Aurelion Scale Treads', stats: { spd: 12, eva: 8, def: 2, hp: 8 }, icon: 'boots', value: 1500, unique: '+1 Movement and +1 Action Slot.', passive: { move: 1, energy: 1 } },
   overlord_crown: { kind: 'equip', base: 'ring', slot: 'accessory', type: 'ring', tier: 7, rarity: 'legendary', name: 'Crown of the Last World', stats: { atk: 3, matk: 3, hp: 12, crit: 10 }, icon: 'ring', value: 3000, unique: 'All damage +25%.', passive: { dmgPct: 0.25 } },
 };
 export function makeUnique(id) { return { ...UNIQUES[id], stats: { ...UNIQUES[id].stats }, uid: uid(), uniqueId: id }; }

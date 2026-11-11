@@ -2,7 +2,7 @@
 // fx effect types:
 //   dmg {v, s:'atk'|'matk', hits}   block {v}   heal {v, s}     (board-game scale: dice + v + stat)
 //   status {st, n, self}  move {v}  teleport  dash  push {v}  pull {v}
-//   draw {v}  energy {v}  mp {v}  cleanse  taunt  summon {id}  revive {pct}
+//   draw {v}  energy {v} (extra Action Slots this turn)  mp {v}  cleanse  taunt  summon {id}  revive {pct}
 // tg: enemy | ally | self | hex | any     shape: single | line | cone | area | burst
 import { t } from '../core/i18n.js';
 
@@ -125,7 +125,7 @@ add([
   { id: 'b_molten', cls: 'blacksmith', name: 'Molten Strike', cat: 'attack', icon: 'flame', cost: 2, cd: 1, el: 'fire', fx: [{ t: 'dmg', v: 2, s: 'atk' }, { t: 'status', st: 'burn', n: 2 }] },
   { id: 'b_turret', cls: 'blacksmith', name: 'Deploy Turret', cat: 'special', icon: 'turret', tg: 'hex', range: 2, cost: 2, cd: 3, fx: [{ t: 'summon', id: 'turret' }] },
   { id: 'b_slam', cls: 'blacksmith', name: 'Shockwave Slam', cat: 'attack', icon: 'quake', tg: 'self', shape: 'burst', size: 1, cost: 2, cd: 2, el: 'earth', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'push', v: 1 }] },
-  { id: 'b_overcharge', cls: 'blacksmith', name: 'Overcharge', cat: 'buff', icon: 'bolt', tg: 'self', cost: 0, cd: 3, fx: [{ t: 'energy', v: 2 }, { t: 'selfdmg', v: 1 }] },
+  { id: 'b_overcharge', cls: 'blacksmith', name: 'Overcharge', cat: 'buff', icon: 'bolt', tg: 'self', cost: 0, cd: 3, fx: [{ t: 'energy', v: 2 }, { t: 'selfdmg', v: 2 }] },
   { id: 'b_wall', cls: 'blacksmith', name: 'Iron Barricade', cat: 'defense', icon: 'anvil', tg: 'hex', range: 2, cd: 2, fx: [{ t: 'summon', id: 'barricade' }] },
   { id: 'b_rush', cls: 'blacksmith', name: 'Sledge Rush', cat: 'movement', icon: 'boot', range: 3, cd: 2, fx: [{ t: 'dash' }, { t: 'dmg', v: 0, s: 'atk' }] },
   { id: 'b_repair', cls: 'blacksmith', name: 'Field Repair', cat: 'buff', icon: 'wrench', tg: 'ally', range: 2, cd: 2, fx: [{ t: 'heal', v: 2, s: 'def' }] },
@@ -255,7 +255,7 @@ export function describeCard(card, unit = null) {
       case 'push': parts.push(t('Push {n}.', { n: f.v })); break;
       case 'pull': parts.push(t('Pull {n} toward you.', { n: f.v })); break;
       case 'draw': parts.push(t('Draw {n}.', { n: f.v })); break;
-      case 'energy': parts.push(t('Gain {n} Energy.', { n: f.v })); break;
+      case 'energy': parts.push(t('Gain {n} extra Action Slot this turn.', { n: f.v })); break;
       case 'mp': parts.push(t('Restore {n} MP.', { n: f.v })); break;
       case 'cleanse': parts.push(t('Remove all debuffs.')); break;
       case 'taunt': parts.push(t('Taunt nearby enemies.')); break;

@@ -3,7 +3,7 @@ import { cardStats } from '../data/cards.js';
 
 export const HAND_SIZE = 5;
 export const HAND_LIMIT = 7;
-export const ACTION_SLOTS = 3;
+export const ACTION_SLOTS = 3; // a hero's base slots per turn (skills and items can add more)
 
 let instCounter = 1;
 const defaultId = () => 'c' + instCounter++;
