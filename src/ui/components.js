@@ -26,10 +26,14 @@ function loop(now) {
   if (live.size) requestAnimationFrame(loop); else looping = false;
 }
 export function spriteCanvas(key, look, { size = 128, anim = 'idle', dir = 5, zoom = 1, cls = '', oy = 0 } = {}) {
-  const canvas = h('canvas.sprite-canvas' + (cls ? '.' + cls : ''), { width: size, height: size });
-  const sheet = getSheet(key, look, 128);
-  const dw = size * zoom, dh = size * zoom;
-  const s = { canvas, sheet, anim, dir, ox: (size - dw) / 2, oy: size - dh + oy * size, dw, dh, born: performance.now() };
+  // Large portraits get a backing store at the screen's pixel density and a larger sprite sheet, so they
+  // are drawn sharp instead of being a small frame stretched up. Small ones keep the light 128px sheet.
+  const k = size >= 150 ? Math.min(2, window.devicePixelRatio || 1) : 1;
+  const canvas = h('canvas.sprite-canvas' + (cls ? '.' + cls : ''), { width: Math.round(size * k), height: Math.round(size * k) });
+  if (k !== 1) { canvas.style.width = size + 'px'; canvas.style.height = size + 'px'; }
+  const dw = size * zoom * k, dh = size * zoom * k;
+  const sheet = getSheet(key, look, dw > 150 ? 256 : 128);
+  const s = { canvas, sheet, anim, dir, ox: (size * k - dw) / 2, oy: size * k - dh + oy * size * k, dw, dh, born: performance.now() };
   live.add(s); canvas._sprite = s;
   if (!looping) { looping = true; requestAnimationFrame(loop); }
   return canvas;

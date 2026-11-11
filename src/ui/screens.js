@@ -192,7 +192,7 @@ export function newWorldModal(done) {
 // ───────── Character creation ─────────
 // One hero per character. `back` = selection to return to on the Characters & Worlds screen.
 export function charCreateScreen(app, back = {}) {
-  let focus = 'knight'; let name = ''; let gender = 'm';
+  let focus = 'knight'; let name = ''; let gender = 'm'; let entered = false;
   const list = h('div.cs-list'); const detail = h('div.cs-detail'); const foot = h('div.cs-party');
   const nameInput = h('input', { placeholder: CLASSES[focus].name, maxlength: 14, oninput: (e) => { name = e.target.value; } });
   const create = () => {
@@ -204,11 +204,12 @@ export function charCreateScreen(app, back = {}) {
   };
   const render = () => {
     list.replaceChildren(...CLASS_ORDER.map((cls, i) => { const C = CLASSES[cls];
-      return h('div.cs-card' + (focus === cls ? '.focus.picked' : ''), { style: { '--c': C.color, animationDelay: `${i * 70}ms` },
+      return h('div.cs-card' + (focus === cls ? '.focus.picked' : '') + (entered ? '.still' : ''), { style: { '--c': C.color, animationDelay: `${i * 70}ms` },
         onclick: () => { audio.sfx('click'); focus = cls; nameInput.placeholder = C.name; render(); },
         onmouseenter: (e) => { const cv = e.currentTarget.querySelector('canvas'); if (cv?._sprite) cv._sprite.anim = 'walk'; audio.sfx('hover'); }, onmouseleave: (e) => { const cv = e.currentTarget.querySelector('canvas'); if (cv?._sprite) cv._sprite.anim = 'idle'; } },
         heroSprite({ cls, gender }, { size: 150, zoom: 1.05 }), h('div.cs-name', C.name), h('div.cs-role', C.role));
     }));
+    entered = true;
     const C = CLASSES[focus]; const s = computeStats(createHero(focus));
     const statBar = (label, v, max) => h('div.cs-stat', h('span', label), h('div.cs-bar', h('i', { style: { width: Math.min(100, (v / max) * 100) + '%' } })), h('b', v));
     const anims = ['idle', 'attack', 'cast', 'walk'];
