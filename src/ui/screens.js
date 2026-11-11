@@ -24,18 +24,27 @@ export function titleScreen(app) {
   const P = G.profile; const L = P.last || {};
   const lastChar = P.chars[L.char]; const lastWorld = P.worlds[L.world];
   const letters = (t) => [...t].map((ch, i) => h('span', { style: { animationDelay: `${i * 70}ms` } }, ch === ' ' ? ' ' : ch));
+  // Main menu: wordmark and a short list of large text entries down the left edge, round-the-clock
+  // shortcuts as hex icons in the top right, and the living diorama filling the rest of the screen.
+  const press = (fn) => () => { audio.init(); audio.sfx('click'); fn(); };
+  const item = (label, fn, { sub = null, disabled = false, main = false } = {}) => h('button.ts-item' + (main ? '.main' : ''), { disabled, onclick: press(fn), onmouseenter: () => audio.sfx('hover') }, h('i.ts-node'), h('span.ts-label', label), sub ? h('small', sub) : null);
+  const shortcut = (label, ic, fn) => h('button.ts-ico', { onclick: press(fn), onmouseenter: () => audio.sfx('hover') }, h('span.ts-hex', icon(ic, '#ffffff', 22)), h('small', label));
+  const resume = lastChar && lastWorld;
   const el = h('div.screen.title-screen',
-    h('div.title-rays'), h('div.title-vignette'),
-    h('div.title-logo', h('div.logo-crest', icon('crown', '#f6d98a', 44)), h('h1.logo', h('span.logo-word', ...letters('LAST')), h('span.logo-word.w2', ...letters('WORLD'))), h('div.logo-sub', t('A Tactical Card Chronicle of the Sundered Realms'))),
-    h('div.title-menu',
-      lastChar && lastWorld ? btn(t('Continue'), () => app.continueGame(), { cls: 'primary big', iconName: 'sword' }) : null,
-      lastChar && lastWorld ? h('div.continue-info', t('{hero} Lv {lv} · {world} — Stage {n}', { hero: lastChar.hero.name, lv: lastChar.hero.level, world: lastWorld.name, n: Math.min(6, lastWorld.unlocked) })) : null,
-      btn(t('Play'), () => app.toPlay(), { cls: lastChar && lastWorld ? 'big ghost' : 'primary big', iconName: 'star' }),
-      btn(t('Play with Friends'), () => coopModal(app), { cls: 'big ghost', iconName: 'banner', disabled: !Net.online }),
-      btn(t(Net.online && Net.user ? 'Account' : 'Sign In'), () => app.openAuth(() => app.toTitle(true)), { cls: 'big ghost', iconName: 'book' }),
-      btn(t('Fullscreen'), toggleFullscreen, { cls: 'big ghost', iconName: 'flag' }),
-      btn(LANG === 'th' ? 'English' : 'ภาษาไทย', () => setLang(LANG === 'th' ? 'en' : 'th'), { cls: 'big ghost', iconName: 'star' })),
+    h('div.title-vignette'),
+    h('div.ts-left',
+      h('div.title-logo', h('h1.logo', h('span.logo-word', ...letters('LAST')), h('span.logo-word.w2', ...letters('WORLD'))), h('div.logo-sub', t('A Tactical Card Chronicle of the Sundered Realms'))),
+      h('div.title-menu',
+        resume ? item(t('Continue'), () => app.continueGame(), { main: true, sub: t('{hero} Lv {lv} · {world} — Stage {n}', { hero: lastChar.hero.name, lv: lastChar.hero.level, world: lastWorld.name, n: Math.min(6, lastWorld.unlocked) }) }) : null,
+        item(t('Play'), () => app.toPlay(), { main: !resume }),
+        item(t('Play with Friends'), () => coopModal(app), { disabled: !Net.online }))),
+    h('div.ts-top',
+      shortcut(t(Net.online && Net.user ? 'Account' : 'Sign In'), 'book', () => app.openAuth(() => app.toTitle(true))),
+      shortcut(t('Fullscreen'), 'flag', toggleFullscreen),
+      shortcut(LANG === 'th' ? 'English' : 'ภาษาไทย', 'star', () => setLang(LANG === 'th' ? 'en' : 'th'))),
     h('div.title-foot', h('span.net' + (Net.online && Net.user ? '.on' : ''), Net.label()), h('span', 'v1.1 · Three.js · Firebase')));
+  // the board sits to the right of the menu
+  app.world.focus({ x: -4.6, z: 0.6, size: 13 }, 700);
   return mount(el);
 }
 

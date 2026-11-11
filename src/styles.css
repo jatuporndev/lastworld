@@ -659,8 +659,34 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .hero-name { font-size: 1.5em; font-weight: 600; } .lvl { font-family: var(--f-head); } .tab-hero .bar, .hero-col .bar { height: 1.15em; border-radius: 0.3em; } .hero-col .bar-text { font-size: 0.74em; }
 .item-name { font-weight: 600; } .eq-label { font-size: 0.78em; letter-spacing: 0.06em; color: var(--dim-d); font-weight: 600; }
 .menu-res .res { font-size: 1.1em; padding: 0.2em 0; }
-.title-menu { background: var(--paper); padding: 0.9em 1.1em 1em; border-radius: 0.6em; box-shadow: 0 0.35em 0 rgba(0, 0, 0, 0.28), 0 0.9em 2em rgba(0, 0, 0, 0.45); --ink: var(--ink-d); --tshadow: none; gap: 0.1em; } .title-menu::before { display: none; }
-.title-menu .btn { color: var(--ink-d); text-shadow: none; width: 100%; } .title-menu .btn:hover:not(:disabled) { color: var(--accent); } .title-menu .btn.primary, .title-menu .btn.primary:hover:not(:disabled) { color: #fff; width: auto; margin-bottom: 0.25em; } .title-menu .btn:not(.primary) .icon { filter: brightness(0.25); }
+
+/* ── main menu ──
+   Wordmark and a few large, light text entries on the left; hex shortcuts top right; the diorama is
+   the picture. Nothing is boxed. */
+.title-screen { display: block; padding: 0; }
+.title-rays, .logo-crest { display: none; }
+.title-vignette { background: linear-gradient(90deg, rgba(9, 12, 26, 0.92) 0%, rgba(9, 12, 26, 0.62) 30%, rgba(9, 12, 26, 0) 58%), linear-gradient(180deg, rgba(6, 5, 12, 0.55) 0%, rgba(6, 5, 12, 0) 26%, rgba(6, 5, 12, 0) 72%, rgba(6, 5, 12, 0.8) 100%); }
+.ts-left { position: absolute; left: 7vw; top: 10vh; display: flex; flex-direction: column; align-items: flex-start; gap: 3.4em; }
+.title-logo { text-align: left; animation: rise 1s ease-out; }
+.logo { font-size: 3.9em; gap: 0.28em; justify-content: flex-start; letter-spacing: 0.12em; padding-bottom: 0.1em; border-bottom: 0.03em solid rgba(255, 255, 255, 0.75); }
+.logo-word span, .logo-word.w2 span { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: #f3f7ff; filter: drop-shadow(0 0 0.22em rgba(150, 200, 255, 0.55)); animation: letterIn 0.9s cubic-bezier(0.2, 1.3, 0.4, 1) both; }
+.logo-word.w2 span { color: var(--coin); filter: drop-shadow(0 0 0.22em rgba(242, 182, 50, 0.45)); }
+.logo-sub { margin-top: 0.9em; font-family: 'Prompt', var(--f-head); font-weight: 300; font-size: 0.86em; letter-spacing: 0.22em; color: #c8d4ea; text-transform: uppercase; }
+.title-menu { display: flex; flex-direction: column; align-items: flex-start; gap: 1.15em; margin: 0; padding: 0.3em 0 0.3em 3em; border-left: 1px solid rgba(255, 255, 255, 0.28); background: none; box-shadow: none; border-radius: 0; isolation: auto; }
+.title-menu::before { display: none; } .title-menu > * { animation: rise 0.5s both; }
+.ts-item { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 0.1em; padding: 0; background: none; border: 0; cursor: pointer; color: #e6eefc; font-family: 'Prompt', var(--f-head); font-weight: 300; font-size: 2.15em; line-height: 1.15; letter-spacing: 0.13em; text-transform: uppercase; text-shadow: 0 0 0.7em rgba(0, 0, 0, 0.7); transition: color 0.15s, transform 0.18s, text-shadow 0.18s; }
+.ts-item:hover:not(:disabled), .ts-item:focus-visible { color: #fff; transform: translateX(0.22em); text-shadow: 0 0 0.55em rgba(150, 205, 255, 0.95); outline: none; }
+.ts-item:disabled { opacity: 0.35; cursor: default; }
+.ts-item small { font-size: 0.36em; font-weight: 400; letter-spacing: 0.05em; text-transform: none; color: #b9c6dd; text-shadow: 0 0 0.5em rgba(0, 0, 0, 0.8); }
+.ts-node { position: absolute; left: calc(-3em / 2.15 - 0.13em); top: 0.46em; width: 0.26em; height: 0.26em; border: 1px solid rgba(255, 255, 255, 0.8); background: #0c1020; transform: rotate(45deg); transition: background 0.15s, box-shadow 0.15s, transform 0.18s; }
+.ts-item.main .ts-node { background: var(--coin); border-color: var(--coin); }
+.ts-item:hover:not(:disabled) .ts-node { background: #fff; border-color: #fff; box-shadow: 0 0 0.5em rgba(150, 205, 255, 0.95); transform: translateX(-0.22em) rotate(45deg) scale(1.25); }
+.ts-top { position: absolute; right: 3.2vw; top: 4.5vh; display: flex; gap: 2.2em; }
+.ts-ico { display: flex; flex-direction: column; align-items: center; gap: 0.55em; padding: 0; background: none; border: 0; cursor: pointer; color: #e6eefc; font-family: 'Prompt', var(--f-head); }
+.ts-hex { width: 3.5em; height: 3.5em; display: grid; place-items: center; background: rgba(255, 255, 255, 0.16); clip-path: polygon(50% 0, 94% 25%, 94% 75%, 50% 100%, 6% 75%, 6% 25%); transition: background 0.15s, transform 0.15s; }
+.ts-ico:hover .ts-hex, .ts-ico:focus-visible .ts-hex { background: var(--coin); transform: translateY(-0.12em); } .ts-ico:hover .icon { filter: brightness(0.15); } .ts-ico:focus-visible { outline: none; }
+.ts-ico small { font-size: 0.78em; font-weight: 400; letter-spacing: 0.14em; text-transform: uppercase; color: #e6eefc; text-shadow: 0 0 0.5em rgba(0, 0, 0, 0.8); }
+.title-foot { position: absolute; left: 0; bottom: 1.6vh; }
 
 /* ── phones ──
    The game is a wide tabletop, so phones play it in landscape. A short screen gets a larger base
@@ -680,10 +706,9 @@ html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent
   .btn { padding: 0.55em 1.1em; }
   #toasts { top: 10%; }
   /* title */
-  .title-screen { padding: 1vh 0 1vh; }
-  .logo { font-size: 4.2em; } .logo-sub { margin-top: 0.3em; font-size: 0.8em; letter-spacing: 0.25em; }
-  .title-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5em 0.7em; margin-bottom: 1vh; } .title-menu .btn.big { min-width: 13em; padding: 0.55em 1em; font-size: 1em; }
-  .title-menu::before { inset: -1.5em -5em -1em; }
+  .ts-left { left: 6vw; top: 7vh; gap: 1.5em; } .logo { font-size: 2.7em; } .logo-sub { margin-top: 0.5em; font-size: 0.74em; letter-spacing: 0.16em; }
+  .title-menu { gap: 0.6em; padding-left: 2.2em; } .ts-item { font-size: 1.6em; } .ts-node { left: calc(-2.2em / 1.6 - 0.13em); }
+  .ts-top { right: 2.4vw; top: 4vh; gap: 1.3em; } .ts-hex { width: 2.9em; height: 2.9em; }
   /* character / world pick, character creation */
   .ps-screen, .cs-screen { padding: 0.6em 1.2em; gap: 0.5em; }
   .ps-main { gap: 0.8em; } .ps-col { padding: 0.6em 0.8em; gap: 0.5em; overflow-y: auto; } .ps-char.empty { min-height: 9em; }
@@ -713,7 +738,7 @@ html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent
   .dice-tray { top: 36%; padding: 0.6em 1em; gap: 0.4em; } .die { width: 2.9em; height: 2.9em; }
   .banner { top: 22%; padding: 0.6em 0; }
   .cam-ctl { left: 0.6em; top: 30%; gap: 0.4em; } .cam-btn { width: 2.9em; height: 2.9em; }
-  .modal.menu-modal { font-size: 1em; } .menu-side { width: 10em; } .tab { padding: 0.5em 0.7em; font-size: 1em; } .title-menu { padding: 0.6em 0.8em; }
+  .modal.menu-modal { font-size: 1em; } .menu-side { width: 10em; } .tab { padding: 0.5em 0.7em; font-size: 1em; }
   .dice-log { right: 0.6em; bottom: 13.4em; font-size: 0.72em; } .dl-line:nth-last-child(n+4) { display: none; }
 }
 /* touch screens have no hover: keep buttons from sticking in their hover state, and let a tapped
