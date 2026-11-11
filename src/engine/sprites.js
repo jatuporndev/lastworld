@@ -2,6 +2,8 @@
 // Sheet layout: 12 columns (3 views × 4 frames) × 5 rows (anims). Views: side, back(3/4), front(3/4),
 // all facing right; left-facing directions are produced by mirroring UVs.
 
+import { paintChibi } from './chibi.js';
+
 export const ANIMS = ['idle', 'walk', 'attack', 'hurt', 'cast'];
 export const VIEWS = ['side', 'back', 'front'];
 export const FRAMES = 4;
@@ -181,181 +183,12 @@ function offhand(ctx, type, look) {
   }
 }
 
-function arm(ctx, sx, sy, a, len, look, side, holding, isOff, glow) {
-  const hx = sx + Math.sin(a) * len, hy = sy + Math.cos(a) * len;
-  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(hx, hy);
-  ctx.strokeStyle = OUT; ctx.lineWidth = look.bulky ? 12 : 10; ctx.stroke();
-  ctx.strokeStyle = isOff ? shade(look.armor, -0.15) : look.armor; ctx.lineWidth = look.bulky ? 8 : 6.5; ctx.stroke();
-  if (holding) {
-    ctx.save(); ctx.translate(hx, hy);
-    const w = holding === 'bow' ? a : a + 0.9;
-    ctx.rotate(Math.PI - w);
-    if (isOff) offhand(ctx, holding, look); else weapon(ctx, holding, look, glow);
-    ctx.restore();
-  }
-  ellipse(ctx, hx, hy, 3.6, 3.6, look.skeleton ? look.skin : look.skin, OUT, 2);
-}
-
-function head(ctx, look, view, y) {
-  const hr = 19;
-  const hx = view === 'side' ? 2 : 0;
-  const skin = look.skin;
-  // back hair layer
-  if (look.helm !== 'knight' && look.helm !== 'horned' && look.hair && !look.skeleton) {
-    if (view === 'back') ellipse(ctx, hx, y, hr + 1, hr + 2, look.hair);
-    else if (look.helm !== 'wizard') { ctx.beginPath(); ctx.ellipse(hx - (view === 'side' ? 5 : 0), y + 4, hr + 1, hr + 4, 0, Math.PI * 0.9, Math.PI * 2.1); path(ctx, shade(look.hair, -0.15)); }
-  }
-  if (view !== 'back' || look.skeleton) ellipse(ctx, hx, y, hr, hr, rgrad(ctx, hx, y, hr, shade(skin, 0.2), skin));
-  else if (!look.hair || look.helm === 'knight' || look.helm === 'horned') ellipse(ctx, hx, y, hr, hr, skin);
-  // face
-  if (view !== 'back') {
-    const ex = view === 'side' ? [10] : [-7, 7];
-    const eyeC = look.glowEyes || (look.skeleton ? '#000' : '#2a1a1a');
-    ex.forEach((x) => {
-      if (look.skeleton) { ellipse(ctx, hx + x, y + 1, 4.5, 5, '#1a1010', null); if (look.glowEyes) glowCircle(ctx, hx + x, y + 1, 6, look.glowEyes); }
-      else { ellipse(ctx, hx + x, y + 1, 3, 4, eyeC, null); ellipse(ctx, hx + x + 1, y - 0.5, 1.1, 1.3, '#fff', null); if (look.glowEyes) glowCircle(ctx, hx + x, y + 1, 6, look.glowEyes, 0.8); }
-    });
-    if (look.skeleton) { ctx.fillStyle = '#1a1010'; ctx.fillRect(hx - 6 + (view === 'side' ? 8 : 0), y + 10, 12, 2); }
-    else if (!look.beard) { const mx = hx + (view === 'side' ? 10 : 0); ctx.beginPath(); ctx.moveTo(mx - 3, y + 10); ctx.lineTo(mx + 3, y + 10); path(ctx, null, '#6a3a30', 1.6); }
-    if (look.female) ex.forEach((x) => { const s = view === 'side' ? 1 : Math.sign(x); ctx.beginPath(); ctx.moveTo(hx + x + s * 2, y - 2.5); ctx.lineTo(hx + x + s * 5.5, y - 5); path(ctx, null, '#2a1a1a', 1.6); }); // lashes
-    if (!look.skeleton) ex.forEach((x) => { const s = view === 'side' ? 1 : Math.sign(x); ctx.beginPath(); ctx.moveTo(hx + x - s * 4.5, y - 3.5); ctx.lineTo(hx + x + s * 3.5, y - 6.5); path(ctx, null, look.glowEyes ? '#120c0c' : shade(look.hair || '#3a2a1a', -0.45), 2.2); });
-  }
-  if (look.beard && view !== 'back') {
-    ctx.beginPath(); ctx.moveTo(hx - 14 + (view === 'side' ? 10 : 0), y + 4); ctx.quadraticCurveTo(hx + (view === 'side' ? 8 : 0), y + 30, hx + 14, y + 4); ctx.quadraticCurveTo(hx, y + 12, hx - 14 + (view === 'side' ? 10 : 0), y + 4); path(ctx, look.beard);
-  }
-  // hair front / helm
-  const helm = look.helm || 'none';
-  if (helm === 'knight' || helm === 'horned') {
-    ctx.beginPath(); ctx.arc(hx, y - 1, hr + 2, Math.PI * 0.95, Math.PI * 2.05); ctx.lineTo(hx + hr + 2, y + 10); ctx.lineTo(hx - hr - 2, y + 10); ctx.closePath();
-    path(ctx, grad(ctx, y - hr, y + 10, shade(look.armor, 0.35), look.armor2));
-    if (view !== 'back') { ctx.fillStyle = '#120c0c'; if (view === 'side') ctx.fillRect(hx + 4, y - 1, 16, 4); else ctx.fillRect(hx - 13, y - 1, 26, 4); if (look.glowEyes) glowCircle(ctx, hx + (view === 'side' ? 12 : 0), y + 1, 9, look.glowEyes, 0.9); }
-    if (helm === 'knight') { ctx.beginPath(); ctx.moveTo(hx - 2, y - hr - 1); ctx.quadraticCurveTo(hx - 18, y - hr - 14, hx - 22, y - 4); ctx.quadraticCurveTo(hx - 12, y - hr - 2, hx + 2, y - hr); path(ctx, look.cloth); }
-    else { [-1, 1].forEach((s) => { ctx.beginPath(); ctx.moveTo(hx + s * 12, y - 12); ctx.quadraticCurveTo(hx + s * 30, y - 16, hx + s * 26, y - 38); ctx.quadraticCurveTo(hx + s * 22, y - 22, hx + s * 6, y - 16); path(ctx, '#d8c8b0'); }); }
-  } else if (helm === 'wizard') {
-    ctx.beginPath(); ctx.ellipse(hx, y - 12, 27, 7, 0, 0, Math.PI * 2); path(ctx, look.armor2);
-    ctx.beginPath(); ctx.moveTo(hx - 17, y - 14); ctx.quadraticCurveTo(hx - 6, y - 40, hx + 14, y - 52); ctx.quadraticCurveTo(hx + 6, y - 34, hx + 17, y - 14); ctx.closePath(); path(ctx, grad(ctx, y - 52, y - 14, shade(look.armor, 0.2), look.armor));
-    ctx.fillStyle = look.cloth; ctx.fillRect(hx - 16, y - 19, 32, 4);
-    if (view !== 'back') { ctx.beginPath(); ctx.ellipse(hx + (view === 'side' ? -4 : 0), y + 2, hr - 2, 12, 0, Math.PI * 1.05, Math.PI * 1.95); path(ctx, look.hair, null); }
-  } else if (helm === 'hood' || helm === 'mask') {
-    const hc = look.hoodColor || look.armor;
-    ctx.beginPath(); ctx.arc(hx, y, hr + 4, Math.PI * 0.75, Math.PI * 2.25); ctx.quadraticCurveTo(hx + hr + 6, y + 20, hx, y + 22); ctx.quadraticCurveTo(hx - hr - 6, y + 20, hx - hr - 4 + 1, y + 13); ctx.closePath();
-    if (view === 'back') path(ctx, grad(ctx, y - hr, y + 20, shade(hc, 0.15), shade(hc, -0.3)));
-    else {
-      path(ctx, grad(ctx, y - hr, y + 20, shade(hc, 0.15), shade(hc, -0.3)));
-      // re-draw face opening
-      ctx.save(); ctx.beginPath(); ctx.ellipse(hx + (view === 'side' ? 6 : 0), y + 3, 13, 14, 0, 0, Math.PI * 2); ctx.clip();
-      ellipse(ctx, hx, y, hr, hr, look.skin, null);
-      const ex = view === 'side' ? [10] : [-6, 6];
-      ex.forEach((x) => { ellipse(ctx, hx + x, y + 2, 2.6, 3.6, '#2a1a1a', null); ellipse(ctx, hx + x + 0.8, y + 0.5, 1, 1.2, '#fff', null); });
-      ctx.restore();
-      ctx.beginPath(); ctx.ellipse(hx + (view === 'side' ? 6 : 0), y + 3, 13, 14, 0, 0, Math.PI * 2); path(ctx, null, shade(hc, -0.5), 2);
-      if (helm === 'mask') { ctx.beginPath(); ctx.ellipse(hx + (view === 'side' ? 6 : 0), y + 11, 13, 7, 0, 0, Math.PI); path(ctx, look.scarf || '#333'); }
-    }
-  } else if (helm === 'crown') {
-    if (look.hair && !look.skeleton && view !== 'back') { ctx.beginPath(); ctx.ellipse(hx, y - 4, hr + 1, 14, 0, Math.PI, Math.PI * 2); path(ctx, look.hair); }
-    const cc = look.crownColor || '#e0b040';
-    ctx.beginPath(); ctx.moveTo(hx - 15, y - 12);
-    for (let i = 0; i <= 4; i++) { const x = hx - 15 + i * 7.5; ctx.lineTo(x, y - (i % 2 ? 22 : 32)); ctx.lineTo(x + 3.75, y - 15); }
-    ctx.lineTo(hx + 15, y - 12); ctx.closePath(); path(ctx, grad(ctx, y - 32, y - 12, '#ffffff', cc));
-    glowCircle(ctx, hx, y - 26, 10, cc, 0.6);
-  } else if (helm === 'turban') {
-    ctx.beginPath(); ctx.ellipse(hx, y - 10, hr + 3, 14, 0, Math.PI * 0.95, Math.PI * 2.05); path(ctx, look.cloth);
-    ctx.beginPath(); ctx.moveTo(hx - 18, y - 12); ctx.quadraticCurveTo(hx, y - 4, hx + 18, y - 14); path(ctx, null, shade(look.cloth, -0.3), 2);
-    ellipse(ctx, hx, y - 16, 3, 3, '#c03030');
-  } else if (!look.skeleton && look.hair) {
-    if (view !== 'back') {
-      ctx.beginPath(); ctx.ellipse(hx - (view === 'side' ? 3 : 0), y - 6, hr + 1, 15, 0, Math.PI * 0.98, Math.PI * 2.02);
-      ctx.quadraticCurveTo(hx + 6, y - 4, hx - 2, y - 10); ctx.quadraticCurveTo(hx - 8, y - 2, hx - hr - 1, y - 4); path(ctx, rgrad(ctx, hx, y - 10, hr, shade(look.hair, 0.25), look.hair));
-    }
-    if (helm === 'circlet') { ctx.beginPath(); ctx.ellipse(hx, y - 9, hr, 5, 0, view === 'back' ? Math.PI : 0, view === 'back' ? Math.PI * 2 : Math.PI); path(ctx, null, '#e8c040', 3); if (view !== 'back') ellipse(ctx, hx + (view === 'side' ? 10 : 0), y - 5, 3, 3, '#60c0ff'); }
-    if (helm === 'goggles') { ctx.fillStyle = '#4a3a2a'; ctx.fillRect(hx - hr, y - 12, hr * 2, 4); if (view !== 'back') { (view === 'side' ? [9] : [-7, 7]).forEach((x) => ellipse(ctx, hx + x, y - 10, 5, 4, rgrad(ctx, hx + x, y - 10, 5, '#ffe0a0', '#c07020'))); } }
-  }
-}
-
 PAINTERS_INIT();
 var PAINTERS;
 function PAINTERS_INIT() {
   PAINTERS = {
-    humanoid(ctx, L, view, p, f, anim) {
-      const big = L.demon ? 1.05 : 1;
-      ctx.translate(p.dx, p.bob); ctx.rotate(p.lean); ctx.scale(big * 0.94, big * 0.94);
-      ctx.translate(0, -10); // the body rides 10 higher on longer legs; the ground is at y = 10 from here on
-      if (L.hunch) ctx.translate(0, 6);
-      const side = view === 'side';
-      const sw = L.bulky ? 18 : L.female ? 13 : 15;
-      // long hair falls behind the shoulders (front and side views; the back view draws it over the body below)
-      const longHair = (x0, x1) => { ctx.beginPath(); ctx.moveTo(x0, -80); ctx.lineTo(x1, -80); ctx.quadraticCurveTo(x1 + 3, -58, x1 - 1 + p.leg * 2, -40); ctx.quadraticCurveTo((x0 + x1) / 2, -34, x0 + 1 + p.leg * 2, -40); ctx.quadraticCurveTo(x0 - 3, -58, x0, -80); path(ctx, grad(ctx, -80, -38, L.hair, shade(L.hair, -0.3))); };
-      if (L.female && L.hair && view !== 'back') longHair(side ? -20 : -15, side ? 2 : 15);
-      const wpn = L.weapon, off = L.offhand;
-      // wings (demon)
-      if (L.wings) {
-        [-1, 1].forEach((s) => { ctx.save(); ctx.translate(s * 6, -58); ctx.scale(s, 1); ctx.rotate(-0.2 + p.flap * 0.15);
-          ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(20, -40, 52, -30); ctx.lineTo(44, -14); ctx.lineTo(48, 0); ctx.lineTo(36, 4); ctx.lineTo(36, 16); ctx.quadraticCurveTo(14, 10, 0, 10); ctx.closePath(); path(ctx, grad(ctx, -40, 16, shade(L.wings, 0.2), L.wings)); ctx.restore(); });
-      }
-      // cape (behind)
-      if (L.cape && view !== 'back') {
-        ctx.beginPath(); ctx.moveTo(-14, -58); ctx.quadraticCurveTo(-24 - (side ? 8 : 0), -24, -18 - (side ? 12 : 0) + p.leg * 4, 4); ctx.lineTo(18 - (side ? 14 : 0), 4); ctx.quadraticCurveTo(20, -30, 14, -58); ctx.closePath(); path(ctx, shade(L.cape, -0.25));
-      }
-      // far arm (side view) behind body
-      const shoulderY = -56;
-      if (side) arm(ctx, -2, shoulderY, -p.off + 0.2, 20, L, -1, off, true, p.glow);
-      // legs
-      const legs = (front) => {
-        const lc = L.skeleton ? L.skin : shade(L.armor2, -0.1);
-        const boot = L.skeleton ? L.skin : '#3a2a1e';
-        if (side) {
-          [[-1, -p.leg], [1, p.leg]].forEach(([s, a], i) => {
-            if ((i === 0) !== front) return;
-            ctx.save(); ctx.translate(s * 2, -32); ctx.rotate(a);
-            rrect(ctx, -5, 0, 10, 36, 4, i === 0 ? shade(lc, -0.2) : lc); rrect(ctx, -5, 32, 13, 10, 4, boot);
-            ctx.restore();
-          });
-        } else if (front) {
-          [-1, 1].forEach((s, i) => { const lift = (i ? 1 : -1) * p.leg * 6; rrect(ctx, s * 7 - 5, -32 - Math.max(0, lift), 10, 36, 4, lc); rrect(ctx, s * 7 - 6, -Math.max(0, lift), 12, 10, 4, boot); });
-        }
-      };
-      legs(false);
-      legs(true);
-      // robe / gown skirt
-      if (L.robe || L.gown) {
-        const w = L.gown ? 30 : 22;
-        ctx.beginPath(); ctx.moveTo(-14, -40); ctx.lineTo(14, -40); ctx.lineTo(w + p.leg * 3, 6); ctx.quadraticCurveTo(0, 12, -w + p.leg * 3, 6); ctx.closePath();
-        path(ctx, grad(ctx, -40, 10, L.armor, shade(L.armor, -0.35)));
-        ctx.beginPath(); ctx.moveTo(-w + 2 + p.leg * 3, 3); ctx.quadraticCurveTo(0, 9, w - 2 + p.leg * 3, 3); path(ctx, null, L.cloth, 2.5);
-      }
-      // torso
-      const tw = side ? (L.female ? 19 : 22) : (L.bulky ? 36 : L.female ? 26 : 30);
-      ctx.beginPath(); ctx.moveTo(-tw / 2, -60); ctx.lineTo(tw / 2, -60); ctx.lineTo(tw / 2 - 3, -30); ctx.lineTo(-tw / 2 + 3, -30); ctx.closePath();
-      path(ctx, grad(ctx, -60, -30, shade(L.armor, 0.25), L.armor2));
-      if (L.skeleton) { for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(-tw / 2 + 5, -54 + i * 7); ctx.quadraticCurveTo(0, -50 + i * 7, tw / 2 - 5, -54 + i * 7); path(ctx, null, L.skin, 2.5); } }
-      else if (view !== 'back') { ctx.beginPath(); ctx.moveTo(-tw / 2 + 4, -58); ctx.lineTo(0, -48); ctx.lineTo(tw / 2 - 4, -58); path(ctx, null, shade(L.armor, 0.45), 2); }
-      if (L.apron && view !== 'back') rrect(ctx, -tw / 2 + 4, -48, tw - 8, 28, 3, L.apron);
-      ctx.fillStyle = L.cloth; ctx.fillRect(-tw / 2 + 2, -35, tw - 4, 5); ctx.strokeStyle = OUT; ctx.lineWidth = 1.5; ctx.strokeRect(-tw / 2 + 2, -35, tw - 4, 5);
-      if (L.scarf && view !== 'back') { ctx.beginPath(); ctx.moveTo(-10, -60); ctx.quadraticCurveTo(0, -55, 10, -60); ctx.lineTo(12 + (side ? -20 : 0), -40); path(ctx, null, L.scarf, 5); }
-      // shoulder pads
-      if (['heavy'].includes(L.armorType) || L.helm === 'knight' || L.helm === 'horned' || L.bulky) {
-        [-1, 1].forEach((s) => { if (side && s < 0) return; ellipse(ctx, s * (side ? 2 : sw - 2), -58, 9, 6, grad(ctx, -64, -52, shade(L.armor, 0.4), L.armor2)); });
-      }
-      // weapon behind body in back view
-      if (view === 'back') {
-        arm(ctx, sw - 2, shoulderY, p.arm, 20, L, 1, wpn, false, p.glow);
-        arm(ctx, -sw + 2, shoulderY, p.off, 20, L, -1, off, true, p.glow);
-      }
-      ctx.save(); ctx.translate(0, -62); ctx.scale(0.82, 0.82); ctx.translate(0, 62); head(ctx, L, view, -80); ctx.restore();
-      if (L.female && L.hair && view === 'back') longHair(-14, 14);
-      // back cape over body
-      if (L.cape && view === 'back') {
-        ctx.beginPath(); ctx.moveTo(-16, -60); ctx.quadraticCurveTo(-22, -30, -20 + p.leg * 3, 6); ctx.lineTo(20 + p.leg * 3, 6); ctx.quadraticCurveTo(22, -30, 16, -60); ctx.closePath(); path(ctx, grad(ctx, -60, 6, L.cape, shade(L.cape, -0.35)));
-      }
-      if (view === 'front') {
-        arm(ctx, -sw + 2, shoulderY, p.off, 20, L, -1, off, true, p.glow);
-        arm(ctx, sw - 2, shoulderY, p.arm, 20, L, 1, wpn, false, p.glow);
-      } else if (side) {
-        arm(ctx, 2, shoulderY, p.arm, 20, L, 1, wpn, false, p.glow);
-      }
-      if (p.glow > 0) glowCircle(ctx, 18, -70, 22 * p.glow, L.crownColor || '#a0d0ff', 0.6);
-      if (p.swing) { ctx.save(); ctx.globalAlpha = 0.7; ctx.beginPath(); ctx.arc(4, -50, 40, -1.4, 0.9); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 5; ctx.stroke(); ctx.globalAlpha = 0.3; ctx.lineWidth = 12; ctx.stroke(); ctx.restore(); }
-    },
+    // every humanoid (heroes and humanoid monsters) is drawn by the chibi painter
+    humanoid(ctx, L, view, p, f, anim) { paintChibi(ctx, L, view, p, anim, { weapon, offhand }); },
 
     blob(ctx, L, view, p, f, anim) {
       const sq = p.squash;
