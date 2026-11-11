@@ -389,7 +389,7 @@ export class Battle {
     if (!inst || this.whyNot(u, inst)) return false;
     const card = inst.card; const from = this.projected(u);
     const T = this.targetsFor(u, card, from);
-    let entry = { inst, from, to: from, target: null, targetUid: null };
+    let entry = { inst, from, to: from, target: null, targetUid: null, extra: 0 };
     if (T.mode !== 'none') {
       const hit = T.cells.find((c) => c.q === target?.q && c.r === target?.r);
       if (!hit) return false;
@@ -406,8 +406,17 @@ export class Battle {
 
   unplan(u) {
     const e = u.plan.pop(); if (!e) return false;
-    u.energy += e.inst.card.cost; u.mp += e.inst.card.mp;
+    u.energy += e.inst.card.cost + (e.extra || 0); u.mp += e.inst.card.mp;
     u.cards.returnToHand(e.inst);
+    return true;
+  }
+
+  // Charge: the last planned card, if it can be charged, takes one more (or one fewer) Action Slot.
+  // Each extra slot rolls one more die.
+  chargePlan(u, d) {
+    const e = u.plan[u.plan.length - 1]; if (!e || !e.inst.card.charge) return false;
+    const x = (e.extra || 0) + d; if (x < 0 || x > 2 || (d > 0 && u.energy < d)) return false;
+    e.extra = x; u.energy -= d;
     return true;
   }
 
@@ -417,7 +426,7 @@ export class Battle {
     const plan = u.plan; u.plan = [];
     for (let i = 0; i < plan.length; i++) {
       const e = plan[i];
-      u.slotsUsed += e.inst.card.cost;
+      u.slotsUsed += e.inst.card.cost + (e.extra || 0);
       if (u.alive && !this.result) await this.resolveCard(u, e, i);
       u.cards.spend(e.inst);
       await this.emit('cardSpent', { unit: u, inst: e.inst, slot: u.slotsUsed - 1 });
@@ -508,7 +517,7 @@ export class Battle {
       if (card.allies && !victims.includes(u)) victims.unshift(u);
     }
     const hasEffect = card.fx.some((f) => !['move', 'teleport', 'dash'].includes(f.t));
-    const dice = hasEffect ? this.rollDice(u, card) : null; // only the side playing the card rolls
+    const dice = hasEffect ? this.rollDice(u, card, e.extra || 0) : null; // only the side playing the card rolls
     if (dice) await this.emit('dice', { unit: u, card, dice });
     if (hasEffect) await this.emit('cast', { unit: u, card, cells, targets: victims, target: target || origin });
 
@@ -536,7 +545,7 @@ export class Battle {
         case 'block': for (const v of tgts) await this.addBlock(v, Math.round(f.v + (dice?.supBonus || 0))); break;
         case 'heal': for (const v of tgts) if (v.alive) await this.heal(u, v, f.v + (f.s ? u.stats[f.s] : 0) + (dice?.supBonus || 0)); break;
         case 'status': for (const v of tgts) if (v.alive && !evaded.has(v)) await this.addStatus(u, v, f.st, f.n + (dice?.surge && !NO_STACK.includes(f.st) ? dice.surge : 0)); break;
-        case 'push': case 'pull': for (const v of tgts) if (v.alive && !evaded.has(v)) await this.shove(u, v, f.v, f.t === 'pull'); break;
+        case 'push': case 'pull': for (const v of tgts) if (v.alive && !evaded.has(v)) await this.shove(u, v, f.v + (f.t === 'push' ? dice?.push || 0 : 0), f.t === 'pull'); break;
         case 'draw': { const d = []; for (let i = 0; i < f.v; i++) { const c = u.cards.drawOne(); if (c) d.push(c); } await this.emit('draw', { unit: u, drawn: d }); break; }
         case 'energy': u.energy += f.v; await this.emit('text', { unit: u, text: t('+{n} Action Slot', { n: f.v }), color: '#ffd76a' }); break;
         case 'mp': u.mp = Math.min(u.maxMp, u.mp + f.v); await this.emit('text', { unit: u, text: `+${f.v} MP`, color: '#6aa8ff' }); break;
@@ -565,14 +574,21 @@ export class Battle {
     if (v.size > 1 || v.construct) return;
     const sc = this.nearestCell(v, src);
     let d = Hex.directionTo(sc, v); if (pull) d = (d + 3) % 6;
-    let pos = { q: v.q, r: v.r }; let moved = 0;
+    let pos = { q: v.q, r: v.r }; let moved = 0; let wall = null;
     for (let i = 0; i < n; i++) {
       const nx = Hex.neighbor(pos, d);
-      if (!this.canStand(v, nx)) break;
+      if (!this.canStand(v, nx)) { wall = nx; break; }
       if (pull && this.dist(src, v, nx) < 1) break;
       pos = nx; moved++;
     }
     if (moved) { await this.emit('shove', { unit: v, to: pos }); v.q = pos.q; v.r = pos.r; }
+    // Slam: a knockback that is stopped short hurts — 1 damage for every hex it could not travel.
+    // Whoever it was shoved into takes 1 as well.
+    if (!pull && wall && moved < n) {
+      const into = this.unitAt(wall, v);
+      await this.applyDamage(src, v, n - moved, { el: 'neutral', tags: ['Slam'] });
+      if (into && into.alive) await this.applyDamage(src, into, 1, { el: 'neutral', tags: ['Slam'] });
+    }
   }
 
   async summon(owner, id, at) {
@@ -629,17 +645,24 @@ export class Battle {
     return sum;
   }
 
-  rollDice(u, card) {
+  // Dice twists:
+  //   Charge — each extra Action Slot spent on a card adds a die.
+  //   Match  — dice that land on the same number (blanks excluded) add +1 for each extra matching die.
+  //   Impact — on a card that pushes, every ✸ face knocks the target back one hex further.
+  rollDice(u, card, extra = 0) {
     if (!u.hero) return null;
     const d = diceOf(card); if (!d) return null;
-    const faces = Array.from({ length: d.n }, () => this.rng.pick(DICE[d.color]));
+    const faces = Array.from({ length: Math.min(6, d.n + extra) }, () => this.rng.pick(DICE[d.color]));
+    const groups = {}; faces.forEach((f) => { if (f.v > 0) groups[f.v] = (groups[f.v] || 0) + 1; });
+    const match = Object.values(groups).reduce((s, k) => s + (k - 1), 0);
+    const push = card.fx.some((f) => f.t === 'push') ? faces.filter((f) => f.k === 'crit').length : 0;
     const hasStack = card.fx.some((f) => f.t === 'status' && !f.self && !NO_STACK.includes(f.st));
     const sum = faces.reduce((s, f) => s + f.v, 0);
     const stars = faces.filter((f) => f.k === 'star').length;
-    const total = sum * (1 + stars);
+    const total = sum * (1 + stars) + match;
     const surge = hasStack ? faces.filter((f) => f.k === 'surge').length : 0;
     const off = d.color !== 'green';
-    return { color: d.color, faces, sum, total, crit: faces.some((f) => f.k === 'crit'), surge, stars, dmgBonus: off ? total : 0, supBonus: off ? 0 : total };
+    return { color: d.color, faces, sum, total, match, push, charge: extra, crit: faces.some((f) => f.k === 'crit'), surge, stars, dmgBonus: off ? total : 0, supBonus: off ? 0 : total };
   }
 
   // ───────── damage / heal / status ─────────

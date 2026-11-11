@@ -3,6 +3,7 @@
 //   dmg {v, s:'atk'|'matk', hits}   block {v}   heal {v, s}     (board-game scale: dice + v + stat)
 //   status {st, n, self}  move {v}  teleport  dash  push {v}  pull {v}
 //   draw {v}  energy {v} (extra Action Slots this turn)  mp {v}  cleanse  taunt  summon {id}  revive {pct}
+// charge: true — the card may take up to 2 extra Action Slots, each adding a die
 // tg: enemy | ally | self | hex | any     shape: single | line | cone | area | burst
 import { t } from '../core/i18n.js';
 
@@ -48,7 +49,7 @@ add([
   { id: 'k_rally', cls: 'knight', name: 'Rally', cat: 'buff', icon: 'banner', tg: 'self', shape: 'burst', size: 2, cd: 3, allies: true, fx: [{ t: 'status', st: 'strength', n: 2 }] },
   { id: 'k_vow', cls: 'knight', name: "Guardian's Vow", cat: 'defense', icon: 'shield', tg: 'ally', range: 3, cd: 2, fx: [{ t: 'block', v: 3 }] },
   { id: 'k_advance', cls: 'knight', name: 'Advance', cat: 'movement', icon: 'boot', tg: 'hex', range: 2, cost: 0, cd: 1, fx: [{ t: 'move', v: 2 }] },
-  { id: 'k_valor', cls: 'knight', name: 'Valor Strike', cat: 'attack', icon: 'sword', rarity: 'rare', cost: 2, cd: 2, el: 'holy', fx: [{ t: 'dmg', v: 2, s: 'atk' }] },
+  { id: 'k_valor', charge: true, cls: 'knight', name: 'Valor Strike', cat: 'attack', icon: 'sword', rarity: 'rare', cost: 2, cd: 2, el: 'holy', fx: [{ t: 'dmg', v: 2, s: 'atk' }] },
   { id: 'k_ironwill', cls: 'knight', name: 'Iron Will', cat: 'buff', icon: 'heart', rarity: 'rare', tg: 'self', cost: 0, cd: 3, fx: [{ t: 'cleanse' }, { t: 'status', st: 'regen', n: 3 }] },
   { id: 'k_earthsplit', cls: 'knight', name: 'Earthsplitter', cat: 'attack', icon: 'quake', rarity: 'epic', shape: 'line', size: 4, cost: 3, cd: 3, mp: 6, el: 'earth', tg: 'any', fx: [{ t: 'dmg', v: 2, s: 'atk' }, { t: 'status', st: 'stun', n: 1 }] },
 ]);
@@ -59,7 +60,7 @@ add([
   { id: 'm_frostshard', cls: 'mage', name: 'Frost Shard', cat: 'attack', icon: 'snow', range: 4, el: 'ice', proj: 'ice', fx: [{ t: 'dmg', v: 1, s: 'matk' }, { t: 'status', st: 'chill', n: 1 }] },
   { id: 'm_barrier', cls: 'mage', name: 'Arcane Barrier', cat: 'defense', icon: 'orb', tg: 'ally', range: 2, cd: 1, fx: [{ t: 'block', v: 2 }] },
   { id: 'm_blink', cls: 'mage', name: 'Blink', cat: 'movement', icon: 'blink', tg: 'hex', range: 3, cd: 2, fx: [{ t: 'teleport' }] },
-  { id: 'm_fireball', cls: 'mage', name: 'Fireball', cat: 'attack', icon: 'flame', range: 4, shape: 'area', size: 1, tg: 'any', cost: 2, mp: 4, cd: 2, el: 'fire', proj: 'fire', fx: [{ t: 'dmg', v: 1, s: 'matk' }, { t: 'status', st: 'burn', n: 2 }] },
+  { id: 'm_fireball', charge: true, cls: 'mage', name: 'Fireball', cat: 'attack', icon: 'flame', range: 4, shape: 'area', size: 1, tg: 'any', cost: 2, mp: 4, cd: 2, el: 'fire', proj: 'fire', fx: [{ t: 'dmg', v: 1, s: 'matk' }, { t: 'status', st: 'burn', n: 2 }] },
   { id: 'm_surge', cls: 'mage', name: 'Mana Surge', cat: 'buff', icon: 'star', tg: 'self', cost: 0, cd: 3, fx: [{ t: 'energy', v: 1 }, { t: 'mp', v: 4 }, { t: 'draw', v: 1 }] },
   { id: 'm_lance', cls: 'mage', name: 'Lightning Lance', cat: 'attack', icon: 'bolt', shape: 'line', size: 4, tg: 'any', range: 1, mp: 3, cd: 1, el: 'wind', fx: [{ t: 'dmg', v: 1, s: 'matk' }] },
   { id: 'm_ignite', cls: 'mage', name: 'Ignite', cat: 'special', icon: 'flame', range: 4, cost: 1, cd: 1, el: 'fire', fx: [{ t: 'status', st: 'burn', n: 3 }] },
@@ -72,7 +73,7 @@ add([
 // ───────── ARCHER ─────────
 add([
   { id: 'a_quick', cls: 'archer', name: 'Quick Shot', cat: 'attack', icon: 'arrow', range: 4, proj: 'arrow', fx: [{ t: 'dmg', v: 1, s: 'atk' }] },
-  { id: 'a_aimed', cls: 'archer', name: 'Aimed Shot', cat: 'attack', icon: 'eye', range: 6, cost: 2, cd: 1, proj: 'arrow', fx: [{ t: 'dmg', v: 2, s: 'atk', crit: 25 }] },
+  { id: 'a_aimed', charge: true, cls: 'archer', name: 'Aimed Shot', cat: 'attack', icon: 'eye', range: 6, cost: 2, cd: 1, proj: 'arrow', fx: [{ t: 'dmg', v: 2, s: 'atk', crit: 25 }] },
   { id: 'a_volley', cls: 'archer', name: 'Volley', cat: 'attack', icon: 'arrows', range: 5, shape: 'area', size: 1, tg: 'any', cost: 2, cd: 2, fx: [{ t: 'dmg', v: 0, s: 'atk' }] },
   { id: 'a_pierce', cls: 'archer', name: 'Piercing Arrow', cat: 'attack', icon: 'arrow', shape: 'line', size: 5, tg: 'any', range: 1, cost: 2, cd: 2, el: 'wind', fx: [{ t: 'dmg', v: 1, s: 'atk' }] },
   { id: 'a_roll', cls: 'archer', name: 'Evasive Roll', cat: 'movement', icon: 'boot', tg: 'hex', range: 2, cd: 1, fx: [{ t: 'move', v: 2 }, { t: 'block', v: 1, self: true }] },
@@ -90,7 +91,7 @@ add([
   { id: 's_stab', cls: 'assassin', name: 'Stab', cat: 'attack', icon: 'dagger', fx: [{ t: 'dmg', v: 1, s: 'atk' }] },
   { id: 's_venom', cls: 'assassin', name: 'Venom Blade', cat: 'attack', icon: 'dagger', cd: 1, el: 'poison', fx: [{ t: 'dmg', v: 0, s: 'atk' }, { t: 'status', st: 'poison', n: 3 }] },
   { id: 's_step', cls: 'assassin', name: 'Shadow Step', cat: 'movement', icon: 'blink', tg: 'hex', range: 3, cd: 1, el: 'shadow', fx: [{ t: 'teleport' }] },
-  { id: 's_backstab', cls: 'assassin', name: 'Backstab', cat: 'attack', icon: 'dagger', cost: 2, cd: 2, combo: { after: 'movement', bonus: { dmg: 2 } }, fx: [{ t: 'dmg', v: 2, s: 'atk' }] },
+  { id: 's_backstab', charge: true, cls: 'assassin', name: 'Backstab', cat: 'attack', icon: 'dagger', cost: 2, cd: 2, combo: { after: 'movement', bonus: { dmg: 2 } }, fx: [{ t: 'dmg', v: 2, s: 'atk' }] },
   { id: 's_smoke', cls: 'assassin', name: 'Smoke Bomb', cat: 'defense', icon: 'smoke', tg: 'self', cd: 2, fx: [{ t: 'status', st: 'stealth', n: 1 }, { t: 'block', v: 1 }] },
   { id: 's_fan', cls: 'assassin', name: 'Fan of Knives', cat: 'attack', icon: 'whirl', tg: 'self', shape: 'burst', size: 1, cost: 2, cd: 2, fx: [{ t: 'dmg', v: 0, s: 'atk' }, { t: 'status', st: 'bleed', n: 2 }] },
   { id: 's_expose', cls: 'assassin', name: 'Expose Weakness', cat: 'special', icon: 'eye', range: 2, cost: 0, cd: 2, fx: [{ t: 'status', st: 'vulnerable', n: 2 }, { t: 'status', st: 'mark', n: 1 }] },
@@ -111,7 +112,7 @@ add([
   { id: 'p_mace', cls: 'priest', name: 'Mace Strike', cat: 'attack', icon: 'mace', fx: [{ t: 'dmg', v: 1, s: 'atk' }] },
   { id: 'p_step', cls: 'priest', name: 'Guiding Step', cat: 'movement', icon: 'boot', tg: 'hex', range: 2, cd: 1, fx: [{ t: 'move', v: 2 }, { t: 'heal', v: 1, self: true }] },
   { id: 'p_prayer', cls: 'priest', name: 'Prayer', cat: 'buff', icon: 'star', tg: 'self', cost: 0, cd: 2, fx: [{ t: 'mp', v: 6 }, { t: 'draw', v: 1 }] },
-  { id: 'p_light', cls: 'priest', name: 'Divine Light', cat: 'attack', icon: 'sun', shape: 'line', size: 4, tg: 'any', cost: 2, mp: 3, cd: 2, el: 'holy', fx: [{ t: 'dmg', v: 1, s: 'matk' }] },
+  { id: 'p_light', charge: true, cls: 'priest', name: 'Divine Light', cat: 'attack', icon: 'sun', shape: 'line', size: 4, tg: 'any', cost: 2, mp: 3, cd: 2, el: 'holy', fx: [{ t: 'dmg', v: 1, s: 'matk' }] },
   { id: 'p_sanctuary', cls: 'priest', name: 'Sanctuary', cat: 'special', icon: 'cross', rarity: 'rare', tg: 'self', shape: 'burst', size: 2, allies: true, cost: 2, mp: 6, cd: 3, el: 'holy', fx: [{ t: 'heal', v: 1, s: 'matk' }, { t: 'cleanse' }] },
   { id: 'p_judgment', cls: 'priest', name: 'Judgment', cat: 'attack', icon: 'sun', rarity: 'rare', range: 4, shape: 'area', size: 1, tg: 'any', cost: 2, mp: 4, cd: 2, el: 'holy', fx: [{ t: 'dmg', v: 1, s: 'matk' }, { t: 'status', st: 'weak', n: 2 }] },
   { id: 'p_resurrect', cls: 'priest', name: 'Resurrection', cat: 'special', icon: 'phoenix', rarity: 'epic', tg: 'self', cost: 3, mp: 12, cd: 5, el: 'holy', fx: [{ t: 'revive', pct: 0.4 }] },
@@ -122,7 +123,7 @@ add([
   { id: 'b_hammer', cls: 'blacksmith', name: 'Hammer Blow', cat: 'attack', icon: 'hammer', fx: [{ t: 'dmg', v: 1, s: 'atk' }] },
   { id: 'b_temper', cls: 'blacksmith', name: 'Temper Steel', cat: 'buff', icon: 'anvil', tg: 'ally', range: 2, cd: 2, fx: [{ t: 'status', st: 'strength', n: 3 }] },
   { id: 'b_forge', cls: 'blacksmith', name: 'Forge Armor', cat: 'defense', icon: 'shield', tg: 'ally', range: 2, cd: 1, fx: [{ t: 'block', v: 2 }] },
-  { id: 'b_molten', cls: 'blacksmith', name: 'Molten Strike', cat: 'attack', icon: 'flame', cost: 2, cd: 1, el: 'fire', fx: [{ t: 'dmg', v: 2, s: 'atk' }, { t: 'status', st: 'burn', n: 2 }] },
+  { id: 'b_molten', charge: true, cls: 'blacksmith', name: 'Molten Strike', cat: 'attack', icon: 'flame', cost: 2, cd: 1, el: 'fire', fx: [{ t: 'dmg', v: 2, s: 'atk' }, { t: 'status', st: 'burn', n: 2 }] },
   { id: 'b_turret', cls: 'blacksmith', name: 'Deploy Turret', cat: 'special', icon: 'turret', tg: 'hex', range: 2, cost: 2, cd: 3, fx: [{ t: 'summon', id: 'turret' }] },
   { id: 'b_slam', cls: 'blacksmith', name: 'Shockwave Slam', cat: 'attack', icon: 'quake', tg: 'self', shape: 'burst', size: 1, cost: 2, cd: 2, el: 'earth', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'push', v: 1 }] },
   { id: 'b_overcharge', cls: 'blacksmith', name: 'Overcharge', cat: 'buff', icon: 'bolt', tg: 'self', cost: 0, cd: 3, fx: [{ t: 'energy', v: 2 }, { t: 'selfdmg', v: 2 }] },
@@ -252,7 +253,7 @@ export function describeCard(card, unit = null) {
       case 'move': parts.push(t('Move up to {n} hexes.', { n: f.v })); break;
       case 'teleport': parts.push(t('Teleport to a hex within {n}.', { n: card.range })); break;
       case 'dash': parts.push(t('Dash next to an enemy within {n}.', { n: card.range })); break;
-      case 'push': parts.push(t('Push {n}.', { n: f.v })); break;
+      case 'push': parts.push(t('Push {n}. If blocked, Slam for the hexes left.', { n: f.v })); break;
       case 'pull': parts.push(t('Pull {n} toward you.', { n: f.v })); break;
       case 'draw': parts.push(t('Draw {n}.', { n: f.v })); break;
       case 'energy': parts.push(t('Gain {n} extra Action Slot this turn.', { n: f.v })); break;
@@ -265,6 +266,7 @@ export function describeCard(card, unit = null) {
       default: break;
     }
   }
+  if (card.charge) parts.push(t('Charge: +1 die per extra Action Slot.'));
   if (card.combo) {
     const b = card.combo.bonus;
     parts.push(t('Combo (after {cat}): {bonus}.', { cat: t(card.combo.after), bonus: `${b.dmg ? t('+{n} damage', { n: b.dmg }) : ''}${b.status ? STATUS_INFO[b.status.st].name : ''}` }));

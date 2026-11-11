@@ -705,6 +705,12 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .slot-peek .card { transform: none !important; margin: 0; box-shadow: 0 0 0 0.2em var(--coin), 0 1em 2.2em rgba(0, 0, 0, 0.6); }
 .slot-remove { font-size: 0.75em; padding: 0.45em 1em; background: var(--accent); color: #fff; }
 
+/* charge controls on the last planned card */
+.slot-chgs { position: absolute; right: 0.3em; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 0.2em; }
+.slot-chg { min-width: 2.4em; padding: 0.15em 0.4em; border: 0; border-radius: 0.3em; background: var(--paper); color: var(--ink-d); font-family: var(--f-head); font-weight: 600; font-size: 0.8em; line-height: 1.2; cursor: pointer; box-shadow: 0 0.12em 0 rgba(0, 0, 0, 0.3); }
+.slot-chg:hover:not(:disabled) { background: var(--coin); } .slot-chg:disabled { opacity: 0.35; cursor: default; }
+.slot.charged { box-shadow: 0 0.22em 0 rgba(0, 0, 0, 0.35), inset 0 0 0 0.18em var(--coin); }
+
 /* ── phones ──
    The game is a wide tabletop, so phones play it in landscape. A short screen gets a larger base
    font than the desktop formula would give (text stays readable) and a compact HUD to make room. */

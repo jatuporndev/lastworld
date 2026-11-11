@@ -68,6 +68,7 @@ export class BattleScene {
         case 'move': await b.heroMove(u, { q: c.q, r: c.r }); break;
         case 'plan': if (b.plan(u, c.c, c.q == null ? null : { q: c.q, r: c.r })) audio.sfx('place'); else audio.sfx('error'); break;
         case 'unplan': if (b.unplan(u)) audio.sfx('close'); break;
+        case 'charge': if (b.chargePlan(u, c.d)) audio.sfx(c.d > 0 ? 'place' : 'close'); else audio.sfx('error'); break;
         case 'exec': await b.execute(u); break;
         case 'end': await b.endHeroTurn(u); break;
         case 'item': await b.useItem(u, c.id); break;
@@ -268,10 +269,13 @@ export class BattleScene {
       // clicking the last one takes it back; on touch a tap opens the card, which carries a Remove button.
       const touch = window.matchMedia('(hover: none)').matches;
       const peek = h('div.slot-peek', cardEl(e.inst.id, e.inst.lv, { unit: u }), last && touch ? h('button.mini.slot-remove', { onclick: (ev) => { ev.stopPropagation(); this.undo(); } }, t('Remove')) : null);
-      slots.push(h('div.slot.filled' + (last ? '.last' : '') + (c.cost === 0 ? '.free' : c.cost > 1 ? '.w' + Math.min(3, c.cost) : ''), { style: { '--el': ELEMENTS[c.el].color }, 'data-tip': last && !touch ? t('Click to remove') : null,
+      const w = c.cost + (e.extra || 0); const canCharge = last && c.charge && active;
+      const chg = (d, label, ok) => h('button.slot-chg', { disabled: !ok, 'data-tip': t(d > 0 ? 'Charge: spend 1 more slot for +1 die' : 'Uncharge'), onclick: (ev) => { ev.stopPropagation(); if (ok) this.act({ k: 'charge', d }); } }, label);
+      slots.push(h('div.slot.filled' + (last ? '.last' : '') + (w === 0 ? '.free' : w > 1 ? '.w' + Math.min(3, w) : '') + (e.extra ? '.charged' : ''), { style: { '--el': ELEMENTS[c.el].color }, 'data-tip': last && !touch ? t('Click to remove') : null,
         onclick: (ev) => { if (touch) { const el = ev.currentTarget; const on = el.classList.contains('peek'); this.el.slots.querySelectorAll('.slot.peek').forEach((x) => x.classList.remove('peek')); if (!on) el.classList.add('peek'); } else if (last) this.undo(); } }, peek,
-        h('div.slot-n', c.cost === 0 ? '★' : c.cost > 1 ? `${sn + 1}–${sn + c.cost}` : sn + 1), icon(c.icon, '#fff', 30), h('div.slot-name', c.name)));
-      sn += c.cost;
+        h('div.slot-n', w === 0 ? '★' : w > 1 ? `${sn + 1}–${sn + w}` : sn + 1), icon(c.icon, '#fff', 30), h('div.slot-name', c.name + (e.extra ? ` +${e.extra}🎲` : '')),
+        canCharge ? h('div.slot-chgs', chg(-1, '−', (e.extra || 0) > 0), chg(1, '+🎲', (e.extra || 0) < 2 && u.energy >= 1)) : null));
+      sn += w;
     });
     for (let i = 0; i < u.energy; i++) slots.push(h('div.slot.empty' + (this.pending && i === 0 ? '.awaiting' : ''), h('div.slot-n', ++sn), h('span', this.pending && i === 0 ? t('Choose target') : t('Drop card'))));
     E.slots.replaceChildren(...slots);
@@ -640,6 +644,9 @@ export class BattleScene {
     if (dice.crit) parts.push(t('Critical!'));
     if (dice.surge) parts.push(t('+{n} status stacks', { n: dice.surge }));
     if (dice.stars) parts.push(t('Bonus doubled!'));
+    if (dice.match) parts.push(t('Match +{n}', { n: dice.match }));
+    if (dice.push) parts.push(t('Impact: +{n} knockback', { n: dice.push }));
+    if (dice.charge) parts.push(t('Charged +{n} dice', { n: dice.charge }));
     const sum = h('div.dice-sum', h('div.ds-total', what), h('div.ds-parts', parts.join(' · ')));
     const tray = h(`div.dice-tray.${dice.color}`, head, h('div.dice-row', ...els), sum);
     let skip = false; tray.addEventListener('pointerdown', () => { skip = true; });
@@ -661,7 +668,7 @@ export class BattleScene {
     clearInterval(spin);
     tray.classList.add('done');
     await wait(dice.crit || dice.stars ? 1500 : 1200);
-    this.logRoll(card.name, dice.color, dice.faces, dice.total, [dice.crit ? t('Critical!') : null, dice.surge ? t('+{n} status stacks', { n: dice.surge }) : null, dice.stars ? t('Bonus doubled!') : null].filter(Boolean));
+    this.logRoll(card.name, dice.color, dice.faces, dice.total, [dice.crit ? t('Critical!') : null, dice.surge ? t('+{n} status stacks', { n: dice.surge }) : null, dice.stars ? t('Bonus doubled!') : null, dice.match ? t('Match +{n}', { n: dice.match }) : null, dice.push ? t('Impact: +{n} knockback', { n: dice.push }) : null].filter(Boolean));
     tray.classList.add('out'); setTimeout(() => tray.remove(), 300);
   }
 
