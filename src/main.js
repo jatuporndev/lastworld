@@ -164,7 +164,7 @@ class App {
       this.syncHeroNow();
       await rewardsModal(r, enc.kind);
       await this.saveNow({ gap: enc.kind === 'boss' ? 0 : 3 * 60000 });
-      if (guest) return; // the host's next scene takes the guest on
+      if (guest) { bs.waitForHost?.(); return; } // the host's next scene takes the guest on
       if (enc.kind === 'boss') {
         this.sm.leave();
         await this.toWorldMap();
@@ -267,7 +267,7 @@ class App {
     document.querySelectorAll('.modal-wrap').forEach((w) => w.remove());
     await this.menuScreen(() => { titleScreen(this); audio.music('title'); });
   }
-  closeGuestModals() { document.querySelectorAll('.modal-wrap.coop-view').forEach((w) => w.remove()); }
+  closeGuestModals() { document.querySelectorAll('.modal.coop-view').forEach((m) => (m.closest('.modal-wrap') || m).remove()); }
   // Guests replay the host's stream in order (walks and battles take time, so each waits for the last).
   async guestHandle(m) {
     if (!Coop.isGuest || !G.state) return;
@@ -308,7 +308,8 @@ class App {
         sc?.eventView?.(m);
         break;
       }
-      case 'note': toast(t(m.text, m.vars || {})); break;
+      case 'note': if (m.close) this.closeGuestModals(); toast(t(m.text, m.vars || {})); break;
+      case 'enc': this.closeGuestModals(); sc?.encounterPrompt(m.enc, { name: m.name }, true); break;
       case 'battle': {
         this.closeGuestModals();
         st.nextBuff = m.nextBuff || null;

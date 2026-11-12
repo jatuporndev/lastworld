@@ -62,7 +62,7 @@ export class BattleScene {
   }
   async apply(c) {
     const b = this.battle; const u = b.current;
-    this.cmdN++; this.applying = true; this.inputOn = false;
+    this.cmdN++; this.applying = true; this.inputOn = false; this.hoverCell = null; this.world.setHover(null);
     try {
       switch (c.k) {
         case 'move': await b.heroMove(u, { q: c.q, r: c.r }); break;
@@ -135,7 +135,7 @@ export class BattleScene {
     const st = el.querySelector('.ul-status'); st.replaceChildren(...statusChips(u));
     const it = el.querySelector('.ul-intent');
     if (u.intent && u.alive) {
-      const i = u.intent; const val = i.power != null ? (i.hits > 1 ? `${pw(i)}×${i.hits}` : pw(i)) : i.blockValue || '';
+      const i = u.intent; const val = i.power != null ? (i.hits > 1 ? `${pw(i)}×${i.hits}` : pw(i)) : i.blockValue || (i.k === 'wait' && i.turns ? i.turns : '');
       it.className = 'ul-intent on k-' + i.k;
       it.replaceChildren(icon(INTENT_ICON[i.k], '#fff', 16), val ? h('b', val) : null);
       it.dataset.tip = this.intentText(u);
@@ -288,12 +288,13 @@ export class BattleScene {
     this.setHint();
   }
 
+  waitForHost() { if (this.el) { this.el.hint.textContent = tr('Waiting for the host…'); this.el.hint.classList.add('on'); } }
   setHint() {
     const u = this.hero(); let t = '';
-    if (u && this.coop && !this.canControl(u)) t = tr('{player} is playing {name}…', { player: this.ownerName(u), name: u.name });
+    if (u && this.coop && !this.canControl(u)) t = tr("{player}'s turn — wait for them…", { player: this.ownerName(u) });
     else if (!u || !this.inputOn) t = this.battle.current && !this.battle.current.cards ? tr("{name}'s turn…", { name: this.battle.current.name }) : '';
     else if (this.pending) t = this.pending.T.mode === 'dir' ? tr('Choose a direction — right-click to cancel') : tr('Choose a target — right-click to cancel');
-    else if (!u.moved && !u.plan.length && this.battle.moveBudget(u) > 0) t = tr('Click a blue hex to move · Drag cards into Action Slots');
+    else if (!u.moved && !u.plan.length && this.battle.moveBudget(u) > 0) t = (this.coop ? tr('Your turn') + ' · ' : '') + tr('Click a blue hex to move · Drag cards into Action Slots');
     else t = tr(u.plan.length ? 'Execute your plan, or add more cards' : 'Drag cards into Action Slots · End Turn when done');
     this.el.hint.textContent = t; this.el.hint.classList.toggle('on', !!t);
   }

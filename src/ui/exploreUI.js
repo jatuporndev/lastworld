@@ -58,6 +58,7 @@ export class ExploreScene {
       this.el.party, this.el.hint, this.world.camControls(),
       h('div.x-legend', ...[['sword', '#e05a4a', 'Monsters'], ['horns', '#ff8a2a', 'Mini Boss'], ['crown', '#ff3050', 'MVP Boss'], ['chest', '#ffd24a', 'Treasure'], ['gem', '#6fe0c0', 'Resources'], ['question', '#c9a0ff', 'Event'], ['camp', '#7fe08a', 'Rest'], ['coin', '#ffc050', 'Shop'], ['shrine', '#9ad8ff', 'Shrine']].map(([i, c, n]) => h('span', icon(i, c, 16), t(n)))));
     ui().appendChild(this.hud);
+    if (this.spectator) { this.el.hint.textContent = t('The host leads the party. Click a hex to suggest where to go.'); this.el.hint.classList.add('on'); }
     this.refreshHud();
   }
 
@@ -170,9 +171,9 @@ export class ExploreScene {
     switch (node.type) {
       case 'monster': case 'mini': case 'boss': {
         const enc = sm.encounterFor(c);
-        if (Coop.isHost) Coop.send({ t: 'note', text: 'The host is deciding whether to fight {name}…', vars: { name: node.name } });
+        this.share('enc', { enc: { kind: enc.kind, enemies: enc.enemies }, name: node.name });
         const go = await this.encounterPrompt(enc, node);
-        if (go) await this.app.startBattle(enc, c); else await this.retreat();
+        if (go) await this.app.startBattle(enc, c); else { this.share('note', { text: 'The host retreated.', close: true }); await this.retreat(); }
         break;
       }
       case 'treasure': { audio.sfx('chest'); const r = sm.openTreasure(c); this.clearNode(c); this.share('loot', { kind: 'treasure', cell: { q: c.q, r: c.r } }); await lootModal(t('Treasure Cache'), r); break; }
@@ -209,7 +210,8 @@ export class ExploreScene {
       { title: m.title, cls: 'narrow event-modal coop-view' });
   }
 
-  encounterPrompt(enc, node) {
+  // `view`: a guest's read-only copy, shown while the host decides
+  encounterPrompt(enc, node, view = false) {
     return new Promise((res) => {
       const boss = enc.kind === 'boss';
       if (boss) audio.sfx('boss');
@@ -218,8 +220,8 @@ export class ExploreScene {
         h('div.enc-row', ...Object.entries(counts).map(([id, n]) => { const d = MONSTERS[id];
           return h('div.enc-mon' + (d.rank !== 'normal' ? '.big' : ''), monsterSprite(id, { size: d.rank === 'mvp' ? 200 : d.rank === 'mini' ? 150 : 110, anim: 'idle' }), h('div.enc-name', d.name, n > 1 ? ` ×${n}` : ''), h('div.enc-sub', `Lv ${d.level}${d.weak.length ? ' · ' + t('Weak: ') + d.weak.map((e) => ELEMENTS[e].name).join(', ') : ''}`)); })),
         boss ? h('p.enc-quote', `“${MONSTERS[enc.enemies[0]].quote}”`) : null,
-        h('div.row.center', btn(t('Retreat'), () => { m.close(); res(false); }), btn(t(boss ? 'Challenge the MVP' : 'Fight'), () => { m.close(); res(true); }, { cls: 'primary' }))),
-      { title: boss ? t('MVP Boss') : node.name, closable: false, cls: boss ? 'boss-modal' : '' });
+        view ? h('p.note.center', t('The host is deciding whether to fight…')) : h('div.row.center', btn(t('Retreat'), () => { m.close(); res(false); }), btn(t(boss ? 'Challenge the MVP' : 'Fight'), () => { m.close(); res(true); }, { cls: 'primary' }))),
+      { title: boss ? t('MVP Boss') : node.name, closable: false, cls: [boss ? 'boss-modal' : '', view ? 'coop-view' : ''].filter(Boolean).join(' ') });
     });
   }
 

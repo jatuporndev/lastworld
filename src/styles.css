@@ -746,6 +746,16 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .card .dchip { margin-left: 0; background: rgba(18, 34, 86, 0.9); border-color: #e9b45a; border-radius: 0.2em; } .card .dchip b { color: #ffe08a; }
 .card-key { position: absolute; }
 
+/* the "play with friends" window is paper too: readable labels, light pickers, a faint example code */
+.auth-modal .auth-label { color: var(--dim-d); } .auth-modal .auth-sub { color: var(--dim-d); }
+.coop-box { border: 0; background: var(--paper2); } .coop-box h3 { color: var(--accent); } .coop-box p { color: var(--ink-d); }
+.lb-select { background: var(--scene); color: var(--ink-d); border: 0.08em solid var(--paper3); }
+.code-input::placeholder { color: var(--paper3); }
+
+/* Undo and Items are paper tags, so they read as buttons and not as headings above Execute / End Turn */
+.b-buttons .btn.small { background: var(--paper); color: var(--ink-d); text-shadow: none; border-radius: 0.3em; box-shadow: 0 0.15em 0 rgba(0, 0, 0, 0.3); }
+.b-buttons .btn.small:hover:not(:disabled) { background: var(--coin); } .b-buttons .btn.small:disabled { opacity: 0.45; }
+
 /* ── phones ──
    The game is a wide tabletop, so phones play it in landscape. A short screen gets a larger base
    font than the desktop formula would give (text stays readable) and a compact HUD to make room. */
