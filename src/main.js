@@ -228,7 +228,7 @@ class App {
     if (before !== party.map((x) => x.owner + x.cls).join() && this.scene instanceof ExploreScene) this.scene.rebuildParty?.();
     this.refreshHud();
   }
-  queueHeroSync() { if (!Coop.active || this.inBattle) return; clearTimeout(this._heroT); this._heroT = setTimeout(() => this.syncHeroNow(), 1200); }
+  queueHeroSync() { if (!Coop.active || this.inBattle) return; clearTimeout(this._heroT); this._heroT = setTimeout(() => this.syncHeroNow(), 2500); }
   syncHeroNow() { const mine = myHeroes()[0]; if (Coop.active && mine) Coop.publishHero(this.heroSnap(mine)); }
   async hostRoom(worldId, charId, name) {
     openSession(worldId, charId);

@@ -77,10 +77,10 @@ export const Coop = {
         for (const id of Object.keys(this.players)) if (!before[id] && id !== this.me) bus.emit('coop:join', id);
         for (const id of Object.keys(before)) if (!this.players[id]) bus.emit('coop:left', id);
       }
-      if (this.isGuest && before[this.me] && !this.players[this.me]) { this._reset(); bus.emit('coop:closed', 'kicked'); return; }
+      if (this.isGuest && !this._leaving && before[this.me] && !this.players[this.me]) { this._reset(); bus.emit('coop:closed', 'kicked'); return; }
       bus.emit('coop:players');
     });
-    on(this._ref('/host'), 'value', (s) => { if (!s.exists() && this.code) { const was = this.isGuest; this._reset(); if (was) bus.emit('coop:closed'); } });
+    on(this._ref('/host'), 'value', (s) => { if (!s.exists() && this.code && !this._leaving) { const was = this.isGuest; this._reset(); if (was) bus.emit('coop:closed'); } });
     const q = this._from ? fd.query(this._ref('/log'), fd.orderByKey(), fd.startAfter(this._from)) : fd.query(this._ref('/log'), fd.orderByKey(), fd.startAfter(fd.push(this._ref('/log')).key));
     on(q, 'child', (s) => { const m = s.val(); if (m && m.from !== this.me) bus.emit('coop:msg', m); });
     on(this._ref('/pings'), 'value', (s) => bus.emit('coop:pings', s.val() || {}));
@@ -92,7 +92,8 @@ export const Coop = {
     const json = JSON.parse(JSON.stringify({ ...msg, from: this.me })); // strips undefined / class instances
     this._fd.push(this._ref('/log'), json).catch((e) => console.warn('[co-op] send failed', e));
   },
-  ping(q, r) { if (this.code) this._fd.set(this._ref(`/pings/${this.me}`), { q, r, ts: Date.now() }); },
+  // at most one ping a second: a burst of clicks is one marker, not a write each
+  ping(q, r) { const now = Date.now(); if (!this.code || now - (this._pingAt || 0) < 1000) return; this._pingAt = now; this._fd.set(this._ref(`/pings/${this.me}`), { q, r, ts: now }); },
 
   // ── heroes ──
   colorOf(id) { const ids = this.partyIds(); return PLAYER_COLORS[Math.max(0, ids.indexOf(id)) % PLAYER_COLORS.length]; },
@@ -100,23 +101,30 @@ export const Coop = {
   // Party order (host first, then by join time) — identical on every client.
   partyIds() { return Object.keys(this.players).sort((a, b) => (a === this.hostId ? -1 : b === this.hostId ? 1 : (this.players[a].joined || 0) - (this.players[b].joined || 0))); },
   heroOf(id) { return this.players[id]?.hero || null; },
-  publishHero(hero) { if (this.code) this._fd.set(this._ref(`/players/${this.me}/hero`), JSON.parse(JSON.stringify(hero))).catch((e) => console.warn('[co-op] hero sync failed', e)); },
+  // The snapshot is written only when it differs from the one the room already has (every write is sent to every player).
+  publishHero(hero) {
+    if (!this.code) return; const json = JSON.stringify(hero);
+    if (json === this._heroJson) return; this._heroJson = json;
+    this._fd.set(this._ref(`/players/${this.me}/hero`), JSON.parse(json)).catch((e) => { this._heroJson = null; console.warn('[co-op] hero sync failed', e); });
+  },
   // May this client act for a hero? Its owner, or the host when the owner has left.
   controls(owner) { return !this.code || owner === this.me || (this.isHost && !this.players[owner]); },
   kick(id) { if (this.isHost) this._fd.remove(this._ref(`/players/${id}`)); },
 
   async leave() {
     if (!this.code) return;
-    try {
-      if (this.isHost) await this._fd.remove(this._ref());
-      else { await this._fd.remove(this._ref(`/players/${this.me}`)); await this._fd.remove(this._ref(`/pings/${this.me}`)); }
-    } catch (e) { /* ignore */ }
+    // Our own removal reaches our listeners at once; they must not treat it as "the room closed on us",
+    // and must not drop the connection before the server has the write (it would then never be confirmed).
+    this._leaving = true;
+    const gone = this.isHost ? this._fd.remove(this._ref()) : Promise.all([this._fd.remove(this._ref(`/players/${this.me}`)), this._fd.remove(this._ref(`/pings/${this.me}`))]);
+    await Promise.race([gone.catch(() => {}), new Promise((r) => setTimeout(r, 2500))]);
+    this._leaving = false;
     this._reset();
   },
   _reset() {
     this._offs.forEach((off) => off?.());
     this._offs = []; const had = !!this.code || this.role;
-    this.code = null; this.role = null; this.players = {}; this._from = null;
+    this.code = null; this.role = null; this.players = {}; this._from = null; this._heroJson = null;
     if (had && this._fd) Net.release();
     bus.emit('coop:players');
   },

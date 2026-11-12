@@ -501,6 +501,10 @@ export class Battle {
     const comboCat = card.combo && u.lastCat === card.combo.after;
     if (u.status.stealth && card.cat === 'attack') delete u.status.stealth;
     await this.emit('cardPlay', { unit: u, card, slot, combo: comboCat });
+    // the dice are rolled and read before the hero moves, so a charge lands as one motion: roll, rush, hit
+    const hasEffect = card.fx.some((f) => !['move', 'teleport', 'dash'].includes(f.t));
+    const dice = hasEffect ? this.rollDice(u, card, e.extra || 0) : null; // only the side playing the card rolls
+    if (dice) await this.emit('dice', { unit: u, card, dice });
 
     // movement component first
     const f0 = card.fx[0].t;
@@ -527,9 +531,6 @@ export class Battle {
       victims = pool.filter((v) => this.cellsOf(v).some((c) => cells.some((x) => Hex.hexEq(x, c))));
       if (card.allies && !victims.includes(u)) victims.unshift(u);
     }
-    const hasEffect = card.fx.some((f) => !['move', 'teleport', 'dash'].includes(f.t));
-    const dice = hasEffect ? this.rollDice(u, card, e.extra || 0) : null; // only the side playing the card rolls
-    if (dice) await this.emit('dice', { unit: u, card, dice });
     if (hasEffect) await this.emit('cast', { unit: u, card, cells, targets: victims, target: target || origin });
 
     const evaded = new Set(); const diceHit = new Set();

@@ -2,16 +2,16 @@
 import { h, fmt } from '../core/util.js';
 import { t, LANG, setLang } from '../core/i18n.js';
 import { audio } from '../core/audio.js';
-import { G, myHeroes, touch, deckCount, usedCopies, canAddToDeck, canRemoveFromDeck, tryUpgradeCard, tryCraftCard, tryDismantle, equipItem, unequip, sellItem, useConsumable, questStatus, claimQuest, claimableQuests, progress, addItem } from '../game/state.js';
+import { G, myHeroes, touch, deckCount, usedCopies, canAddToDeck, canRemoveFromDeck, tryUpgradeCard, tryCraftCard, tryDismantle, equipItem, unequip, sellItem, useConsumable, questStatus, claimQuest, progress, addItem } from '../game/state.js';
 import { computeStats, attributes, canLearn, learnSkill, canEquip, clampVitals } from '../game/character.js';
 import { CLASSES, SKILL_TREES, STAT_INFO, expToNext } from '../data/classes.js';
 import { CARDS, RARITY, MAX_CARD_LEVEL, upgradeCost, DECK_MIN, DECK_MAX } from '../data/cards.js';
 import { CONSUMABLES, MATERIALS, RECIPES, BASES, ITEM_RARITY, makeEquipment } from '../data/items.js';
 import { QUESTS } from '../data/events.js';
 import { Net } from '../net/firebase.js';
-import { openModal, cardEl, itemEl, heroSprite, bar, btn, icon, toast, toggleFullscreen, confirmBox } from './components.js';
+import { openModal, cardEl, itemTip, heroSprite, bar, btn, icon, toast, toggleFullscreen, confirmBox, dragPiece } from './components.js';
 
-const TABS = [['hero', 'Heroes', 'crown'], ['equip', 'Equipment', 'armor'], ['deck', 'Deck', 'book'], ['forge', 'Forge', 'anvil'], ['quests', 'Quests', 'flag'], ['system', 'System', 'star']];
+const TABS = [['hero', 'Heroes', 'crown'], ['equip', 'Bag', 'bag'], ['deck', 'Deck', 'book'], ['forge', 'Forge', 'anvil'], ['system', 'System', 'star']];
 let sel = 0; // selected hero index
 
 export function openMenu(app, tab = 'hero') {
@@ -20,14 +20,30 @@ export function openMenu(app, tab = 'hero') {
   const body = h('div.menu-body'); const tabs = h('div.menu-tabs'); const res = h('div.menu-res');
   const root = h('div.menu', h('div.menu-side', tabs, res), body);
   const m = openModal(root, { cls: 'menu-modal', title: t("Adventurer's Journal") });
+  if (tab === 'quests') tab = 'hero';
+  let shown = null;
   const render = () => {
-    tabs.replaceChildren(...TABS.map(([id, label, ic]) => h('button.tab' + (id === tab ? '.on' : ''), { onclick: () => { tab = id; audio.sfx('click'); render(); } }, icon(ic, '#f4e4bc', 20), h('span', t(label)), id === 'quests' && claimableQuests() ? h('i.pip', claimableQuests()) : null)));
+    tabs.replaceChildren(...TABS.map(([id, label, ic]) => h('button.tab' + (id === tab ? '.on' : ''), { onclick: () => { tab = id; audio.sfx('click'); render(); } }, icon(ic, '#f4e4bc', 20), h('span', t(label)))));
     res.replaceChildren(h('div.res', icon('coin', '#ffd24a', 18), fmt(st.gold), h('small', t('Gold'))), h('div.res', icon('gem', '#9ad8ff', 18), fmt(st.shards), h('small', t('Shards'))));
-    body.replaceChildren(({ hero: heroTab, equip: equipTab, deck: deckTab, forge: forgeTab, quests: questTab, system: systemTab })[tab](render, app, m));
+    // a change inside a page redraws it where it stands: lists keep their scroll and the page does not slide in again
+    const scroll = shown === tab ? [...body.querySelectorAll('.scroll')].map((x) => x.scrollTop) : [];
+    const page = ({ hero: heroTab, equip: equipTab, deck: deckTab, forge: forgeTab, system: systemTab })[tab](render, app, m);
+    if (shown !== tab) page.classList.add('fresh');
+    shown = tab; body.replaceChildren(page);
+    body.querySelectorAll('.scroll').forEach((x, i) => { if (scroll[i]) x.scrollTop = scroll[i]; });
     app.refreshHud?.();
   };
   render();
   return m;
+}
+
+// The quest log: its own paper sheet, opened from the quest token.
+export function openQuests(app) {
+  if (!G.state) return;
+  const body = h('div.quest-log');
+  const render = () => { const top = body.firstChild?.scrollTop || 0; body.replaceChildren(questTab(render)); body.firstChild.scrollTop = top; app.refreshHud?.(); };
+  render();
+  return openModal(body, { cls: 'wide quest-modal', title: t('Quests') });
 }
 
 function heroPicker(render) {
@@ -58,27 +74,63 @@ function heroTab(render) {
       h('div.hero-col.wide', h('div.sec-title', t('Skill Tree'), h('span.points' + (hero.skillPoints ? '.has' : ''), `${hero.skillPoints} SP`)), h('div.tree', branch(0), branch(1)))));
 }
 
-// ───── Equipment & inventory ─────
+// ───── Bag: equipment slots and one grid of everything carried ─────
+// Each thing is a square cell holding only its icon. Point at a cell to read it; press it to pick it and
+// get its actions; drag gear onto a slot to wear it, off a slot to take it off, or onto the coin to sell it.
+let picked = null; // { k: 'gear' | 'slot' | 'cons' | 'mat', id }
+const BAG_MIN = 48;
 function equipTab(render) {
   const st = G.state; const hero = myHeroes()[sel];
+  const pick = (k, id) => { picked = picked && picked.k === k && picked.id === id ? null : { k, id }; audio.sfx('click'); render(); };
+  const on = (k, id) => (picked && picked.k === k && picked.id === id ? '.on' : '');
+  const wear = (it) => { if (equipItem(hero, it)) { audio.sfx('place'); picked = null; render(); } else { audio.sfx('error'); toast(t('{cls} cannot equip {type}', { cls: CLASSES[hero.cls].name, type: t(it.type) }), 'bad'); } };
+  const takeOff = (name) => { unequip(hero, name); audio.sfx('close'); picked = null; render(); };
+  const sell = async (it) => { const n = Math.round(it.value * 0.4);
+    if (!(await confirmBox(t('Sell Item'), t('Sell {name} for {n} gold? This cannot be undone.', { name: it.name, n }), t('Sell {n}g', { n })))) return;
+    sellItem(it); audio.sfx('coin'); picked = null; render(); };
+  const use = (id) => { const c = CONSUMABLES[id];
+    if (useConsumable(id, hero)) { audio.sfx('heal'); toast(t('{hero} used {item}', { hero: hero.name, item: c.name })); if (!st.inv.cons[id]) picked = null; render(); }
+    else { audio.sfx('error'); toast(t(c.use.bomb ? 'Only usable in battle' : 'Cannot use that now'), 'bad'); } };
+  const ghost = (ic, color) => h('div.cell.ghost', icon(ic, color, 40));
+  const gearCell = (it, extra = {}) => { const r = ITEM_RARITY[it.rarity];
+    const el = h('div.cell.gear' + (canEquip(hero, it) ? '' : '.dim') + on(extra.slot ? 'slot' : 'gear', extra.slot || it.uid), { style: { '--rar': r.color }, 'data-tip-html': itemTip(it), 'data-drop': extra.slot ? 'slot:' + extra.slot : null,
+      onclick: () => pick(extra.slot ? 'slot' : 'gear', extra.slot || it.uid), ondblclick: () => (extra.slot ? takeOff(extra.slot) : wear(it)) }, icon(it.icon, r.color, 40), h('i.cell-rar'));
+    dragPiece(el, { ghost: () => ghost(it.icon, r.color), onDrop: (zone) => {
+      if (extra.slot) { if (zone === 'bag') takeOff(extra.slot); }
+      else if (zone.startsWith('slot:')) wear(it); else if (zone === 'sell') sell(it); } });
+    return el; };
   const slot = (name) => { const it = hero.equip[name];
-    return h('div.eq-slot', h('div.eq-label', t(name)), it ? itemEl(it, { onClick: () => { unequip(hero, name); audio.sfx('close'); render(); }, tag: t('Unequip') }) : h('div.item.empty', t('Empty'))); };
+    return h('div.eq-slot', it ? gearCell(it, { slot: name }) : h('div.cell.empty.slot', { 'data-drop': 'slot:' + name }), h('div.eq-label', t(name))); };
   const items = st.inv.equip.slice().sort((a, b) => b.tier - a.tier || b.value - a.value);
+  const cells = [
+    ...items.map((it) => gearCell(it)),
+    ...Object.entries(st.inv.cons).map(([id, n]) => { const c = CONSUMABLES[id];
+      return h('div.cell' + on('cons', id), { style: { '--rar': c.color }, 'data-tip': `${c.name} — ${c.desc}`, onclick: () => pick('cons', id), ondblclick: () => use(id) }, icon(c.icon, c.color, 40), h('b.cell-n', n)); }),
+    ...Object.entries(st.inv.mats).map(([id, n]) => { const c = MATERIALS[id];
+      return h('div.cell' + on('mat', id), { style: { '--rar': c.color }, 'data-tip': t('{name} — a material for the Forge', { name: c.name }), onclick: () => pick('mat', id) }, icon('gem', c.color, 40), h('b.cell-n', n)); }),
+  ];
+  const used = cells.length;
+  while (cells.length < BAG_MIN || cells.length % 8) cells.push(h('div.cell.empty'));
+  // the slip under the hero: what is picked, and what can be done with it
+  let detail = h('div.bag-detail.none', t('Point at an item to read it. Press it for its actions, drag it onto a slot to wear it, or onto the coin to sell it.'));
+  if (picked) {
+    const gear = picked.k === 'gear' ? items.find((x) => x.uid === picked.id) : picked.k === 'slot' ? hero.equip[picked.id] : null;
+    if (gear) { const html = h('div.bag-tip'); html.innerHTML = itemTip(gear);
+      detail = h('div.bag-detail', html, h('div.row', picked.k === 'slot' ? btn(t('Unequip'), () => takeOff(picked.id), { cls: 'small primary' }) : btn(t('Equip'), () => wear(gear), { cls: 'small primary', disabled: !canEquip(hero, gear) }),
+        picked.k === 'gear' ? btn(t('Sell {n}g', { n: Math.round(gear.value * 0.4) }), () => sell(gear), { cls: 'small' }) : null)); }
+    else if (picked.k === 'cons' && st.inv.cons[picked.id]) { const c = CONSUMABLES[picked.id];
+      detail = h('div.bag-detail', h('div.bag-tip', h('div.tip-title', `${c.name} ×${st.inv.cons[picked.id]}`), h('div.tip-sub', c.desc)), h('div.row', btn(t('Use on {name}', { name: hero.name }), () => use(picked.id), { cls: 'small primary' }))); }
+    else if (picked.k === 'mat' && st.inv.mats[picked.id]) { const c = MATERIALS[picked.id];
+      detail = h('div.bag-detail', h('div.bag-tip', h('div.tip-title', `${c.name} ×${st.inv.mats[picked.id]}`), h('div.tip-sub', t('A material. The Forge turns materials into equipment.')))); }
+  }
   return h('div.tab-equip', heroPicker(render),
     h('div.equip-cols',
-      h('div.eq-col', h('div.sec-title', t("{name}'s Equipment", { name: hero.name })), slot('weapon'), slot('armor'), slot('accessory'),
-        h('div.sec-title', t('Consumables')),
-        h('div.item-list', ...(Object.keys(st.inv.cons).length ? Object.entries(st.inv.cons).map(([id, n]) => { const c = CONSUMABLES[id];
-          return h('div.item', { style: { '--rar': c.color }, onclick: () => { if (useConsumable(id, hero)) { audio.sfx('heal'); toast(t('{hero} used {item}', { hero: hero.name, item: c.name })); render(); } else { audio.sfx('error'); toast(t(c.use.bomb ? 'Only usable in battle' : 'Cannot use that now'), 'bad'); } } },
-            h('div.item-icon', icon(c.icon, c.color, 30)), h('div.item-info', h('div.item-name', c.name), h('div.item-sub', c.desc)), h('div.item-tag', '×' + n)); }) : [h('div.empty-note', t('No consumables'))])),
-        h('div.sec-title', t('Materials')),
-        h('div.mats', ...(Object.keys(st.inv.mats).length ? Object.entries(st.inv.mats).map(([id, n]) => h('div.mat', { style: { '--c': MATERIALS[id].color } }, h('i'), MATERIALS[id].name, h('b', '×' + n))) : [h('div.empty-note', t('No materials yet'))]))),
-      h('div.eq-col.grow', h('div.sec-title', t('Inventory ({n})', { n: items.length }), h('span.points', t('Click to equip'))),
-        h('div.item-list.scroll', ...(items.length ? items.map((it) => { const ok = canEquip(hero, it);
-          const row = itemEl(it, { onClick: () => { if (equipItem(hero, it)) { audio.sfx('place'); render(); } else { audio.sfx('error'); toast(t('{cls} cannot equip {type}', { cls: CLASSES[hero.cls].name, type: t(it.type) }), 'bad'); } } });
-          if (!ok) row.classList.add('dim');
-          row.appendChild(h('button.mini', { onclick: (e) => { e.stopPropagation(); sellItem(it); audio.sfx('coin'); render(); } }, t('Sell {n}g', { n: Math.round(it.value * 0.4) })));
-          return row; }) : [h('div.empty-note', t('Your pack is empty. Defeat monsters and open treasure to find gear.'))])))));
+      h('div.eq-col', h('div.sec-title', t("{name}'s Equipment", { name: hero.name })),
+        h('div.bag-doll', h('div.hero-stage', heroSprite(hero, { size: 150, zoom: 1.1 })), h('div.bag-slots', slot('weapon'), slot('armor'), slot('accessory'))),
+        detail),
+      h('div.eq-col.grow', h('div.sec-title', t('Inventory ({n})', { n: used }),
+          h('div.cell.sell', { 'data-drop': 'sell', 'data-tip': t('Drag an item here to sell it') }, icon('coin', '#b07a10', 26), h('small', t('Sell')))),
+        h('div.bag-grid.scroll', { 'data-drop': 'bag' }, ...cells))));
 }
 
 // ───── Deck builder + card upgrades ─────
@@ -87,12 +139,15 @@ function deckTab(render) {
   const deckIds = [...new Set(hero.deck)].sort((a, b) => CARDS[a].cost - CARDS[b].cost || a.localeCompare(b));
   const pool = Object.keys(st.cards).filter((id) => CARDS[id] && (CARDS[id].cls === 'any' || CARDS[id].cls === hero.cls)).sort((a, b) => CARDS[a].cost - CARDS[b].cost || a.localeCompare(b));
   const deckCard = (id) => { const el = cardEl(id, st.cards[id]?.lv || 0, { small: true, count: deckCount(hero, id) });
-    el.dataset.tip = t('Click to remove from deck');
-    el.onclick = () => { if (!canRemoveFromDeck(hero)) { toast(t('A deck needs at least {n} cards', { n: DECK_MIN }), 'bad'); audio.sfx('error'); return; } hero.deck.splice(hero.deck.indexOf(id), 1); touch(); audio.sfx('close'); render(); };
+    const take = () => { if (!canRemoveFromDeck(hero)) { toast(t('A deck needs at least {n} cards', { n: DECK_MIN }), 'bad'); audio.sfx('error'); return; } hero.deck.splice(hero.deck.indexOf(id), 1); touch(); audio.sfx('close'); render(); };
+    el.onclick = take;
+    dragPiece(el, { ghost: () => cardEl(id, st.cards[id]?.lv || 0, { small: true }), onDrop: (zone) => { if (zone === 'pool') take(); } });
     return el; };
   const poolCard = (id) => { const c = st.cards[id]; const free = c.n - usedCopies(id); const card = CARDS[id]; const cost = upgradeCost(card, c.lv);
     const el = cardEl(id, c.lv, { small: true, count: free });
-    el.onclick = () => { if (canAddToDeck(hero, id)) { hero.deck.push(id); touch(); audio.sfx('place'); render(); } else { audio.sfx('error'); toast(hero.deck.length >= DECK_MAX ? t('Deck is full ({n})', { n: DECK_MAX }) : t('No free copies'), 'bad'); } };
+    const put = () => { if (canAddToDeck(hero, id)) { hero.deck.push(id); touch(); audio.sfx('place'); render(); } else { audio.sfx('error'); toast(hero.deck.length >= DECK_MAX ? t('Deck is full ({n})', { n: DECK_MAX }) : t('No free copies'), 'bad'); } };
+    el.onclick = put;
+    dragPiece(el, { ghost: () => cardEl(id, c.lv, { small: true }), onDrop: (zone) => { if (zone === 'deck') put(); } });
     if (free <= 0) el.classList.add('dim');
     return h('div.pool-item', el,
       h('div.pool-actions',
@@ -100,8 +155,8 @@ function deckTab(render) {
         h('button.mini', { 'data-tip': t('Dismantle one copy for {n} shards', { n: RARITY[card.rarity].shards }), disabled: free <= 0, onclick: () => { if (tryDismantle(id)) { audio.sfx('coin'); render(); } } }, `✂ +${RARITY[card.rarity].shards}◆`))); };
   return h('div.tab-deck', heroPicker(render),
     h('div.deck-cols',
-      h('div.deck-col', h('div.sec-title', t("{name}'s Deck", { name: hero.name }), h('span.points' + (hero.deck.length < DECK_MIN ? '.has' : ''), t('{n} / {max} cards (min {min})', { n: hero.deck.length, max: DECK_MAX, min: DECK_MIN }))), h('div.card-grid.scroll', ...deckIds.map(deckCard))),
-      h('div.deck-col', h('div.sec-title', t('Collection'), h('span.points', t('Click a card to add it'))), h('div.card-grid.scroll', ...pool.map(poolCard)))));
+      h('div.deck-col', h('div.sec-title', t("{name}'s Deck", { name: hero.name }), h('span.points' + (hero.deck.length < DECK_MIN ? '.has' : ''), t('{n} / {max} cards (min {min})', { n: hero.deck.length, max: DECK_MAX, min: DECK_MIN }))), h('div.card-grid.scroll', { 'data-drop': 'deck' }, ...deckIds.map(deckCard))),
+      h('div.deck-col', h('div.sec-title', t('Collection'), h('span.points', t('Drag or click a card to move it'))), h('div.card-grid.scroll', { 'data-drop': 'pool' }, ...pool.map(poolCard)))));
 }
 
 // ───── Forge: craft equipment and cards ─────
@@ -128,7 +183,7 @@ function questTab(render) {
       h('div.q-info', h('div.q-title', q.title), h('div.q-desc', q.desc), bar('exp', s.v, q.n)),
       h('div.q-reward', r.gold ? h('span', t('{n} gold', { n: r.gold })) : null, r.shards ? h('span', t('{n} shards', { n: r.shards })) : null, r.item ? h('span', CONSUMABLES[r.item].name) : null),
       s.claimed ? h('div.q-done', t('✔ Claimed')) : btn(t('Claim'), () => { if (claimQuest(q)) { audio.sfx('coin'); audio.sfx('levelup'); render(); } }, { cls: 'small primary', disabled: !s.done })); };
-  return h('div.tab-quests', h('div.sec-title', t('Campaign')), ...QUESTS.filter((q) => q.type === 'main').map(row), h('div.sec-title', t('Side Quests')), ...QUESTS.filter((q) => q.type === 'side').map(row));
+  return h('div.tab-quests.scroll', h('div.sec-title', t('Campaign')), ...QUESTS.filter((q) => q.type === 'main').map(row), h('div.sec-title', t('Side Quests')), ...QUESTS.filter((q) => q.type === 'side').map(row));
 }
 
 // ───── System ─────

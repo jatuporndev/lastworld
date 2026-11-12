@@ -11,8 +11,8 @@ import { MONSTERS } from '../data/monsters.js';
 import { UNIQUES } from '../data/items.js';
 import { CARDS } from '../data/cards.js';
 import { Net } from '../net/firebase.js';
-import { ui, btn, icon, openModal, heroSprite, monsterSprite, cardEl, toast, toggleFullscreen, confirmBox, bar, bagButton } from './components.js';
-import { openMenu } from './panels.js';
+import { ui, btn, icon, openModal, heroSprite, monsterSprite, cardEl, toast, toggleFullscreen, confirmBox, bar, bagButton, questButton } from './components.js';
+import { openMenu, openQuests } from './panels.js';
 import { coopModal, inviteFriends } from './coopUI.js';
 import { Coop } from '../net/coop.js';
 
@@ -257,7 +257,7 @@ export function worldMapScreen(app) {
   const el = h('div.screen.wm-screen',
     h('div.wm-top', h('h2', G.profile.worlds[st.worldId]?.name || t('The Sundered Realms')),
       h('div.wm-party', ...st.party.map((p) => { const cs = computeStats(p); return h('div.p-card', { onclick: () => openMenu(app, 'hero') }, h('div.p-portrait', heroSprite(p, { size: 64, zoom: 1.5, oy: 0.3 })), h('div.p-body', h('div.p-name', p.name, h('span', ` Lv ${p.level}`), p.statPoints + p.skillPoints > 0 ? h('i.pip', '!') : null), bar('hp', p.hp, cs.hp), bar('mp', p.mp, cs.mp))); }),
-        bagButton(() => openMenu(app), myHeroes().reduce((s, p) => s + p.statPoints + p.skillPoints, 0) + q)),
+        bagButton(() => openMenu(app), myHeroes().reduce((s, p) => s + p.statPoints + p.skillPoints, 0)), questButton(() => openQuests(app), q)),
       h('div.wm-actions', h('div.res', icon('coin', '#ffd24a', 18), fmt(st.gold)), h('div.res', icon('gem', '#9ad8ff', 18), fmt(st.shards)),
         btn(t('Forge'), () => openMenu(app, 'forge'), { cls: 'small', iconName: 'anvil' }), Coop.active ? null : btn(t('Invite Friends'), () => inviteFriends(app), { cls: 'small', iconName: 'banner', tip: t('Open this world to friends (online co-op)'), disabled: !Net.online }), btn(t('Title'), () => app.toTitle(), { cls: 'small' }))),
     h('div.wm-main', h('div.wm-map', h('div.wm-parchment'), svg, nodes, h('div.wm-compass', '✦')), detail));

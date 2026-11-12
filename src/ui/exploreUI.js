@@ -11,8 +11,8 @@ import { CLASSES, heroLook } from '../data/classes.js';
 import { MONSTERS } from '../data/monsters.js';
 import { CARDS } from '../data/cards.js';
 import { CONSUMABLES, MATERIALS } from '../data/items.js';
-import { ui, openModal, btn, icon, toast, cardEl, itemEl, monsterSprite, heroSprite, bar, banner, bagButton } from './components.js';
-import { openMenu } from './panels.js';
+import { ui, openModal, btn, icon, toast, cardEl, itemEl, monsterSprite, heroSprite, bar, banner, bagButton, questButton } from './components.js';
+import { openMenu, openQuests } from './panels.js';
 import { Coop } from '../net/coop.js';
 import { bus } from '../core/util.js';
 import { lobbyModal } from './coopUI.js';
@@ -65,11 +65,11 @@ export class ExploreScene {
     if (!this.el || !G.state?.run) return; // (the expedition is over once the MVP falls)
     const st = G.state; const sm = this.sm;
     const q = claimableQuests();
-    this.el.res.replaceChildren(h('div.res', icon('coin', '#ffd24a', 18), fmt(st.gold)), h('div.res', icon('gem', '#9ad8ff', 18), fmt(st.shards)), q ? h('div.res.alert', { onclick: () => openMenu(this.app, 'quests') }, t('{n} quest(s) ready', { n: q })) : null);
+    this.el.res.replaceChildren(h('div.res', icon('coin', '#ffd24a', 18), fmt(st.gold)), h('div.res', icon('gem', '#9ad8ff', 18), fmt(st.shards)), q ? h('div.res.alert', { onclick: () => openQuests(this.app) }, t('{n} quest(s) ready', { n: q })) : null);
     this.el.party.replaceChildren(...st.party.map((hero) => { const s = computeStats(hero);
       return h('div.p-card' + (hero.hp <= 0 ? '.dead' : ''), { onclick: () => openMenu(this.app, 'hero') }, h('div.p-portrait', heroSprite(hero, { size: 64, zoom: 1.5, oy: 0.3 })),
         h('div.p-body', h('div.p-name', hero.name, h('span', ` Lv ${hero.level}`), hero.statPoints + hero.skillPoints > 0 ? h('i.pip', '!') : null), bar('hp', hero.hp, s.hp), bar('mp', hero.mp, s.mp))); }));
-    this.el.bag.replaceChildren(bagButton(() => openMenu(this.app), myHeroes().reduce((s, hero) => s + hero.statPoints + hero.skillPoints, 0) + q));
+    this.el.bag.replaceChildren(bagButton(() => openMenu(this.app), myHeroes().reduce((s, hero) => s + hero.statPoints + hero.skillPoints, 0)), questButton(() => openQuests(this.app), q));
     const left = [...sm.cells.values()].filter((c) => sm.activeNode(c));
     const boss = left.find((c) => c.node.type === 'boss');
     const bossName = MONSTERS[this.stage.boss].name;
@@ -79,7 +79,7 @@ export class ExploreScene {
   bind() {
     const cv = this.world.canvas;
     this._move = (e) => this.onMove(e); this._down = (e) => this.onDown(e);
-    this._key = (e) => { if (e.key === 'Tab') { e.preventDefault(); if (!document.querySelector('.modal-wrap')) openMenu(this.app); } else if (!document.querySelector('.modal-wrap') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) this.world.rotateBy(e.key === 'ArrowLeft' ? -1 : 1); };
+    this._key = (e) => { if (e.key === 'Tab') { e.preventDefault(); if (!document.querySelector('.modal-wrap')) openMenu(this.app); } else if ((e.key === 'q' || e.key === 'Q') && !document.querySelector('.modal-wrap')) openQuests(this.app); else if (!document.querySelector('.modal-wrap') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) this.world.rotateBy(e.key === 'ArrowLeft' ? -1 : 1); };
     this._ctx = (e) => { if (Coop.active) e.preventDefault(); };
     cv.addEventListener('pointermove', this._move); cv.addEventListener('pointerdown', this._down); window.addEventListener('keydown', this._key); cv.addEventListener('contextmenu', this._ctx);
     if (Coop.active) { this._offPing = bus.on('coop:pings', (all) => this.showPings(all)); }
@@ -203,7 +203,7 @@ export class ExploreScene {
     });
     // each hero's name floats over their head (plain text; in co-op it takes the player's colour)
     this.nameTags?.forEach((a) => w.detach(a));
-    this.nameTags = party.map((hero, i) => w.attach(h('div.unit-label', h('div.ul-inner', h('div.ul-name', { style: hero.owner ? { color: Coop.colorOf(hero.owner) } : null }, hero.name))), () => w.unitPos('party' + i, 2.4)));
+    this.nameTags = party.map((hero, i) => w.attach(h('div.unit-label.foot', h('div.ul-foot', h('div.ul-name', { style: hero.owner ? { color: Coop.colorOf(hero.owner) } : null }, hero.name))), () => w.unitPos('party' + i, 0)));
   }
   share(type, data) { if (Coop.isHost) Coop.send({ t: type, ...data }); }
   // Guests: read-only view of an event the host resolved.

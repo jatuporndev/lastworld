@@ -44,7 +44,7 @@ export const heroSprite = (hero, opts) => { const L = heroLook(hero); return spr
 export const monsterSprite = (id, opts) => spriteCanvas('mon_' + id, MONSTERS[id].look, opts);
 export const unitSprite = (u, opts) => spriteCanvas(u.spriteKey, u.look, opts);
 
-export const icon = (name, color = '#fff', size = 20) => h('img.icon', { src: iconCanvas(name, color, 64), width: size, height: size, draggable: 'false' });
+export const icon = (name, color = '#fff', size = 20) => h('img.icon', { src: iconCanvas(name, color, 64), width: size, height: size, draggable: 'false', decoding: 'sync' });
 
 // ───── cards ─────
 // A dice chip such as [■■ red ×2]; card text marks dice as ⟦red:2⟧ (see describeCard).
@@ -111,9 +111,39 @@ export function btn(label, onClick, { cls = '', disabled = false, tip = null, ic
 
 // The bag: a round paper token next to your hero. It opens the Journal (stats, gear, deck, forge, quests);
 // the red pip counts what is waiting there — unspent stat / skill points and quests ready to claim.
-export function bagButton(onClick, n = 0) {
-  return h('button.bag-btn', { 'data-tip': t('Bag — spend stat and skill points, change equipment, build your deck (Tab)'), onclick: () => { audio.init(); audio.sfx('click'); onClick(); }, onmouseenter: () => audio.sfx('hover') },
-    h('span.bag-token', icon('bag', '#3a2a20', 30)), h('small', t('Bag')), n > 0 ? h('i.pip', n) : null);
+const tokenButton = (ic, label, tip, onClick, n) => h('button.bag-btn', { 'data-tip': tip, onclick: () => { audio.init(); audio.sfx('click'); onClick(); }, onmouseenter: () => audio.sfx('hover') },
+  h('span.bag-token', icon(ic, '#3a2a20', 30)), h('small', label), n > 0 ? h('i.pip', n) : null);
+export const bagButton = (onClick, n = 0) => tokenButton('bag', t('Bag'), t('Bag — spend stat and skill points, change equipment, build your deck (Tab)'), onClick, n);
+// The quest log has its own token; its pip counts the quests whose reward is ready to claim.
+export const questButton = (onClick, n = 0) => tokenButton('flag', t('Quests'), t('Quests — see your goals and claim rewards (Q)'), onClick, n);
+
+// Drag a piece (a card, an item) onto a drop zone: any element with a `data-drop` name. A press that does
+// not move stays an ordinary click. `ghost()` builds what follows the pointer; `onDrop(zoneName, zoneEl)`.
+export function dragPiece(el, { ghost, onDrop }) {
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || e.pointerType === 'touch') return; // on touch a drag scrolls the list; tapping does the same job
+    const sx = e.clientX, sy = e.clientY; let g = null; let over = null;
+    const move = (ev) => {
+      if (!g && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 8) {
+        g = ghost(); g.classList.add('drag-piece'); document.getElementById('game').appendChild(g); el.classList.add('drag-from');
+        document.getElementById('tooltip')?.classList.remove('show'); audio.sfx('draw');
+      }
+      if (!g) return;
+      g.style.transform = `translate(${ev.clientX}px, ${ev.clientY}px) translate(-50%, -50%) rotate(-4deg)`;
+      const z = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-drop]') || null;
+      if (z !== over) { over?.classList.remove('drop-over'); over = z; over?.classList.add('drop-over'); }
+    };
+    const end = (drop) => {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel);
+      if (!g) return;
+      g.remove(); el.classList.remove('drag-from'); over?.classList.remove('drop-over');
+      // the click that follows a drag must not also count as a press on the piece
+      const eat = (ev) => { ev.stopPropagation(); ev.preventDefault(); }; window.addEventListener('click', eat, { capture: true, once: true }); setTimeout(() => window.removeEventListener('click', eat, { capture: true }), 0);
+      if (drop && over) onDrop(over.dataset.drop, over);
+    };
+    const up = () => end(true); const cancel = () => end(false);
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', cancel);
+  });
 }
 
 // ───── modal ─────

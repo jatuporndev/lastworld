@@ -451,12 +451,12 @@ export class World {
   }
 
   // ───────── fx ─────────
-  particle(pos, { color = 0xffffff, size = 0.3, life = 600, vel = new THREE.Vector3(), gravity = 0, drag = 0.98, fade = true, grow = 0, add = true, opacity = 1, swell = false } = {}) {
+  particle(pos, { color = 0xffffff, size = 0.3, life = 600, vel = new THREE.Vector3(), gravity = 0, drag = 0.98, fade = true, grow = 0, add = true, opacity = 1, swell = false, tex = null, rot = 0, spin = 0 } = {}) {
     if (this.particles.length > 700) return;
-    const m = new THREE.SpriteMaterial({ map: this.glowTex, color, transparent: true, depthWrite: false, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending, opacity: swell ? 0 : opacity, fog: !add });
+    const m = new THREE.SpriteMaterial({ map: tex || this.glowTex, color, transparent: true, depthWrite: false, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending, opacity: swell ? 0 : opacity, fog: !add && !tex, toneMapped: !tex, rotation: rot });
     const s = new THREE.Sprite(m); s.position.copy(pos); s.scale.setScalar(size); s.renderOrder = 30;
     this.fxGroup.add(s);
-    this.particles.push({ s, m, vel: vel.clone(), life, age: 0, gravity, drag, fade, grow, size, opacity, swell });
+    this.particles.push({ s, m, vel: vel.clone(), life, age: 0, gravity, drag, fade, grow, size, opacity, swell, spin });
   }
   burst(pos, { color = 0xffffff, count = 14, speed = 3, size = 0.35, life = 500, gravity = 4, up = 1.5, spread = 1 } = {}) {
     for (let i = 0; i < count; i++) {
@@ -597,7 +597,7 @@ export class World {
       const p = this.particles[i]; p.age += dt;
       if (p.age >= p.life) { this.fxGroup.remove(p.s); p.m.dispose(); this.particles.splice(i, 1); continue; }
       p.vel.y -= p.gravity * dts; p.vel.multiplyScalar(Math.pow(p.drag, dt / 16));
-      p.s.position.addScaledVector(p.vel, dts);
+      p.s.position.addScaledVector(p.vel, dts); if (p.spin) p.m.rotation += p.spin * dts;
       const k = p.age / p.life; if (p.swell) { p.m.opacity = p.opacity * Math.sin(k * Math.PI); p.s.scale.setScalar(p.size * (1 + p.grow * k)); } else { if (p.fade) p.m.opacity = p.opacity * (1 - k); p.s.scale.setScalar(p.size * (1 + p.grow * k) * (1 - k * 0.4)); }
     }
     this.spawnAmbient(dt);

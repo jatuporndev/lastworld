@@ -7,6 +7,7 @@ import { t } from '../core/i18n.js';
 const tr = t; // for scopes with a local variable named t
 import { audio } from '../core/audio.js';
 import { elColor } from '../engine/renderer.js';
+import { castVfx, dashFx, blinkFx } from '../engine/vfx.js';
 import { Battle, DICE } from '../game/combat.js';
 import { ACTION_SLOTS } from '../game/cardEngine.js';
 import { G, cardLevel } from '../game/state.js';
@@ -21,7 +22,6 @@ import { ui, cardEl, unitSprite, statusChips, bar, btn, icon, toast, banner, ope
 // A monster attack reads as its dice plus the fixed bonus, e.g. 🎲+2.
 const pw = (i) => '🎲'.repeat(i.dice || 1) + '+' + i.power;
 const INTENT_ICON = { strike: 'sword', shoot: 'arrow', aoe: 'meteor', guard: 'shield', buff: 'star', heal: 'cross', summon: 'skull', wait: 'orb' };
-const EL_SFX = { fire: 'fire', ice: 'ice', wind: 'wind', earth: 'earth', holy: 'holy', shadow: 'shadow', poison: 'poison', neutral: 'slash', arcane: 'magic' };
 
 export class BattleScene {
   constructor(app, { stage, enc, seed = Date.now(), party = null }) {
@@ -110,7 +110,7 @@ export class BattleScene {
   dispose() {
     this._offs?.forEach((off) => off());
     this.unbind();
-    for (const l of this.labels.values()) this.world.detach(l.anchor);
+    for (const l of this.labels.values()) { this.world.detach(l.anchor); this.world.detach(l.footAnchor); }
     this.labels.clear();
     this.hud?.remove();
     this.world.clearLayers(); this.world.setHover(null); this.world.setTurnRing(null);
@@ -119,20 +119,25 @@ export class BattleScene {
   addUnit(u) {
     const w = this.world; const b = this.battle;
     w.addUnit(u, b.cellsOf(u));
-    const el = h('div.unit-label' + (u.side === 'enemy' ? '.enemy' : '.ally') + (u.rank === 'mvp' ? '.mvp' : u.rank === 'mini' ? '.mini' : ''),
-      // heroes and bosses carry their name over their head (plain text; in co-op a hero's name takes its player's colour)
-      h('div.ul-inner', h('div.ul-intent'), h('div.ul-status'), u.hero || u.rank === 'mvp' || u.rank === 'mini' ? h('div.ul-name', { style: u.hero?.owner ? { color: Coop.colorOf(u.hero.owner) } : null }, u.name) : null, h('div.ul-row', h('div.ul-block'), h('div.ul-hp', h('div.ul-hp-ghost'), h('div.ul-hp-fill')))));
+    const cls = (u.side === 'enemy' ? '.enemy' : '.ally') + (u.rank === 'mvp' ? '.mvp' : u.rank === 'mini' ? '.mini' : '');
+    // over the head: what it is about to do, its statuses, and the stars that circle while it is stunned
+    const el = h('div.unit-label' + cls, h('div.ul-inner', h('div.ul-intent'), h('div.ul-status'), h('div.ul-stun', h('i', '★'), h('i', '★'), h('i', '★'))));
+    // under the feet: the HP bar, then the name of a hero or boss (plain text; in co-op a hero's name takes its player's colour)
+    const foot = h('div.unit-label.foot' + cls, h('div.ul-foot', h('div.ul-row', h('div.ul-block'), h('div.ul-hp', h('div.ul-hp-ghost'), h('div.ul-hp-fill'))),
+      u.hero || u.rank === 'mvp' || u.rank === 'mini' ? h('div.ul-name', { style: u.hero?.owner ? { color: Coop.colorOf(u.hero.owner) } : null }, u.name) : null));
     const anchor = w.attach(el, () => (u.alive ? w.unitPos(u.uid, u.construct ? 1.1 : u.nest ? 1.6 : 2.0) : null));
-    this.labels.set(u.uid, { el, anchor, u });
+    const footAnchor = w.attach(foot, () => (u.alive ? w.unitPos(u.uid, 0) : null));
+    this.labels.set(u.uid, { el, foot, anchor, footAnchor, u });
     this.syncLabel(u);
   }
 
   syncLabel(u) {
     const L = this.labels.get(u.uid); if (!L) return;
-    const el = L.el;
+    const el = L.el; const foot = L.foot;
+    el.querySelector('.ul-stun').classList.toggle('on', !!u.status.stun && u.alive);
     const pct = Math.max(0, (u.hp / u.maxHp) * 100) + '%';
-    el.querySelector('.ul-hp-fill').style.width = pct; el.querySelector('.ul-hp-ghost').style.width = pct; // the pale ghost bar trails behind to show what a hit took
-    const blk = el.querySelector('.ul-block'); blk.textContent = u.block > 0 ? Math.round(u.block) : ''; blk.classList.toggle('on', u.block > 0);
+    foot.querySelector('.ul-hp-fill').style.width = pct; foot.querySelector('.ul-hp-ghost').style.width = pct; // the pale ghost bar trails behind to show what a hit took
+    const blk = foot.querySelector('.ul-block'); blk.textContent = u.block > 0 ? Math.round(u.block) : ''; blk.classList.toggle('on', u.block > 0);
     const st = el.querySelector('.ul-status'); st.replaceChildren(...statusChips(u));
     const it = el.querySelector('.ul-intent');
     if (u.intent && u.alive) {
@@ -540,13 +545,13 @@ export class BattleScene {
         if (u.size > 1) w.shake(0.12, 150);
         break;
       }
-      case 'teleport': { audio.sfx('magic'); w.burst(pos(d.unit), { color: elColor(d.el), count: 18 }); w.units.get(d.unit.uid).mat.opacity = 0; await sleep(140); break; }
-      case 'teleportIn': { w.placeUnit(d.unit.uid, b.cellsOf(d.unit)); w.burst(pos(d.unit), { color: elColor(d.el), count: 18 }); w.ring(pos(d.unit, 0), elColor(d.el), 1.4); await w.fadeIn(d.unit.uid, 220); break; }
-      case 'dash': { audio.sfx('wind'); w.setFacing(d.unit.uid, Hex.directionTo(d.unit, d.to)); w.setAnim(d.unit.uid, 'walk'); const p0 = pos(d.unit, 0.5); await w.leapUnit(d.unit.uid, w.footPos(b.cellsOf(d.unit, d.to)), 230, 0.5); w.setAnim(d.unit.uid, 'idle'); w.burst(p0, { color: 0xffffff, count: 8, speed: 1.5 }); break; }
+      case 'teleport': { audio.sfx('magic'); blinkFx(w, pos(d.unit, 0.02), elColor(d.el)); w.burst(pos(d.unit), { color: elColor(d.el), count: 18 }); w.units.get(d.unit.uid).mat.opacity = 0; await sleep(140); break; }
+      case 'teleportIn': { w.placeUnit(d.unit.uid, b.cellsOf(d.unit)); w.burst(pos(d.unit), { color: elColor(d.el), count: 18 }); blinkFx(w, pos(d.unit, 0.02), elColor(d.el)); await w.fadeIn(d.unit.uid, 220); break; }
+      case 'dash': { audio.sfx('wind'); w.setFacing(d.unit.uid, Hex.directionTo(d.unit, d.to)); w.setAnim(d.unit.uid, 'walk'); const p0 = pos(d.unit, 0.5); const p1 = w.footPos(b.cellsOf(d.unit, d.to)); dashFx(w, pos(d.unit, 0), p1); await w.leapUnit(d.unit.uid, p1, 230, 0.5); w.setAnim(d.unit.uid, 'idle'); w.burst(p0, { color: 0xffffff, count: 8, speed: 1.5 }); break; }
       case 'shove': { await w.leapUnit(d.unit.uid, w.footPos(b.cellsOf(d.unit, d.to)), 200, 0.35); w.burst(pos(d.unit, 0.1), { color: 0xd0c0a0, count: 6, speed: 1.5, up: 0.6 }); break; }
       case 'cardPlay': {
         const slot = this.el.slots.querySelector('.slot.filled:not(.firing)') || this.el.slots.querySelector('.slot.empty'); if (slot) slot.classList.add('firing');
-        w.floatText(pos(d.unit, 2.3), d.card.name, 'card-name');
+        w.floatText(pos(d.unit, 2.5), d.card.name + '!', 'card-name');
         if (d.combo) { w.floatText(pos(d.unit, 2.7), t('COMBO!'), 'combo'); audio.sfx('buff'); }
         await sleep(160);
         break;
@@ -594,7 +599,7 @@ export class BattleScene {
       case 'text': { w.floatText(pos(d.unit, 1.9), d.text, 'note'); await sleep(260); break; }
       case 'death': {
         const u = d.unit; audio.sfx(u.rank === 'mvp' ? 'explosion' : 'death');
-        const L = this.labels.get(u.uid); if (L) { w.detach(L.anchor); this.labels.delete(u.uid); }
+        const L = this.labels.get(u.uid); if (L) { w.detach(L.anchor); w.detach(L.footAnchor); this.labels.delete(u.uid); }
         const p = pos(u, 0.8);
         // the MVP's brood scatters with it: a quick puff each, no fanfare
         if (d.rout) { w.burst(p, { color: 0xc0a0ff, count: 10, speed: 3 }); w.fadeOut(u.uid, 300); await sleep(90); break; }
@@ -678,47 +683,7 @@ export class BattleScene {
   }
 
   async castFx(d) {
-    const w = this.world; const { unit: u, card, cells, targets, target } = d;
-    const color = card.proj === 'arrow' || card.proj === 'knife' ? 0xfff0c8 : elColor(card.el);
-    const from = w.unitPos(u.uid, 0.95);
-    const tpos = (c) => { const p = w.cellPos(c.q, c.r); p.y += 0.7; return p; };
-    const aoe = card.shape && card.shape !== 'single';
-    const magic = card.cat !== 'attack' || (card.proj && !['arrow', 'knife'].includes(card.proj)) || card.mp > 0 || (aoe && card.shape !== 'burst') || (d.monster && card.el && card.el !== 'neutral' && (card.proj || aoe));
-    w.setFacing(u.uid, u.facing);
-    if (d.monster) { w.floatText(w.unitPos(u.uid, 2.4 ), card.name, 'card-name enemy'); }
-    w.playOnce(u.uid, magic ? 'cast' : 'attack').then(() => { if (w.units.has(u.uid)) w.setAnim(u.uid, 'idle'); });
-    if (magic) { w.rise(w.unitPos(u.uid, 0.2), { color, count: 8, speed: 1.4 }); audio.sfx('magic'); }
-    await sleep(magic ? 230 : 150);
-
-    if (card.cat === 'attack' || card.cat === 'special' && targets.some((t) => t.side !== u.side)) {
-      if (aoe) {
-        const center = card.shape === 'area' ? tpos(target) : w.unitPos(u.uid, 0.2);
-        if (card.shape === 'area') {
-          if (card.el === 'fire' || card.icon === 'meteor' || card.big) await w.meteor(tpos(target), color);
-          else if (card.icon === 'arrows') { for (let i = 0; i < Math.min(6, cells.length); i++) w.projectile(from.clone().add(new THREE.Vector3(0, 6, 0)), tpos(cells[i]), { color, ms: 260 + i * 30, arc: 0, size: 0.35 }); await sleep(320); }
-          else await w.projectile(from, tpos(target), { color, size: 0.9 });
-          w.ring(center, color, card.size * 1.9 + 1.2);
-        } else if (card.shape === 'line') { const end = cells.length ? tpos(cells[cells.length - 1]) : from; await w.beam(from, end, color); }
-        else w.ring(center, color, (card.size || 1) * 1.9 + 1);
-        audio.sfx(card.el === 'fire' ? 'explosion' : EL_SFX[card.el] || 'earth');
-        w.flashCells(cells, color, 520);
-        cells.slice(0, 40).forEach((c) => w.burst(tpos(c), { color, count: 5, speed: 2, up: 2.2, size: 0.3 }));
-        w.shake(card.big || card.size >= 2 ? 0.45 : 0.25, 320);
-        await sleep(160);
-      } else if (card.proj) {
-        audio.sfx(card.proj === 'arrow' || card.proj === 'knife' ? 'arrow' : EL_SFX[card.el] || 'magic');
-        await w.projectile(from, tpos(target), { color, arc: card.proj === 'arrow' ? 0.7 : 0.15, size: card.proj === 'arrow' || card.proj === 'knife' ? 0.3 : 0.7 });
-      } else {
-        const tp = tpos(target);
-        audio.sfx(card.el && card.el !== 'neutral' ? EL_SFX[card.el] : 'slash');
-        await w.lunge(u.uid, tp);
-        w.slash(tp, color, Math.max(1, u.scale * 0.8));
-      }
-    } else {
-      // supportive / defensive
-      targets.forEach((t) => { w.rise(w.unitPos(t.uid, 0.2), { color, count: 10, speed: 1.6 }); });
-      if (aoe) w.ring(w.unitPos(u.uid, 0.1), color, (card.size || 1) * 1.9 + 1);
-      await sleep(140);
-    }
+    if (d.monster) this.world.floatText(this.world.unitPos(d.unit.uid, 2.5), d.card.name + '!', 'card-name enemy');
+    await castVfx(this.world, d);
   }
 }
