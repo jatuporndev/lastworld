@@ -128,7 +128,7 @@ export async function monsterAct(b, u) {
     case 'guard': {
       if (tgt && b.dist(u, tgt) > 1) await approach(b, u, tgt, 1, Math.max(0, budget - 1));
       if (!u.alive) return;
-      await b.emit('cast', { unit: u, card: { name: it.name, el: u.el, cat: 'defense' }, cells: b.cellsOf(u), targets: [u], target: u, monster: true });
+      await b.emit('cast', { unit: u, card: { name: it.name, el: u.el, cat: 'defense', kind: 'block' }, cells: b.cellsOf(u), targets: [u], target: u, monster: true });
       await b.addBlock(u, it.blockValue || it.block);
       break;
     }
@@ -143,12 +143,12 @@ export async function monsterAct(b, u) {
     case 'heal': {
       const pool = it.self ? [u] : b.enemies();
       const t = pool.sort((a, c) => a.hp / a.maxHp - c.hp / c.maxHp)[0];
-      await b.emit('cast', { unit: u, card: { name: it.name, el: 'holy', cat: 'buff' }, cells: b.cellsOf(t), targets: [t], target: t, monster: true });
+      await b.emit('cast', { unit: u, card: { name: it.name, el: 'holy', cat: 'buff', kind: 'heal' }, cells: b.cellsOf(t), targets: [t], target: t, monster: true });
       await b.heal(u, t, u.stats.matk * it.v * 2 + t.maxHp * 0.04);
       break;
     }
     case 'summon': {
-      await b.emit('cast', { unit: u, card: { name: it.name, el: u.el, cat: 'special' }, cells: b.cellsOf(u), targets: [u], target: u, monster: true });
+      await b.emit('cast', { unit: u, card: { name: it.name, el: u.el, cat: 'special', kind: 'summon' }, cells: b.cellsOf(u), targets: [u], target: u, monster: true });
       for (let i = 0; i < (it.n || 1); i++) await b.spawnMinion(u, it.id);
       if (u.nest) u.hatchIn = u.def.every + b.nestSlow;
       break;

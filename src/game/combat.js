@@ -179,7 +179,8 @@ export class Battle {
     return Math.max(0, m);
   }
 
-  async emit(type, data = {}) { if (this.view) await this.view.handle(type, data, this); }
+  // What the view shows may fail; the fight itself must go on (a thrown effect used to leave the turn hanging forever).
+  async emit(type, data = {}) { if (!this.view) return; try { await this.view.handle(type, data, this); } catch (e) { console.error('[battle view]', type, e); } }
 
   // ───────── main loop ─────────
   async run() {
@@ -811,7 +812,7 @@ export class Battle {
 
   async monsterAoe(u, it, cells, origin) {
     const victims = this.heroSide().filter((v) => this.cellsOf(v).some((c) => cells.some((x) => Hex.hexEq(x, c))));
-    await this.emit('cast', { unit: u, card: { name: it.name, el: it.el || u.el, cat: 'attack', shape: it.shape, big: true }, cells, targets: victims, target: origin, monster: true });
+    await this.emit('cast', { unit: u, card: { name: it.name, el: it.el || u.el, cat: 'attack', shape: it.shape, size: it.size, big: true }, cells, targets: victims, target: origin, monster: true });
     const roll = this.monsterRoll(u); // one roll for the whole area
     for (const v of victims) {
       const res = await this.hit(u, v, { raw: this.intentPower(u, it) + roll, el: it.el || 'neutral', aoe: true, tags: ['🎲 ' + roll] });

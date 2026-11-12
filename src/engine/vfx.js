@@ -275,7 +275,7 @@ export async function castVfx(w, d) {
       else {
         if (big) await w.meteor(origin, color); else await shot(w, from, origin, color, { size: 0.95, ...(SHOT[card.proj] || SHOT[el] || {}) });
         const g = origin.clone(); g.y -= 0.62;
-        decal(w, 'shock', g, { color, size: 1, to: card.size * 3.8 + 2.4, ms: 420 });
+        decal(w, 'shock', g, { color, size: 1, to: (card.size || 1) * 3.8 + 2.4, ms: 420 });
         if (big) spr(w, 'spark', origin, { color: 0xffffff, size: 1, to: 4.5, ms: 240, rot: R(3) });
         sweep(26, hit);
       }
@@ -316,8 +316,9 @@ export async function castVfx(w, d) {
 // Blocks, heals, buffs and other helpful cards: each kind has its own sign over whoever receives it.
 function supportFx(w, d, color, sc, aoe) {
   const { unit: u, card, targets, target } = d;
-  const has = (...ts) => card.fx.some((f) => ts.includes(f.t));
-  const kind = has('heal', 'revive') ? 'heal' : has('block') ? 'block' : card.icon === 'smoke' ? 'smoke' : has('summon') ? 'summon' : has('draw', 'energy', 'mp') ? 'boon' : 'buff';
+  // (monster actions and items come as bare cards without an fx list: their category says what they are)
+  const has = (...ts) => (card.fx || []).some((f) => ts.includes(f.t));
+  const kind = card.kind || (has('heal', 'revive') ? 'heal' : has('block') ? 'block' : card.icon === 'smoke' ? 'smoke' : has('summon') ? 'summon' : has('draw', 'energy', 'mp') ? 'boon' : !card.fx && card.cat === 'defense' ? 'block' : 'buff');
   const spots = targets.length ? targets.map((t) => [w.unitPos(t.uid, 0.9), w.unitPos(t.uid, 0.02)]) : [target ? (() => { const g = w.cellPos(target.q, target.r); return [g.clone().add(V(0, 0.8, 0)), g]; })() : [w.unitPos(u.uid, 0.9), w.unitPos(u.uid, 0.02)]];
   for (const [p, g] of spots) {
     switch (kind) {
