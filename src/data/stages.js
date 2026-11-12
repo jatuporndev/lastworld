@@ -6,7 +6,7 @@
 //   # stage scenery   other characters: see the stage's `legend` (scenery) and `walk` (walkable special terrain)
 // Battle board legend: ' ' no tile  . base terrain  h hero start  e enemy start  B large-monster anchor
 //   N nest (only in an MVP arena whose stage sets `nest`, for a boss whose gimmick is a brood that keeps hatching)
-// `guards`: how many stage monsters stand with the MVP at the start (they do not come back)
+// `guards`: the most stage monsters that stand with the MVP at the start — one per hero up to this number (they do not come back)
 //   other characters: see the stage's `tiles`
 
 export const STAGES = [

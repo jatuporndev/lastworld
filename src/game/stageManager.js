@@ -85,8 +85,8 @@ export class StageManager {
   encounterFor(c) {
     const rng = this.rngFor(c, 'enc'); const s = this.stage; const n = G.state.party.length;
     const type = c.node.type;
-    // the MVP's guards start spread over the arena and do not come back
-    if (type === 'boss') return { kind: 'boss', enemies: [s.boss, ...Array.from({ length: s.guards || 0 }, () => rng.pick(s.pool))] };
+    // the MVP's guards start spread over the arena and do not come back: one per hero, up to the stage's `guards`
+    if (type === 'boss') return { kind: 'boss', enemies: [s.boss, ...Array.from({ length: Math.min(s.guards || 0, n) }, () => rng.pick(s.pool))] };
     if (type === 'mini') {
       const adds = Array.from({ length: n >= 3 ? 2 : 1 }, () => rng.pick(s.pool));
       return { kind: 'mini', enemies: [rng.pick(s.mini), ...adds] };
