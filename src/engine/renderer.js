@@ -38,7 +38,7 @@ export class World {
     this.scene = new THREE.Scene();
     this.scene.fog = new THREE.Fog(0x101020, 62, 120);
     this.camera = new THREE.OrthographicCamera(-10, 10, 10, -10, -100, 300);
-    this.cam = { target: new THREE.Vector3(), size: 16, yaw: 0, elev: 0.86, shake: 0, shakeT: 0, offY: 0 };
+    this.cam = { target: new THREE.Vector3(), size: 16, yaw: 0, elev: 0.86, shake: 0, shakeT: 0, offY: 0, zoom: 1, pan: new THREE.Vector3() };
     // cinematic three-point lighting: warm key with soft shadows, cool fill, sky/ground bounce
     this.hemi = new THREE.HemisphereLight(0xffffff, 0x404060, 1.0); this.scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight(0xfff2d0, 2.8); this.sun.castShadow = true;
@@ -85,11 +85,14 @@ export class World {
   applyCamera() {
     const c = this.cam; const aspect = this.w / this.h;
     // keep boards readable on narrow screens: fit width too
-    const size = Math.max(c.size, (c.minWidth || 0) / aspect);
+    const fit = Math.max(c.size, (c.minWidth || 0) / aspect);
+    // the player's own zoom sits on top of the framing a scene asked for; zoomed in, the view may slide off-centre
+    const lim = fit * Math.max(0, 1 - c.zoom) * 0.5 * Math.max(1, aspect); if (c.pan.length() > lim) c.pan.setLength(lim);
+    const size = fit * c.zoom; this.viewSize = size;
     this.camera.top = size / 2; this.camera.bottom = -size / 2; this.camera.left = -size * aspect / 2; this.camera.right = size * aspect / 2;
     const d = 60; const ce = Math.cos(c.elev), se = Math.sin(c.elev);
     const sx = c.shake ? (Math.random() - 0.5) * c.shake : 0, sy = c.shake ? (Math.random() - 0.5) * c.shake : 0;
-    const t = c.target;
+    const t = c.target.clone().add(c.pan);
     this.camera.position.set(t.x + Math.sin(c.yaw) * ce * d + sx, t.y + se * d + sy, t.z + Math.cos(c.yaw) * ce * d);
     this.camera.lookAt(t.x + sx, t.y + sy, t.z);
     // shift view so the board sits above the bottom HUD
@@ -126,7 +129,7 @@ export class World {
     this.particles.forEach((p) => this.fxGroup.remove(p.s)); this.particles = [];
     while (this.fxGroup.children.length) this.fxGroup.remove(this.fxGroup.children[0]);
     clearTimeout(this._bakeT); (this.baked || []).forEach((m) => m.geometry.dispose()); this.baked = [];
-    this.orbitOn = false; this.orbitFit = false; this.cam.yaw = 0; this.cam.baseSize = null;
+    this.orbitOn = false; this.orbitFit = false; this.cam.yaw = 0; this.cam.baseSize = null; this.cam.zoom = 1; this.cam.pan.set(0, 0, 0);
   }
 
   // Draw-call batching. A board is hundreds of small meshes (each terrain piece is a body, a lip and a
@@ -359,8 +362,21 @@ export class World {
   camControls({ fit = false } = {}) {
     this.orbitOn = true; this.orbitFit = fit;
     const mk = (label, step, tip) => { const b = document.createElement('button'); b.className = 'cam-btn'; b.textContent = label; b.dataset.tip = tip; b.onclick = () => { audio.sfx('click'); this.rotateBy(step); }; return b; };
-    const el = document.createElement('div'); el.className = 'cam-ctl'; el.append(mk('⟲', -1, '←'), mk('⟳', 1, '→'));
+    const zm = (label, f) => { const b = document.createElement('button'); b.className = 'cam-btn'; b.textContent = label; b.onclick = () => { this.zoomBy(f); audio.sfx('click'); }; return b; };
+    const el = document.createElement('div'); el.className = 'cam-ctl'; el.append(mk('⟲', -1, '←'), mk('⟳', 1, '→'), zm('+', 0.8), zm('−', 1.25));
     return el;
+  }
+  // Zoom: in a long way, out only a little past the scene's own framing. With a pointer position, the
+  // ground under the pointer stays put (mouse wheel); without one the view zooms about its centre (buttons).
+  groundAt(x, y) {
+    this.raycaster.setFromCamera(new THREE.Vector2((x / this.w) * 2 - 1, -(y / this.h) * 2 + 1), this.camera);
+    return this.raycaster.ray.intersectPlane(this._ground ||= new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
+  }
+  zoomBy(f, at = null) {
+    const c = this.cam; const z = clamp(c.zoom * f, 0.5, 1.2); if (z === c.zoom) return;
+    if (!at) { const z0 = c.zoom; tween(160, (e) => { c.zoom = z0 + (z - z0) * e; }, Ease.outQuad); return; }
+    const before = this.groundAt(at.x, at.y); c.zoom = z; this.applyCamera();
+    const after = this.groundAt(at.x, at.y); if (before && after) { c.pan.add(before.sub(after)); this.applyCamera(); }
   }
   bindOrbit() {
     const cv = this.canvas; let drag = null;
@@ -368,6 +384,7 @@ export class World {
     window.addEventListener('pointermove', (e) => { if (!drag) return; const dx = e.clientX - drag.x; if (Math.abs(dx) > 6) this.orbitMoved = true; if (this.orbitMoved) { this.cam.yaw = drag.yaw - dx * 0.006; this.refreshFrames(); } });
     window.addEventListener('pointerup', () => { if (!drag) return; drag = null; if (this.orbitMoved) this.rotateBy(0); });
     cv.addEventListener('contextmenu', (e) => { if (this.orbitOn) e.preventDefault(); });
+    cv.addEventListener('wheel', (e) => { if (!this.orbitOn) return; e.preventDefault(); const r = cv.getBoundingClientRect(); this.zoomBy(e.deltaY > 0 ? 1.12 : 1 / 1.12, { x: e.clientX - r.left, y: e.clientY - r.top }); }, { passive: false });
   }
 
   applyFrame(U) {
@@ -537,7 +554,7 @@ export class World {
     const rect = this.canvas.getBoundingClientRect(); const x = clientX - rect.left, y = clientY - rect.top;
     if (units) {
       let best = null, bd = Infinity;
-      for (const u of units) { const U = this.units.get(u.uid); if (!U) continue; const p = this.project(this.unitPos(u.uid, 0.75)); const d = Math.hypot(p.x - x, p.y - y); const rad = 30 * U.scale * (this.h / (this.cam.size * 55)); if (d < rad && d < bd) { bd = d; best = u; } }
+      for (const u of units) { const U = this.units.get(u.uid); if (!U) continue; const p = this.project(this.unitPos(u.uid, 0.75)); const d = Math.hypot(p.x - x, p.y - y); const rad = 30 * U.scale * (this.h / ((this.viewSize || this.cam.size) * 55)); if (d < rad && d < bd) { bd = d; best = u; } }
       if (best) return { q: best.q, r: best.r, unit: best };
     }
     const ndc = new THREE.Vector2((x / this.w) * 2 - 1, -(y / this.h) * 2 + 1);
