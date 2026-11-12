@@ -5,6 +5,8 @@
 //   S start  . path  M monsters  m mini boss  B MVP boss  T treasure  R resource  ? event  H rest  $ shop  * shrine
 //   # stage scenery   other characters: see the stage's `legend` (scenery) and `walk` (walkable special terrain)
 // Battle board legend: ' ' no tile  . base terrain  h hero start  e enemy start  B large-monster anchor
+//   N nest (only in an MVP arena whose stage sets `nest`, for a boss whose gimmick is a brood that keeps hatching)
+// `guards`: how many stage monsters stand with the MVP at the start (they do not come back)
 //   other characters: see the stage's `tiles`
 
 export const STAGES = [
@@ -13,7 +15,7 @@ export const STAGES = [
     pool: ['moss_slime', 'thornwolf', 'sporecap', 'briar_sprite'],
     biome: { base: 'grass', scatter: [['forest', 0.07], ['bloom', 0.03], ['swamp', 0.025]], scenery: ['forest', 'forest', 'forest', 'rock'] },
     sky: 0x9fd6c0, fog: 0x7fb89a, light: 0xfff2d0, ambient: 'leaves', mats: ['heartwood', 'spiritmoss'],
-    rewardCard: 'r_verdant', rewardUnique: 'guardian_heart', mapPos: [0.2, 0.68],
+    rewardCard: 'r_verdant', rewardUnique: 'guardian_heart', guards: 3, mapPos: [0.2, 0.68],
     intro: 'The Sundering shattered the old world into drifting realms. Greenveil, the last living forest, now strangles every traveler in its thorns. Follow the river past the fallen shrine — its ancient Guardian has gone mad with grief.',
     // An irregular forest blob split by a winding river with two bridges; the Guardian waits in the ruins to the east.
     legend: { '~': 'water', g: 'giant', r: 'ruinwall' }, walk: { '=': 'bridge', ':': 'ruinfloor' },
@@ -54,15 +56,20 @@ export const STAGES = [
           '       .....  e    ',
         ],
       ],
-      boss: [ // Guardian's Grove — a clearing ringed by elder trees, reached over the river from the south
-        '     gg.gg.gg      ',
-        '   g..........g    ',
-        '  g....b..b....g   ',
-        '  ......B.......   ',
-        '  g............g   ',
-        '   ~~~f....f~~~    ',
-        '    ~~~~==~~~~     ',
-        '     f.h.h.hf      ',
+      boss: [ // Guardian's Grove — a wide clearing over the river: two bridges in, the Guardian on the old flagstones, its three guards spread over the grove (e)
+        '      gg.gg..g..gg.gg    ',
+        '    g...f.........f..g   ',
+        '   g..e....b...b....e.g  ',
+        '  g......f..:::..f.....g ',
+        '  ....e....::B::....e... ',
+        '  g..f......:::......f.g ',
+        '   g......b.....b.....g  ',
+        '   ..f...e.......f.....  ',
+        '    g......o...o.....g   ',
+        '    ~~~==~~~f.f~~~==~~~  ',
+        '     ~~~==~~~~~~~~==~~   ',
+        '      f....b...b....f    ',
+        '       .h.h..h.h.f..     ',
       ],
     },
   },

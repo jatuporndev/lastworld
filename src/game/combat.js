@@ -30,12 +30,13 @@ export function generateBoard(stage, kind, rng) {
   let cx = 0, cz = 0;
   for (const c of parsed) { const w = Hex.toWorld(c.q, c.r); cx += w.x; cz += w.z; }
   const mid = Hex.fromWorld(cx / parsed.length, cz / parsed.length);
-  const cells = new Map(); const heroSpawns = []; const enemySpawns = []; let anchor = null; const plain = [];
+  const cells = new Map(); const heroSpawns = []; const enemySpawns = []; const nests = []; let anchor = null; const plain = [];
   for (const c of parsed) {
     const q = c.q - mid.q, r = c.r - mid.r; let t = stage.biome.base;
     if (c.ch === 'h') heroSpawns.push({ q, r });
     else if (c.ch === 'e') enemySpawns.push({ q, r });
     else if (c.ch === 'B') anchor = { q, r };
+    else if (c.ch === 'N') nests.push({ q, r });
     else if (stage.tiles[c.ch]) t = stage.tiles[c.ch];
     else plain.push({ q, r });
     cells.set(Hex.key(q, r), { q, r, t });
@@ -47,7 +48,7 @@ export function generateBoard(stage, kind, rng) {
     for (const [id, p] of stage.biome.scatter || []) { if (roll < p) { cells.get(Hex.key(c.q, c.r)).t = id; break; } roll -= p; }
   }
   let R = 0; for (const c of cells.values()) R = Math.max(R, Hex.distance(c, { q: 0, r: 0 }));
-  return { R, cells, heroSpawns, enemySpawns, anchor };
+  return { R, cells, heroSpawns, enemySpawns, nests, anchor };
 }
 
 export class Battle {
@@ -59,6 +60,9 @@ export class Battle {
     this.board = generateBoard(stage, kind, this.rng);
     this.units = []; this.round = 0; this.order = []; this.current = null; this.result = null;
     this.inv = inv; this.combos = 0; this.kills = []; this.log = [];
+    // MVP arenas with nests: a lone hero faces slower nests that keep one hatchling each
+    const heads = party.filter((h) => h.hp > 0).length;
+    this.nestCap = heads >= 2 ? 2 : 1; this.nestSlow = heads >= 2 ? 0 : 1;
     this._setup(party, enemies, levelOf, nextBuff);
   }
 
@@ -93,6 +97,12 @@ export class Battle {
       const spot = (B.anchor && this.canStand(u, B.anchor)) ? B.anchor : freeNear(u, enemyMid, heroMid);
       u.q = spot.q; u.r = spot.r; u.facing = Hex.directionTo(spot, heroMid); this.units.push(u);
     });
+    // nests stand on the arena's nest marks (MVP fights only)
+    if (this.kind === 'boss' && this.stage.nest) for (const at of B.nests) {
+      const u = this._monsterUnit(this.stage.nest);
+      if (!this.canStand(u, at)) continue;
+      u.q = at.q; u.r = at.r; u.hatchIn = u.def.every + this.nestSlow; this.units.push(u);
+    }
     const starts = this.rng.shuffle([...B.enemySpawns]);
     small.forEach((id) => {
       const u = this._monsterUnit(id);
@@ -120,7 +130,7 @@ export class Battle {
     const hp = Math.round(d.hp * (minion ? 0.6 : 1));
     return {
       uid: 'u' + this.nextId(), side: d.construct ? 'hero' : 'enemy', def: d, monsterId: id, name: d.name, look: d.look, spriteKey: 'mon_' + id,
-      size: d.size || 1, scale: d.scale || 1, q: 0, r: 0, facing: 3, level: d.level || 1, rank: d.rank || 'normal', construct: !!d.construct, minion,
+      size: d.size || 1, scale: d.scale || 1, q: 0, r: 0, facing: 3, level: d.level || 1, rank: d.rank || 'normal', construct: !!d.construct, nest: !!d.nest, minion,
       hp, maxHp: hp, mp: 0, maxMp: 0,
       stats: { atk: d.atk, matk: d.matk || d.atk, def: d.def, spd: d.spd, crit: 5, eva: d.body === 'bat' ? 15 : 3, move: d.move },
       passives: { statusBonus: {}, elemPct: {}, thorns: d.thorns || 0 }, el: d.el, weak: d.weak || [], resist: d.resist || [],
@@ -193,7 +203,8 @@ export class Battle {
 
   checkEnd() {
     if (this.result) return this.result;
-    if (!this.enemies().length) this.result = 'victory';
+    // an MVP fight is won the moment the MVP falls, whatever is left of its brood
+    if (!this.enemies().length || (this.kind === 'boss' && !this.enemies().some((u) => u.rank === 'mvp'))) this.result = 'victory';
     else if (!this.heroes().length) this.result = 'defeat';
     return this.result;
   }
@@ -571,7 +582,7 @@ export class Battle {
   }
 
   async shove(src, v, n, pull) {
-    if (v.size > 1 || v.construct) return;
+    if (v.size > 1 || v.construct || v.nest) return;
     const sc = this.nearestCell(v, src);
     let d = Hex.directionTo(sc, v); if (pull) d = (d + 3) % 6;
     let pos = { q: v.q, r: v.r }; let moved = 0; let wall = null;
@@ -610,7 +621,7 @@ export class Battle {
     const tgt = this.heroes()[0];
     spots.sort((a, b) => (tgt ? Hex.distance(a, tgt) - Hex.distance(b, tgt) : 0));
     const at = spots[Math.min(spots.length - 1, this.rng.int(0, 2))];
-    u.q = at.q; u.r = at.r; u.facing = 3;
+    u.q = at.q; u.r = at.r; u.facing = 3; u.from = boss.uid;
     this.units.push(u);
     await this.emit('spawn', { unit: u });
     return u;
@@ -738,6 +749,11 @@ export class Battle {
     await this.emit('death', { unit: u, src });
     // constructs die with their owner
     if (u.hero) for (const c of this.units) if (c.alive && c.owner === u.uid) await this.kill(c, null);
+    // the brood scatters when its MVP falls (no spoils for those)
+    if (u.rank === 'mvp' && this.kind === 'boss') for (const c of this.enemies()) {
+      c.alive = false; c.status = {}; c.block = 0; c.intent = null;
+      await this.emit('death', { unit: c, src: null, rout: true });
+    }
   }
 
   async heal(src, tgt, amount, quiet = false) {

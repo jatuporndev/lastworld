@@ -425,6 +425,20 @@ function PAINTERS_INIT() {
       if (anim === 'attack' && f === 2) glowCircle(ctx, 32, -30, 16, '#ffd060', 1);
     },
 
+    // A thorn nest: a bramble mound with glowing eggs. It swells when it hatches (cast).
+    nest(ctx, L, view, p, f, anim) {
+      const pulse = anim === 'cast' ? 1 : 0.55 + Math.sin(f * 1.6) * 0.15;
+      ctx.save(); ctx.scale(1.7, 1.7);
+      ellipse(ctx, 0, -13, 31, 15, grad(ctx, -30, 0, shade(L.c1, 0.25), L.c2));
+      [-1, 1].forEach((s) => [0, 1].forEach((i) => {
+        const cane = () => { ctx.beginPath(); ctx.moveTo(s * (27 - i * 9), -8); ctx.quadraticCurveTo(s * (32 - i * 8), -46 - i * 8, s * (5 + i * 5), -40 - i * 10); };
+        cane(); path(ctx, null, OUT, 7); cane(); path(ctx, null, i ? shade(L.c1, 0.2) : L.c1, 4);
+        ctx.fillStyle = L.c2; [[s * (29 - i * 8), -30 - i * 6], [s * (20 - i * 6), -42 - i * 8]].forEach(([x, y]) => { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + s * 6, y - 5); ctx.lineTo(x + s * 1, y + 4); ctx.fill(); });
+      }));
+      [[-12, -17, 7], [11, -16, 7], [0, -24, 9]].forEach(([x, y, r]) => { ellipse(ctx, x, y, r * 0.8, r, rgrad(ctx, x, y, r, '#ffffff', L.accent)); glowCircle(ctx, x, y, r * 2, L.accent, pulse * 0.7); });
+      ctx.restore();
+    },
+
     barricade(ctx, L) {
       for (let i = -1; i <= 1; i++) { ctx.save(); ctx.translate(i * 16, 0); ctx.rotate(i * 0.08); rrect(ctx, -9, -46 + Math.abs(i) * 6, 18, 46 - Math.abs(i) * 6, 3, grad(ctx, -46, 0, shade(L.c1, 0.4), L.c2)); ctx.fillStyle = '#2a2a30'; [[-4, -36], [4, -36], [-4, -10], [4, -10]].forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x, y + Math.abs(i) * 6, 1.6, 0, 7); ctx.fill(); }); ctx.restore(); }
       ctx.beginPath(); ctx.moveTo(-26, -24); ctx.lineTo(26, -24); path(ctx, null, '#5a5a60', 4);

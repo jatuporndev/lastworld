@@ -13,8 +13,19 @@ function pickTarget(b, u) {
   return best;
 }
 
+// A nest never attacks. It counts down, then hatches a weaker copy of a stage monster — unless its
+// brood is already full. Destroying the nest is the only way to stop it.
+function nestIntent(b, u) {
+  const d = u.def;
+  u.hatchIn = Math.max(0, (u.hatchIn ?? d.every) - 1);
+  const brood = b.enemies().filter((x) => x.from === u.uid).length;
+  if (u.hatchIn > 0 || brood >= b.nestCap || b.enemies().length >= 9) return { k: 'wait', name: d.waitName, turns: u.hatchIn, full: u.hatchIn <= 0 };
+  return { k: 'summon', name: d.hatchName, id: b.rng.pick(d.hatch), n: 1 };
+}
+
 export function chooseIntent(b, u) {
   const d = u.def;
+  if (d.nest) return nestIntent(b, u);
   let list = (u.phase === 2 && d.phase2) ? d.phase2 : d.intents;
   if (!list || !list.length) return null;
   const allies = b.enemies();
@@ -72,7 +83,8 @@ export async function monsterAct(b, u) {
   const budget = b.moveBudget(u);
   let tgt = b.units.find((x) => x.uid === it.targetUid && x.alive) || pickTarget(b, u);
   if (u.status.taunt) tgt = pickTarget(b, u);
-  if (!tgt && it.k !== 'guard' && it.k !== 'heal' && it.k !== 'buff') return;
+  if (it.k === 'wait') return;
+  if (!tgt && it.k !== 'guard' && it.k !== 'heal' && it.k !== 'buff' && it.k !== 'summon') return;
 
   switch (it.k) {
     case 'strike': case 'shoot': {
@@ -138,6 +150,7 @@ export async function monsterAct(b, u) {
     case 'summon': {
       await b.emit('cast', { unit: u, card: { name: it.name, el: u.el, cat: 'special' }, cells: b.cellsOf(u), targets: [u], target: u, monster: true });
       for (let i = 0; i < (it.n || 1); i++) await b.spawnMinion(u, it.id);
+      if (u.nest) u.hatchIn = u.def.every + b.nestSlow;
       break;
     }
     default: break;

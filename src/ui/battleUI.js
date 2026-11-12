@@ -20,7 +20,7 @@ import { ui, cardEl, unitSprite, statusChips, bar, btn, icon, toast, banner, ope
 
 // A monster attack reads as its dice plus the fixed bonus, e.g. 🎲+2.
 const pw = (i) => '🎲'.repeat(i.dice || 1) + '+' + i.power;
-const INTENT_ICON = { strike: 'sword', shoot: 'arrow', aoe: 'meteor', guard: 'shield', buff: 'star', heal: 'cross', summon: 'skull' };
+const INTENT_ICON = { strike: 'sword', shoot: 'arrow', aoe: 'meteor', guard: 'shield', buff: 'star', heal: 'cross', summon: 'skull', wait: 'orb' };
 const EL_SFX = { fire: 'fire', ice: 'ice', wind: 'wind', earth: 'earth', holy: 'holy', shadow: 'shadow', poison: 'poison', neutral: 'slash', arcane: 'magic' };
 
 export class BattleScene {
@@ -121,7 +121,7 @@ export class BattleScene {
     w.addUnit(u, b.cellsOf(u));
     const el = h('div.unit-label' + (u.side === 'enemy' ? '.enemy' : '.ally') + (u.rank === 'mvp' ? '.mvp' : u.rank === 'mini' ? '.mini' : ''),
       h('div.ul-inner', h('div.ul-intent'), h('div.ul-status'), h('div.ul-row', h('div.ul-block'), h('div.ul-hp', h('div.ul-hp-ghost'), h('div.ul-hp-fill')))));
-    const anchor = w.attach(el, () => (u.alive ? w.unitPos(u.uid, u.construct ? 1.1 : 2.0) : null));
+    const anchor = w.attach(el, () => (u.alive ? w.unitPos(u.uid, u.construct ? 1.1 : u.nest ? 1.6 : 2.0) : null));
     this.labels.set(u.uid, { el, anchor, u });
     this.syncLabel(u);
   }
@@ -166,7 +166,8 @@ export class BattleScene {
       case 'guard': return t('{name}: gains {n} Block.', { name: i.name, n: i.blockValue });
       case 'buff': return t('{name}: grants {st} {n}{allies}.', { name: i.name, st: STATUS_INFO[i.st].name, n: i.n, allies: i.allies ? t(' to nearby allies') : '' });
       case 'heal': return t('{name}: heals a wounded ally.', { name: i.name });
-      case 'summon': return t('{name}: summons reinforcements.', { name: i.name });
+      case 'summon': return u.nest ? t('{name}: a monster hatches this round. Destroy the nest to stop it.', { name: i.name }) : t('{name}: summons reinforcements.', { name: i.name });
+      case 'wait': return i.full ? t('{name}: its brood is full. It hatches again when one falls.', { name: i.name }) : t('{name}: hatches a monster in {n} round(s). Destroy the nest to stop it.', { name: i.name, n: i.turns });
       default: return i.name;
     }
   }
@@ -594,8 +595,10 @@ export class BattleScene {
         const u = d.unit; audio.sfx(u.rank === 'mvp' ? 'explosion' : 'death');
         const L = this.labels.get(u.uid); if (L) { w.detach(L.anchor); this.labels.delete(u.uid); }
         const p = pos(u, 0.8);
+        // the MVP's brood scatters with it: a quick puff each, no fanfare
+        if (d.rout) { w.burst(p, { color: 0xc0a0ff, count: 10, speed: 3 }); w.fadeOut(u.uid, 300); await sleep(90); break; }
         // the blow that ends the fight plays out in slow motion
-        if (u.side === 'enemy' && !b.enemies().length) { w.slowMo(0.3, 700); this.screenFx('kill'); w.punch(0.09, 700); this.buzz([40, 50, 90]); }
+        if (u.side === 'enemy' && (!b.enemies().length || (u.rank === 'mvp' && b.kind === 'boss'))) { w.slowMo(0.3, 700); this.screenFx('kill'); w.punch(0.09, 700); this.buzz([40, 50, 90]); }
         if (u.side === 'enemy') w.floatText(pos(u, 2.4), t('KO!'), 'ko');
         if (u.rank === 'mvp') { w.shake(0.7, 1200); for (let i = 0; i < 6; i++) { w.burst(p.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 2, (Math.random() - 0.5) * 2)), { color: elColor(u.el), count: 20, speed: 5 }); audio.sfx('explosion'); await sleep(170); } w.ring(pos(u, 0), 0xffffff, 8, 900); }
         w.burst(p, { color: u.side === 'enemy' ? 0xc0a0ff : 0xff6060, count: 20, speed: 3.5 });

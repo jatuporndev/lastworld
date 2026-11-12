@@ -133,6 +133,10 @@ export const MONSTERS = {
     phase2: [{ k: 'aoe', name: 'End of All Things', shape: 'burst', size: 3, dmg: 1.2, el: 'shadow', status: { st: 'vulnerable', n: 2 }, w: 2 }, { k: 'aoe', name: 'Abyssal Flames', shape: 'area', size: 2, range: 6, dmg: 1.2, el: 'fire', status: { st: 'burn', n: 3 }, w: 2 }, { k: 'strike', name: 'Oblivion', dmg: 2.2, range: 2, el: 'shadow', w: 2 }, { k: 'summon', name: 'Legion', id: 'chaos_knight', n: 1, w: 1 }],
     quote: 'Every world ends. Yours is merely the last.' }),
 
+  // ── Nests (MVP arenas) ── rooted spawners: every `every` rounds one hatches a weaker copy of a monster in `hatch`
+  thorn_nest: M(1, { name: 'Thorn Nest', nest: true, look: { body: 'nest', c1: '#7a5a3a', c2: '#3a2616', accent: '#ffd24a' }, hpM: 2, move: 0, spd: 1, el: 'earth', weak: ['fire'],
+    every: 3, hatch: ['moss_slime', 'thornwolf'], waitName: 'Stirring', hatchName: 'Hatch', intents: [] }),
+
   // ── Summons (hero-side constructs) ──
   turret: { name: 'Arc Turret', construct: true, look: { body: 'turret', c1: '#8a6a4a', c2: '#4a3a2a', accent: '#ffb030' }, hp: 6, atk: 0, def: 0, move: 0, spd: 0, size: 1, scale: 0.9, el: 'fire', weak: [], resist: [] },
   barricade: { name: 'Iron Barricade', construct: true, look: { body: 'barricade', c1: '#7a7a80', c2: '#3a3a40' }, hp: 8, atk: 0, def: 1, move: 0, spd: 0, size: 1, scale: 0.9, el: 'neutral', weak: [], resist: [] },
