@@ -5,13 +5,13 @@ import { h, fmt, sleep, hashStr } from '../core/util.js';
 import { t } from '../core/i18n.js';
 import { ELEMENTS } from '../data/cards.js';
 import { audio } from '../core/audio.js';
-import { G, touch, addCard, claimableQuests } from '../game/state.js';
+import { G, touch, addCard, claimableQuests, myHeroes } from '../game/state.js';
 import { computeStats } from '../game/character.js';
 import { CLASSES, heroLook } from '../data/classes.js';
 import { MONSTERS } from '../data/monsters.js';
 import { CARDS } from '../data/cards.js';
 import { CONSUMABLES, MATERIALS } from '../data/items.js';
-import { ui, openModal, btn, icon, toast, cardEl, itemEl, monsterSprite, heroSprite, bar, banner } from './components.js';
+import { ui, openModal, btn, icon, toast, cardEl, itemEl, monsterSprite, heroSprite, bar, banner, bagButton } from './components.js';
 import { openMenu } from './panels.js';
 import { Coop } from '../net/coop.js';
 import { bus } from '../core/util.js';
@@ -45,17 +45,16 @@ export class ExploreScene {
     audio.music('explore');
   }
 
-  dispose() { this._offPing?.(); for (const p of this.pings.values()) { this.world.detach(p.anchor); this.world.clearLayer(p.layer); clearTimeout(p.timer); } this.pings.clear(); this.unbind(); this.hud?.remove(); this.world.clearLayers(); this.world.setHover(null); }
+  dispose() { this.nameTags?.forEach((a) => this.world.detach(a)); this._offPing?.(); for (const p of this.pings.values()) { this.world.detach(p.anchor); this.world.clearLayer(p.layer); clearTimeout(p.timer); } this.pings.clear(); this.unbind(); this.hud?.remove(); this.world.clearLayers(); this.world.setHover(null); }
 
   buildHud() {
     this.hud?.remove();
-    this.el = { res: h('div.x-res'), party: h('div.x-party'), hint: h('div.b-hint'), obj: h('div.x-obj') };
+    this.el = { res: h('div.x-res'), party: h('div.x-party'), hint: h('div.b-hint'), obj: h('div.x-obj'), bag: h('div.x-bag') };
     this.hud = h('div.explore-hud',
       h('div.x-top', h('div.x-title', h('div.x-stage', this.stage.name), h('div.x-sub', this.stage.subtitle), this.el.obj),
         h('div.x-right', this.el.res, h('div.x-buttons',
-          btn(t('Journal'), () => openMenu(this.app), { cls: 'small', iconName: 'book', tip: t('Heroes, equipment, deck, forge, quests (Tab)') }),
           this.spectator ? btn(t('Party Room'), () => lobbyModal(this.app), { cls: 'small', iconName: 'banner' }) : btn(t('World Map'), () => this.app.toWorldMap(), { cls: 'small', iconName: 'flag', tip: t('Leave — your progress in this stage is kept') })))),
-      this.el.party, this.el.hint, this.world.camControls(),
+      h('div.x-dock', this.el.party, this.el.bag), this.el.hint, this.world.camControls(),
       h('div.x-legend', ...[['sword', '#e05a4a', 'Monsters'], ['horns', '#ff8a2a', 'Mini Boss'], ['crown', '#ff3050', 'MVP Boss'], ['chest', '#ffd24a', 'Treasure'], ['gem', '#6fe0c0', 'Resources'], ['question', '#c9a0ff', 'Event'], ['camp', '#7fe08a', 'Rest'], ['coin', '#ffc050', 'Shop'], ['shrine', '#9ad8ff', 'Shrine']].map(([i, c, n]) => h('span', icon(i, c, 16), t(n)))));
     ui().appendChild(this.hud);
     if (this.spectator) { this.el.hint.textContent = t('The host leads the party. Click a hex to suggest where to go.'); this.el.hint.classList.add('on'); }
@@ -63,13 +62,14 @@ export class ExploreScene {
   }
 
   refreshHud() {
-    if (!this.el) return;
+    if (!this.el || !G.state?.run) return; // (the expedition is over once the MVP falls)
     const st = G.state; const sm = this.sm;
     const q = claimableQuests();
     this.el.res.replaceChildren(h('div.res', icon('coin', '#ffd24a', 18), fmt(st.gold)), h('div.res', icon('gem', '#9ad8ff', 18), fmt(st.shards)), q ? h('div.res.alert', { onclick: () => openMenu(this.app, 'quests') }, t('{n} quest(s) ready', { n: q })) : null);
     this.el.party.replaceChildren(...st.party.map((hero) => { const s = computeStats(hero);
       return h('div.p-card' + (hero.hp <= 0 ? '.dead' : ''), { onclick: () => openMenu(this.app, 'hero') }, h('div.p-portrait', heroSprite(hero, { size: 64, zoom: 1.5, oy: 0.3 })),
         h('div.p-body', h('div.p-name', hero.name, h('span', ` Lv ${hero.level}`), hero.statPoints + hero.skillPoints > 0 ? h('i.pip', '!') : null), bar('hp', hero.hp, s.hp), bar('mp', hero.mp, s.mp))); }));
+    this.el.bag.replaceChildren(bagButton(() => openMenu(this.app), myHeroes().reduce((s, hero) => s + hero.statPoints + hero.skillPoints, 0) + q));
     const left = [...sm.cells.values()].filter((c) => sm.activeNode(c));
     const boss = left.find((c) => c.node.type === 'boss');
     const bossName = MONSTERS[this.stage.boss].name;
@@ -201,6 +201,9 @@ export class ExploreScene {
       w.addUnit({ uid: 'party' + i, spriteKey: heroLook(hero).key, look: heroLook(hero).look, scale: i === 0 ? 1 : 0.85, facing: 5 }, [pos]);
       if (i > 0) { const U = w.units.get('party' + i); U.group.position.x -= 0.35 * i; U.group.position.z -= 0.18 * i; }
     });
+    // each hero's name floats over their head (plain text; in co-op it takes the player's colour)
+    this.nameTags?.forEach((a) => w.detach(a));
+    this.nameTags = party.map((hero, i) => w.attach(h('div.unit-label', h('div.ul-inner', h('div.ul-name', { style: hero.owner ? { color: Coop.colorOf(hero.owner) } : null }, hero.name))), () => w.unitPos('party' + i, 2.4)));
   }
   share(type, data) { if (Coop.isHost) Coop.send({ t: type, ...data }); }
   // Guests: read-only view of an event the host resolved.

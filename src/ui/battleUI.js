@@ -120,7 +120,8 @@ export class BattleScene {
     const w = this.world; const b = this.battle;
     w.addUnit(u, b.cellsOf(u));
     const el = h('div.unit-label' + (u.side === 'enemy' ? '.enemy' : '.ally') + (u.rank === 'mvp' ? '.mvp' : u.rank === 'mini' ? '.mini' : ''),
-      h('div.ul-inner', h('div.ul-intent'), h('div.ul-status'), h('div.ul-row', h('div.ul-block'), h('div.ul-hp', h('div.ul-hp-ghost'), h('div.ul-hp-fill')))));
+      // heroes and bosses carry their name over their head (plain text; in co-op a hero's name takes its player's colour)
+      h('div.ul-inner', h('div.ul-intent'), h('div.ul-status'), u.hero || u.rank === 'mvp' || u.rank === 'mini' ? h('div.ul-name', { style: u.hero?.owner ? { color: Coop.colorOf(u.hero.owner) } : null }, u.name) : null, h('div.ul-row', h('div.ul-block'), h('div.ul-hp', h('div.ul-hp-ghost'), h('div.ul-hp-fill')))));
     const anchor = w.attach(el, () => (u.alive ? w.unitPos(u.uid, u.construct ? 1.1 : u.nest ? 1.6 : 2.0) : null));
     this.labels.set(u.uid, { el, anchor, u });
     this.syncLabel(u);

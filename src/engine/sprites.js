@@ -464,6 +464,9 @@ export function drawIcon(ctx, name, color) {
   ctx.fillStyle = color; ctx.strokeStyle = color; ctx.lineWidth = 4;
   const P = (pts, close = true) => { ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); if (close) ctx.closePath(); };
   switch (name) {
+    case 'bag': ctx.beginPath(); ctx.arc(0, -12, 9, Math.PI, 0); ctx.stroke(); ctx.beginPath(); ctx.roundRect(-19, -12, 38, 36, 9); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.beginPath(); ctx.roundRect(-19, -12, 38, 14, [9, 9, 3, 3]); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.beginPath(); ctx.roundRect(-5, -3, 10, 10, 2); ctx.fill(); break;
     case 'sword': P([[-3, 14], [-3, -22], [0, -27], [3, -22], [3, 14]]); ctx.fill(); ctx.fillRect(-11, 12, 22, 4); ctx.fillRect(-2, 16, 4, 10); break;
     case 'shield': P([[-16, -18], [16, -18], [16, 0], [0, 22], [-16, 0]]); ctx.fill(); ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(-2, -14, 4, 28); ctx.fillRect(-12, -4, 24, 4); break;
     case 'boot': P([[-8, -20], [6, -20], [6, 6], [20, 12], [20, 20], [-10, 20]]); ctx.fill(); break;

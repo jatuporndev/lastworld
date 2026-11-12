@@ -2,7 +2,7 @@
 import { h, fmt } from '../core/util.js';
 import { t, LANG, setLang } from '../core/i18n.js';
 import { audio } from '../core/audio.js';
-import { G, claimableQuests, charList, worldList, createCharacter, createWorld, deleteCharacter, deleteWorld, MAX_CHARS, MAX_WORLDS } from '../game/state.js';
+import { G, claimableQuests, charList, worldList, createCharacter, createWorld, deleteCharacter, deleteWorld, myHeroes, MAX_CHARS, MAX_WORLDS } from '../game/state.js';
 import { computeStats, createHero } from '../game/character.js';
 import { CLASSES, CLASS_ORDER } from '../data/classes.js';
 import { STARTER_DECKS, ELEMENTS } from '../data/cards.js';
@@ -11,7 +11,7 @@ import { MONSTERS } from '../data/monsters.js';
 import { UNIQUES } from '../data/items.js';
 import { CARDS } from '../data/cards.js';
 import { Net } from '../net/firebase.js';
-import { ui, btn, icon, openModal, heroSprite, monsterSprite, cardEl, toast, toggleFullscreen, confirmBox, bar } from './components.js';
+import { ui, btn, icon, openModal, heroSprite, monsterSprite, cardEl, toast, toggleFullscreen, confirmBox, bar, bagButton } from './components.js';
 import { openMenu } from './panels.js';
 import { coopModal, inviteFriends } from './coopUI.js';
 import { Coop } from '../net/coop.js';
@@ -181,11 +181,13 @@ export function playScreen(app, sel = {}) {
 export function newWorldModal(done) {
   const n = worldList().length + 1;
   const input = h('input', { value: t('World {n}', { n }), maxlength: 24 });
-  const ok = () => { const w = createWorld(input.value.trim() || t('World {n}', { n })); m.close(); audio.sfx('buff'); done?.(w); };
+  // (a button inside a form also submits it, so make sure one press makes one world — and Cancel makes none)
+  let made = false;
+  const ok = () => { if (made) return; made = true; const w = createWorld(input.value.trim() || t('World {n}', { n })); m.close(); audio.sfx('buff'); done?.(w); };
   const m = openModal(h('form.confirm', { novalidate: true, onsubmit: (e) => { e.preventDefault(); ok(); } },
     h('label.auth-field', h('span.auth-label', t('World name')), h('div.auth-input', input)),
     h('p.note', t('A new world starts at Stage 1. Any of your characters can enter it, alone or with friends.')),
-    h('div.row.center', btn(t('Cancel'), () => m.close(), { cls: 'ghost' }), btn(t('Create World'), ok, { cls: 'primary' }))), { title: t('Create World'), cls: 'narrow' });
+    h('div.row.center', btn(t('Cancel'), () => { made = true; m.close(); }, { cls: 'ghost' }), btn(t('Create World'), ok, { cls: 'primary' }))), { title: t('Create World'), cls: 'narrow' });
   requestAnimationFrame(() => input.select());
 }
 
@@ -254,9 +256,10 @@ export function worldMapScreen(app) {
   const q = claimableQuests();
   const el = h('div.screen.wm-screen',
     h('div.wm-top', h('h2', G.profile.worlds[st.worldId]?.name || t('The Sundered Realms')),
-      h('div.wm-party', ...st.party.map((p) => { const cs = computeStats(p); return h('div.p-card', { onclick: () => openMenu(app, 'hero') }, h('div.p-portrait', heroSprite(p, { size: 64, zoom: 1.5, oy: 0.3 })), h('div.p-body', h('div.p-name', p.name, h('span', ` Lv ${p.level}`), p.statPoints + p.skillPoints > 0 ? h('i.pip', '!') : null), bar('hp', p.hp, cs.hp), bar('mp', p.mp, cs.mp))); })),
+      h('div.wm-party', ...st.party.map((p) => { const cs = computeStats(p); return h('div.p-card', { onclick: () => openMenu(app, 'hero') }, h('div.p-portrait', heroSprite(p, { size: 64, zoom: 1.5, oy: 0.3 })), h('div.p-body', h('div.p-name', p.name, h('span', ` Lv ${p.level}`), p.statPoints + p.skillPoints > 0 ? h('i.pip', '!') : null), bar('hp', p.hp, cs.hp), bar('mp', p.mp, cs.mp))); }),
+        bagButton(() => openMenu(app), myHeroes().reduce((s, p) => s + p.statPoints + p.skillPoints, 0) + q)),
       h('div.wm-actions', h('div.res', icon('coin', '#ffd24a', 18), fmt(st.gold)), h('div.res', icon('gem', '#9ad8ff', 18), fmt(st.shards)),
-        btn(q ? t('Journal ({n})', { n: q }) : t('Journal'), () => openMenu(app), { cls: 'small', iconName: 'book' }), btn(t('Forge'), () => openMenu(app, 'forge'), { cls: 'small', iconName: 'anvil' }), Coop.active ? null : btn(t('Invite Friends'), () => inviteFriends(app), { cls: 'small', iconName: 'banner', tip: t('Open this world to friends (online co-op)'), disabled: !Net.online }), btn(t('Title'), () => app.toTitle(), { cls: 'small' }))),
+        btn(t('Forge'), () => openMenu(app, 'forge'), { cls: 'small', iconName: 'anvil' }), Coop.active ? null : btn(t('Invite Friends'), () => inviteFriends(app), { cls: 'small', iconName: 'banner', tip: t('Open this world to friends (online co-op)'), disabled: !Net.online }), btn(t('Title'), () => app.toTitle(), { cls: 'small' }))),
     h('div.wm-main', h('div.wm-map', h('div.wm-parchment'), svg, nodes, h('div.wm-compass', '✦')), detail));
   el._refresh = () => { if (el.isConnected) worldMapScreen(app); };
   return mount(el);

@@ -751,6 +751,19 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .coop-box { border: 0; background: var(--paper2); } .coop-box h3 { color: var(--accent); } .coop-box p { color: var(--ink-d); }
 .lb-select { background: var(--scene); color: var(--ink-d); border: 0.08em solid var(--paper3); }
 .code-input::placeholder { color: var(--paper3); }
+/* a character's name over their head: plain text on the scene, no plate behind it */
+.ul-name { font-family: var(--f-head); font-weight: 500; font-size: 0.86em; line-height: 1.1; white-space: nowrap; color: var(--scene); text-shadow: var(--tshadow); pointer-events: none; }
+.unit-label.enemy .ul-name { color: #ffb4a6; } .unit-label.mvp .ul-name { font-size: 1.05em; color: var(--coin); }
+/* the bag: a round paper token beside your hero that opens stats, gear, deck, forge and quests; the red pip counts what is waiting */
+.bag-btn { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.15em; padding: 0; border: 0; background: none; cursor: pointer; pointer-events: auto; color: var(--scene); font-family: var(--f-head); text-shadow: var(--tshadow); flex: none; }
+.bag-token { display: grid; place-items: center; width: 3.4em; height: 3.4em; border-radius: 50%; background: var(--paper); box-shadow: 0 0.25em 0 rgba(0, 0, 0, 0.3); transition: transform 0.12s, background 0.12s; }
+.bag-token .icon { width: 2em; height: 2em; } .bag-btn small { font-size: 0.8em; line-height: 1.1; }
+.bag-btn:hover .bag-token { background: var(--coin); } .bag-btn:active .bag-token { transform: scale(0.92); }
+.bag-btn .pip { position: absolute; top: -0.35em; right: -0.5em; margin: 0; font-size: 0.8em; }
+.x-dock { position: absolute; left: 1.2em; bottom: 1em; display: flex; align-items: flex-end; gap: 0.9em; } .x-dock .x-party { position: static; } .x-bag { pointer-events: none; }
+.wm-party { align-items: center; }
+/* host a room: the world picker with "+ Create World" beside it */
+.coop-world { display: flex; align-items: center; gap: 0.4em; } .coop-world .lb-select { flex: 1; min-width: 0; } .coop-new { white-space: nowrap; font-size: 0.85em; min-height: 3.1em; padding: 0 0.8em; } .coop-new[hidden] { display: none; }
 
 /* Undo and Items are paper tags, so they read as buttons and not as headings above Execute / End Turn */
 .b-buttons .btn.small { background: var(--paper); color: var(--ink-d); text-shadow: none; border-radius: 0.3em; box-shadow: 0 0.15em 0 rgba(0, 0, 0, 0.3); }
@@ -790,7 +803,7 @@ html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent
   .hero-sheet { gap: 0.7em; } .hero-col.portrait { flex-basis: 9.5em; } .hero-stage { height: 8em; overflow: hidden; } .hero-stage canvas { height: 8em !important; width: auto !important; } .hero-name { font-size: 1.1em; }
   .eq-col { flex-basis: 18em; } .deck-cols .card, .card-grid .card { font-size: 0.8em; } .wm-boss b { font-size: 1em; }
   /* exploration */
-  .x-top { top: 0.5em; left: 0.8em; right: 0.8em; } .x-stage { font-size: 1.4em; } .x-legend { display: none; } .x-party { bottom: 0.6em; left: 0.8em; }
+  .x-top { top: 0.5em; left: 0.8em; right: 0.8em; } .x-stage { font-size: 1.4em; } .x-legend { display: none; } .x-dock { bottom: 0.6em; left: 0.8em; gap: 0.6em; } .bag-token { width: 3em; height: 3em; }
   /* battle */
   .b-top { top: 0.3em; } .b-stage { font-size: 1em; } .turn-order { padding: 0; margin: 0.55em 0 0.5em; } .to-unit { width: 2.3em; height: 2.3em; }
   .battle-hud .b-hint { top: 7.6em; font-size: 0.8em; max-width: 60vw; overflow: hidden; text-overflow: ellipsis; }

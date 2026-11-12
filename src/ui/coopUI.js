@@ -3,11 +3,12 @@
 import { h, bus } from '../core/util.js';
 import { t } from '../core/i18n.js';
 import { audio } from '../core/audio.js';
-import { G, charList, worldList } from '../game/state.js';
+import { G, charList, worldList, MAX_WORLDS } from '../game/state.js';
 import { CLASSES } from '../data/classes.js';
 import { Net } from '../net/firebase.js';
 import { Coop } from '../net/coop.js';
 import { ui, btn, icon, openModal, heroSprite, toast } from './components.js';
+import { newWorldModal } from './screens.js';
 
 const ERR = {
   offline: 'Online play needs the Firebase connection. Check your internet and the game settings.',
@@ -37,7 +38,13 @@ export function coopModal(app) {
   const charLabel = (c) => `${c.hero.name} · ${CLASSES[c.hero.cls].name} Lv ${c.hero.level}`;
   const pickChar = () => h('select.lb-select', ...chars.map((c) => opt(c.id, charLabel(c), c.id === P.last.char)));
   const hostChar = pickChar(); const joinChar = pickChar();
-  const hostWorld = h('select.lb-select', ...worlds.map((w) => opt(w.id, `${w.name} · ${t('Stage {n}', { n: Math.min(6, w.unlocked) })}`, w.id === P.last.world)));
+  // the host picks one of their worlds, or makes a new one right here
+  const hostWorld = h('select.lb-select');
+  const fillWorlds = (sel) => { const list = worldList();
+    hostWorld.replaceChildren(...(list.length ? list.map((w) => opt(w.id, `${w.name} · ${t('Stage {n}', { n: Math.min(6, w.unlocked) })}`, w.id === sel)) : [opt('', t('No world yet'))]));
+    hostWorld.disabled = !list.length; };
+  fillWorlds(P.last.world);
+  const newWorld = h('button.mini.coop-new', { type: 'button', hidden: worlds.length >= MAX_WORLDS, onclick: (e) => { e.preventDefault(); newWorldModal((w) => { app.saveNow(); fillWorlds(w.id); createBtn.disabled = false; newWorld.hidden = worldList().length >= MAX_WORLDS; }); } }, '+ ' + t('Create World'));
   const name = h('input', { value: defaultName(), maxlength: 16, autocomplete: 'nickname' });
   const code = h('input.code-input', { placeholder: 'ABCDE', maxlength: 5, autocomplete: 'off', spellcheck: 'false', oninput: () => { code.value = code.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); } });
   const msg = h('div.auth-msg');
@@ -48,22 +55,25 @@ export function coopModal(app) {
     if (busy) return; busy = true; say(t('Connecting…'), 'busy');
     try { await fn(); } catch (e) { console.warn('[co-op]', e); say(coopError(e)); } finally { busy = false; }
   };
-  const create = () => run(async () => { await app.hostRoom(hostWorld.value, hostChar.value, nick()); m.close(); audio.sfx('buff'); lobbyModal(app); });
+  const create = () => run(async () => { if (!hostWorld.value) return; await app.hostRoom(hostWorld.value, hostChar.value, nick()); m.close(); audio.sfx('buff'); lobbyModal(app); });
+  const createBtn = btn(t('Create Room'), create, { cls: 'primary block', iconName: 'crown', disabled: !worlds.length });
+  // no character yet: make one, then come straight back to this window
+  const back = async () => { await app.toTitle(); coopModal(app); };
   const join = () => run(async () => {
     if (code.value.length < 5) { say(t('Enter the 5-letter room code.')); return; }
     await app.joinRoom(code.value, joinChar.value, nick()); m.close(); audio.sfx('buff');
   });
   const field = (label, el) => h('label.auth-field', h('span.auth-label', label), el);
-  const needChar = h('div.coop-box.coop-need', h('p', t('You need a character to play online.')), btn(t('Create Character'), () => { m.close(); app.toCharCreate({}); }, { cls: 'primary block', iconName: 'star' }));
+  const needChar = h('div.coop-box.coop-need', h('p', t('You need a character to play online.')), btn(t('Create Character'), () => { m.close(); app.toCharCreate({ join: back, cancel: back }); }, { cls: 'primary block', iconName: 'star' }));
   const body = h('div.coop',
     h('div.auth-head', h('div.auth-crest', h('div.auth-crest-ring'), icon('banner', '#f6d98a', 46)), h('h2.auth-title', t('Play with Friends')),
       h('p.auth-sub', t('Up to 3 players, one character each. The host opens one of their worlds; friends bring their own character and keep what they earn.'))),
     h('label.auth-field', h('span.auth-label', t('Your name')), h('div.auth-input', name)),
     !chars.length ? needChar : h('div.coop-cols',
       h('div.coop-box', h('h3', t('Host a room')),
-        worlds.length ? field(t('World'), hostWorld) : h('p', t('Create a world first (Play → Create World).')),
+        field(t('World'), h('div.coop-world', hostWorld, newWorld)),
         field(t('Character'), hostChar),
-        btn(t('Create Room'), create, { cls: 'primary block', iconName: 'crown', disabled: !worlds.length })),
+        createBtn),
       h('div.coop-box', h('h3', t('Join a room')), field(t('Character'), joinChar),
         h('form', { novalidate: true, onsubmit: (e) => { e.preventDefault(); join(); } }, field(t('Room code'), h('div.auth-input', code)), btn(t('Join'), join, { cls: 'block', iconName: 'sword' })))),
     msg);

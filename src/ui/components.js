@@ -109,6 +109,13 @@ export function btn(label, onClick, { cls = '', disabled = false, tip = null, ic
   return b;
 }
 
+// The bag: a round paper token next to your hero. It opens the Journal (stats, gear, deck, forge, quests);
+// the red pip counts what is waiting there — unspent stat / skill points and quests ready to claim.
+export function bagButton(onClick, n = 0) {
+  return h('button.bag-btn', { 'data-tip': t('Bag — spend stat and skill points, change equipment, build your deck (Tab)'), onclick: () => { audio.init(); audio.sfx('click'); onClick(); }, onmouseenter: () => audio.sfx('hover') },
+    h('span.bag-token', icon('bag', '#3a2a20', 30)), h('small', t('Bag')), n > 0 ? h('i.pip', n) : null);
+}
+
 // ───── modal ─────
 export function openModal(content, { cls = '', closable = true, onClose = null, title = null } = {}) {
   audio.sfx('open');
