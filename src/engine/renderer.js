@@ -425,6 +425,33 @@ export class World {
     await tween(110, (e) => { U.group.position.copy(from).addScaledVector(dir, e); }, Ease.outQuad);
     tween(200, (e) => { U.group.position.copy(from).addScaledVector(dir, 1 - e); }, Ease.inOutQuad);
   }
+  // ───────── acting ─────────
+  // A blow is told in beats, like a stage fight: the body gathers itself, snaps out, and settles back.
+  // strike(): pull back and squash, then snap at the target and stretch. Resolves on contact; the recovery
+  // plays on by itself, so the hit and its hit-stop land while the attacker is still at full reach.
+  async strike(uid, toward, { dist = 0.5, wind = 150, heavy = false } = {}) {
+    const U = this.units.get(uid); if (!U) return; const from = U.group.position.clone();
+    const dir = toward.clone().sub(from); dir.y = 0; if (dir.lengthSq() < 0.001) return; dir.normalize();
+    const k = Math.min(1.6, U.scale), back = (heavy ? 0.36 : 0.22) * k, fwd = dist * k, sq = heavy ? 0.17 : 0.1, S = U.size;
+    await tween(wind, (e) => { U.group.position.copy(from).addScaledVector(dir, -back * e); U.sprite.scale.set(S * (1 + sq * e), S * (1 - sq * e), 1); }, Ease.outQuad);
+    if (heavy) await tween(70, () => {}); // a heavy blow hangs for a beat at the top
+    await tween(75, (e) => { U.group.position.copy(from).addScaledVector(dir, -back + (back + fwd) * e); const a = sq - sq * 1.7 * e; U.sprite.scale.set(S * (1 + a), S * (1 - a), 1); }, Ease.inQuad);
+    tween(heavy ? 150 : 90, () => {}).then(() => tween(260, (e) => { U.group.position.copy(from).addScaledVector(dir, fwd * (1 - e)); const a = -sq * 0.7 * (1 - e); U.sprite.scale.set(S * (1 + a), S * (1 - a), 1); }, Ease.inOutQuad))
+      .then(() => { if (this.units.has(uid)) { U.group.position.copy(from); U.sprite.scale.set(S, S, 1); } });
+  }
+  // gather(): a caster sinks into the spell while it charges.  release(): pops up and is kicked back by it.
+  gather(uid, ms = 380) {
+    const U = this.units.get(uid); if (!U) return Promise.resolve(); const S = U.size;
+    return tween(ms, (e) => { U.sprite.scale.set(S * (1 + 0.07 * e), S * (1 - 0.09 * e), 1); }, Ease.outQuad);
+  }
+  release(uid, toward = null) {
+    const U = this.units.get(uid); if (!U) return; const S = U.size; const from = U.group.position.clone();
+    const dir = toward ? toward.clone().sub(from).setY(0) : new THREE.Vector3(); if (dir.lengthSq() > 0.001) dir.normalize(); else dir.set(0, 0, 0);
+    const kick = 0.16 * Math.min(1.6, U.scale);
+    tween(90, (e) => { U.sprite.scale.set(S * (1.07 - 0.15 * e), S * (0.91 + 0.19 * e), 1); U.group.position.copy(from).addScaledVector(dir, -kick * e); }, Ease.outQuad)
+      .then(() => tween(300, (e) => { U.sprite.scale.set(S * (0.92 + 0.08 * e), S * (1.1 - 0.1 * e), 1); U.group.position.copy(from).addScaledVector(dir, -kick * (1 - e)); }, Ease.inOutQuad))
+      .then(() => { if (this.units.has(uid)) { U.group.position.copy(from); U.sprite.scale.set(S, S, 1); } });
+  }
   hitFlash(uid, strong = false, from = null) {
     const U = this.units.get(uid); if (!U) return;
     const dir = from ? U.group.position.clone().sub(from).setY(0) : new THREE.Vector3();

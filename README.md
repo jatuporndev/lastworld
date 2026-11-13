@@ -5,8 +5,9 @@ cooldowns, six stages each ending in an MVP boss, and a persistent party that le
 the whole campaign. Built with Three.js; saves go to Firebase Realtime Database (or to the
 browser when Firebase is not configured).
 
-All art (sprite sheets, icons, terrain) and all audio (music and sound effects) are generated
-in code at runtime, so there are no asset files to manage.
+Characters, monsters, icons, card art and terrain, and all audio (music and sound effects), are generated
+in code at runtime. The one set of picture files is the skill effects in `public/vfx`: pixel-art sprite
+sheets that `tools/bake-vfx.mjs` draws by code from the game's own designs in `tools/vfx/effects.mjs`.
 
 ## Run
 
@@ -78,6 +79,7 @@ after every change and the title screen offers **Continue**.
 | Renderer (Three.js diorama board, shadows, fog, billboard sprites, particles, camera) | `src/engine/renderer.js` |
 | Terrain textures (painted hex tops, layered sides, tables, water) | `src/engine/terrainArt.js` |
 | Scenery props and per-stage visual themes | `src/engine/props.js` |
+| Skill effects (which pictures a card plays; the sprite-sheet player) | `src/engine/vfx.js`, `src/engine/pixfx.js` |
 | Sprite sheets (5 animations × 3 views × 4 frames, mirrored for 6 facings) | `src/engine/sprites.js` |
 | Card Engine (draw pile, hand limit, cooldown track) | `src/game/cardEngine.js` |
 | Combat Resolver (turn order, planning, damage, statuses, synergies) | `src/game/combat.js` |

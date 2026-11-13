@@ -7,7 +7,8 @@ import { t } from '../core/i18n.js';
 const tr = t; // for scopes with a local variable named t
 import { audio } from '../core/audio.js';
 import { elColor } from '../engine/renderer.js';
-import { castVfx, dashFx, blinkFx } from '../engine/vfx.js';
+import { castVfx, dashFx, blinkFx, critFx, poofFx, fxSheetsFor, ALWAYS_SHEETS } from '../engine/vfx.js';
+import { preloadSheets, releaseSheets } from '../engine/pixfx.js';
 import { Battle, DICE } from '../game/combat.js';
 import { ACTION_SLOTS } from '../game/cardEngine.js';
 import { G, cardLevel } from '../game/state.js';
@@ -15,6 +16,7 @@ import { ELEMENTS, STATUS_INFO, describeCard, diceText } from '../data/cards.js'
 import { terrainOf } from '../data/terrain.js';
 import { CONSUMABLES } from '../data/items.js';
 import { CLASSES } from '../data/classes.js';
+import { MONSTERS } from '../data/monsters.js';
 import { Coop } from '../net/coop.js';
 import { bus } from '../core/util.js';
 import { ui, cardEl, unitSprite, statusChips, bar, btn, icon, toast, banner, openModal, diceChip } from './components.js';
@@ -103,11 +105,31 @@ export class BattleScene {
     this.buildHud();
     this.bind();
     audio.music(boss ? 'boss' : 'battle');
+    await Promise.race([preloadSheets(this.fxSheets(), w), sleep(4000)]); // the skill pictures this fight can show
     const result = await b.run();
     return result;
   }
 
+  // Every effect sheet this fight may need: the heroes' decks, each monster's attacks (and what it can hatch or call), items.
+  fxSheets() {
+    const out = [...ALWAYS_SHEETS, ...fxSheetsFor({ cat: 'attack', el: 'fire', proj: 'fire' })]; // (the bomb and the turret)
+    for (const u of this.battle.units) if (u.cards) for (const pile of [u.cards.draw, u.cards.hand]) for (const inst of pile) out.push(...fxSheetsFor(inst.card));
+    const ids = new Set([...this.battle.units.filter((u) => u.def).map((u) => u.monsterId), ...(this.stage.pool || [])]);
+    for (const id of ids) { // (a Set also walks the ids added while it is being walked)
+      const m = MONSTERS[id]; if (!m) continue; (m.hatch || []).forEach((x) => ids.add(x));
+      for (const it of [...(m.intents || []), ...(m.phase2 || [])]) {
+        if (it.k === 'summon' && it.id) ids.add(it.id);
+        const el = it.el || m.el || 'neutral';
+        const card = it.k === 'aoe' ? { cat: 'attack', el, shape: it.shape, size: it.size } : it.k === 'strike' || it.k === 'shoot' ? { cat: 'attack', el, proj: (it.range || 1) > 1 ? el : null }
+          : { cat: it.k === 'guard' ? 'defense' : it.k === 'summon' ? 'special' : 'buff', el, kind: it.k === 'guard' ? 'block' : it.k === 'heal' ? 'heal' : it.k === 'summon' ? 'summon' : undefined };
+        out.push(...fxSheetsFor(card, true));
+      }
+    }
+    return out;
+  }
+
   dispose() {
+    releaseSheets();
     this._offs?.forEach((off) => off());
     this.unbind();
     for (const l of this.labels.values()) { this.world.detach(l.anchor); this.world.detach(l.footAnchor); }
@@ -569,6 +591,7 @@ export class BattleScene {
           if (!dot) num.style.fontSize = (crit ? 2.8 : 1.9) * Math.min(1.9, 0.85 + sev * 2.4) + 'em';
           w.burst(p, { color: elColor(el), count: crit ? 26 : dot ? 6 : heavy ? 18 : 12, speed: crit ? 5 : heavy ? 4 : 3 });
           if (heavy && !dot) w.ring(pos(tgt, 0.1), elColor(el), crit ? 1.8 : 1.2, 260);
+          if (crit && !dot) critFx(w, p);
           audio.sfx(crit ? 'crit' : dot ? (el === 'fire' ? 'fire' : 'poison') : 'hit');
           if (!dot) {
             if (heavy || onHero) w.shake(crit ? 0.45 : killed ? 0.32 : onHero ? 0.2 : 0.25, crit ? 320 : 240);
@@ -608,6 +631,7 @@ export class BattleScene {
         if (u.side === 'enemy') w.floatText(pos(u, 2.4), t('KO!'), 'ko');
         if (u.rank === 'mvp') { w.shake(0.7, 1200); for (let i = 0; i < 6; i++) { w.burst(p.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 2, (Math.random() - 0.5) * 2)), { color: elColor(u.el), count: 20, speed: 5 }); audio.sfx('explosion'); await sleep(170); } w.ring(pos(u, 0), 0xffffff, 8, 900); }
         w.burst(p, { color: u.side === 'enemy' ? 0xc0a0ff : 0xff6060, count: 20, speed: 3.5 });
+        if (u.side === 'enemy' && u.rank !== 'mvp') poofFx(w, p, Math.max(1, (u.scale || 1) * 0.9));
         w.rise(p, { color: 0xffffff, count: 10 });
         await w.fadeOut(u.uid, u.rank === 'mvp' ? 1100 : 480);
         this.renderOrder(); this.renderParty(); if (this.inspect === u) { this.inspect = null; this.renderInfo(); }

@@ -1,12 +1,13 @@
-// Skill effects — what a card looks like when it resolves. Every effect is built from a small set of
-// white shapes painted once by code (a crescent, a crystal, a flame, a rune circle…), tinted by the
-// card's element and animated as billboards, ground decals and particles. What plays is chosen from the
-// card itself: its element, its icon, how it travels (melee, projectile, line, cone, area, burst) and
-// what it does (damage, block, heal, buff), so two different cards rarely look alike.
+// Skill effects — what a card looks like when it resolves. A card is acted out in beats: a wind-up, the
+// thing travelling, and the blow landing. The pictures are pixel-art sprite sheets (see pixfx.js); which ones
+// play is chosen from the card itself — its element, its icon, how it travels (melee, projectile, line,
+// cone, area, burst) and what it does (damage, block, heal, buff) — so a new card needs no extra work.
+// A few small shapes are still painted here by code for dashes, teleports and thrown knives.
 import * as THREE from 'three';
 import { tween, Ease, sleep, clamp } from '../core/util.js';
 import { audio } from '../core/audio.js';
 import { elColor } from './renderer.js';
+import { play, hitMs } from './pixfx.js';
 
 const EL_SFX = { fire: 'fire', ice: 'ice', wind: 'wind', earth: 'earth', holy: 'holy', shadow: 'shadow', poison: 'poison', neutral: 'slash', arcane: 'magic' };
 
@@ -128,98 +129,8 @@ function decal(w, name, pos, { color = 0xffffff, size = 1, to = size * 1.6, ms =
 }
 const bit = (w, name, pos, o) => w.particle(pos, { tex: tex(name), ...o, size: (o.size || 0.3) * K });
 
-// ───────── element impacts ─────────
-// What an element does where it lands. `p` is chest height over the cell, `s` scales the whole effect.
-export function elemHit(w, el, p, s = 1) {
-  const c = elColor(el); const g = p.clone(); g.y -= 0.62;
-  switch (el) {
-    case 'fire':
-      for (let i = 0; i < 5; i++) bit(w, 'flame', V(p.x + R(0.8 * s), g.y + 0.25, p.z + R(0.5 * s)), { color: i % 2 ? 0xff6a1a : 0xffc040, size: (0.6 + Math.random() * 0.5) * s, life: 380 + Math.random() * 240, vel: V(R(0.6), 2 + Math.random() * 1.8, 0), gravity: -1.5, grow: 0.4 });
-      w.burst(p, { color: 0xffb040, count: 5, speed: 3, size: 0.16, life: 650, gravity: 3, up: 3 });
-      decal(w, 'shock', g, { color: 0xff5a1a, size: 0.5, to: 2.3 * s, ms: 300 });
-      break;
-    case 'ice':
-      for (let i = 0; i < 7; i++) { const a = (i / 7) * Math.PI * 2 + R(0.5); bit(w, 'shard', p, { color: i % 2 ? 0xe6f8ff : c, size: (0.55 + Math.random() * 0.4) * s, life: 360, rot: a, vel: screenDir(w, a, 3.6 * s), drag: 0.88 }); }
-      spr(w, 'spark', p, { color: 0xffffff, size: 0.4, to: 1.5 * s, ms: 200, rot: R(3) });
-      decal(w, 'shock', g, { color: 0xbfeaff, size: 0.5, to: 2 * s, ms: 340 });
-      break;
-    case 'wind':
-      spr(w, 'swirl', p, { color: c, size: 0.7 * s, to: 2.3 * s, ms: 380, spin: 7 });
-      spr(w, 'swirl', p, { color: 0xffffff, size: 0.4 * s, to: 1.5 * s, ms: 300, spin: -9, opacity: 0.7 });
-      for (let i = 0; i < 4; i++) { const a = R(6.3); bit(w, 'shard', p, { color: 0xd8ffe6, size: 0.4 * s, life: 300, rot: a, vel: screenDir(w, a, 4), drag: 0.9 }); }
-      break;
-    case 'earth':
-      for (let i = 0; i < 6; i++) bit(w, 'rock', V(p.x + R(0.6 * s), g.y + 0.2, p.z + R(0.4 * s)), { color: i % 2 ? 0x8a6a48 : 0xb89868, size: (0.22 + Math.random() * 0.26) * s, life: 620, fade: false, spin: R(14), vel: V(R(3), 3.2 + Math.random() * 2.6, R(2)), gravity: 13 });
-      bit(w, 'smoke', g, { color: 0xc8b090, size: 1.1 * s, life: 520, opacity: 0.5, grow: 1.4, vel: V(0, 0.5, 0) });
-      decal(w, 'crack', g, { color: 0x2a1c10, size: 1.5 * s, to: 2.1 * s, ms: 800, hold: 0.6, opacity: 0.85 });
-      break;
-    case 'holy':
-      spr(w, 'pillar', V(p.x, p.y + 1.3, p.z), { add: true, color: 0xfff0a0, size: 0.5 * s, to: 1.1 * s, sy: 4.4, ms: 440, hold: 0.35, opacity: 0.85 });
-      for (let i = 0; i < 5; i++) bit(w, 'spark', V(p.x + R(0.9 * s), p.y + R(0.6), p.z + R(0.3)), { color: i % 2 ? 0xffffff : c, size: 0.3 * s, life: 520 + Math.random() * 200, spin: 5, vel: V(0, 1.6 + Math.random(), 0) });
-      decal(w, 'circle', g, { color: c, size: 0.9 * s, to: 1.9 * s, ms: 420, spin: 1.5 });
-      break;
-    case 'shadow':
-      for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; bit(w, 'smoke', p.clone().add(screenDir(w, a, 1.3 * s)), { color: i % 2 ? 0x5a2a9a : c, size: 0.6 * s, life: 300, vel: screenDir(w, a, -4.2 * s), drag: 0.97 }); }
-      spr(w, 'spark', p, { color: c, size: 1.9 * s, to: 0.2, ms: 280, spin: 5, ease: Ease.inOutQuad, hold: 0.8 });
-      after(240, () => decal(w, 'shock', g, { color: c, size: 0.4, to: 2.2 * s, ms: 260 }));
-      break;
-    case 'poison':
-      for (let i = 0; i < 7; i++) bit(w, 'bubble', V(p.x + R(0.9 * s), g.y + Math.random() * 0.8, p.z + R(0.4)), { color: i % 2 ? 0xd8ff9a : c, size: (0.16 + Math.random() * 0.24) * s, life: 600 + Math.random() * 300, vel: V(R(0.5), 0.9 + Math.random() * 1.3, 0), gravity: -0.6 });
-      bit(w, 'smoke', p, { color: 0x6aa82a, size: 1 * s, life: 620, opacity: 0.45, grow: 1.6, vel: V(0, 0.4, 0) });
-      break;
-    case 'arcane':
-      spr(w, 'circle', p, { color: c, size: 0.6 * s, to: 1.7 * s, ms: 340, spin: 3 });
-      for (let i = 0; i < 4; i++) { const a = R(6.3); bit(w, 'spark', p, { color: 0xe6d8ff, size: 0.3 * s, life: 380, spin: 8, vel: screenDir(w, a, 2.6), drag: 0.92 }); }
-      break;
-    default:
-      spr(w, 'spark', p, { color: 0xfff0d0, size: 0.45 * s, to: 1.7 * s, ms: 190, rot: R(3) });
-  }
-}
-
-// ───────── melee ─────────
-const MELEE = { sword: 'sword', dagger: 'dagger', hammer: 'smash', mace: 'smash', anvil: 'smash', wrench: 'smash', quake: 'smash', shield: 'shield', boot: 'rush' };
-function meleeFx(w, kind, from, tp, color, sc) {
-  const ang = screenAngle(w, from, tp); const g = tp.clone(); g.y -= 0.62;
-  switch (kind) {
-    case 'dagger': // two quick crossing cuts
-      [0.55, -0.55].forEach((off, i) => after(i * 85, () => { spr(w, 'shard', tp, { color: i ? 0xffffff : color, size: 0.7 * sc, to: 2.6 * sc, sy: 0.3, ms: 170, rot: ang + off }); audio.sfx('slash'); }));
-      after(120, () => spr(w, 'spark', tp, { color: 0xffffff, size: 0.3, to: 1.1 * sc, ms: 160, rot: R(3) }));
-      break;
-    case 'smash': // a heavy blow that breaks the ground
-      decal(w, 'shock', g, { color, size: 0.6, to: 3.2 * sc, ms: 360 });
-      decal(w, 'crack', g, { color: 0x2a1c10, size: 1.7 * sc, to: 2.4 * sc, ms: 900, hold: 0.65, opacity: 0.85 });
-      for (let i = 0; i < 7; i++) bit(w, 'rock', V(tp.x + R(0.7), g.y + 0.2, tp.z + R(0.5)), { color: i % 2 ? 0x8a6a48 : 0xb89868, size: 0.2 + Math.random() * 0.25, life: 640, fade: false, spin: R(14), vel: V(R(3.5), 3.5 + Math.random() * 3, R(2.4)), gravity: 13 });
-      spr(w, 'spark', tp, { color: 0xffffff, size: 0.6, to: 2.4 * sc, ms: 200, rot: R(3) });
-      w.shake(0.32, 240);
-      break;
-    case 'shield':
-      spr(w, 'shield', tp, { color: 0xbfd8ff, size: 0.8 * sc, to: 1.9 * sc, ms: 280, hold: 0.3 });
-      for (let i = 0; i < 4; i++) { const a = ang + R(1.6); bit(w, 'spark', tp, { color: 0xffffff, size: 0.34, life: 340, spin: 9, vel: screenDir(w, a, 4.2), drag: 0.9 }); }
-      break;
-    case 'claw':
-      spr(w, 'claw', tp, { color, size: 1.1 * sc, to: 2.1 * sc, ms: 240, rot: ang - Math.PI / 2 + 0.5, hold: 0.25 });
-      break;
-    case 'rush': // a charge: the blow carries on past the target
-      spr(w, 'slash', tp, { color, size: 1.3 * sc, to: 2.9 * sc, ms: 230, rot: ang - Math.PI / 2 });
-      decal(w, 'shock', g, { color: 0xffffff, size: 0.6, to: 2.6 * sc, ms: 300 });
-      for (let i = 0; i < 5; i++) bit(w, 'shard', tp.clone().add(V(R(0.6), R(0.8), 0)), { color: 0xffffff, size: 0.6, life: 260, rot: ang, vel: screenDir(w, ang, 6 + Math.random() * 3), drag: 0.9 });
-      break;
-    default: // a sword: one wide crescent and its bright echo
-      spr(w, 'slash', tp, { color, size: 1.2 * sc, to: 2.7 * sc, ms: 240, rot: ang - Math.PI / 2 });
-      spr(w, 'slash', tp, { color: pale(color), size: 0.9 * sc, to: 2.1 * sc, ms: 220, rot: ang - Math.PI / 2 });
-      after(60, () => spr(w, 'slash', tp, { color: 0xffffff, size: 0.8 * sc, to: 1.7 * sc, ms: 170, rot: ang - Math.PI / 2 + 0.3, opacity: 0.85 }));
-  }
-}
-
 // ───────── projectiles ─────────
-const SHOT = {
-  arrow: { name: 'arrow', size: 1.25, arc: 0.7, orient: true, trail: { color: 0xffffff, size: 0.14, life: 150 } },
-  knife: { name: 'shard', size: 0.8, sy: 0.4, arc: 0.1, spin: 26, trail: { color: 0xffffff, size: 0.12, life: 120 } },
-  fire: { size: 1, arc: 0.2, trail: { tex: 'flame', color: 0xff8a2a, size: 0.55, life: 300, up: 1.4 } },
-  ice: { name: 'shard', size: 1.2, sy: 0.5, arc: 0.1, orient: true, trail: { tex: 'spark', color: 0xdff6ff, size: 0.2, life: 260 } },
-  holy: { name: 'spark', size: 1, arc: 0.3, spin: 9, trail: { color: 0xfff0a0, size: 0.4, life: 260 } },
-  arcane: { size: 0.75, arc: 0.15, trail: { tex: 'spark', color: 0xe0c8ff, size: 0.3, life: 300, spin: 9 } },
-};
+const SHOT = { knife: { name: 'shard', size: 0.8, sy: 0.4, arc: 0.1, spin: 26, trail: { color: 0xffffff, size: 0.12, life: 120 } } };
 async function shot(w, from, to, color, o = {}) {
   const { name = null, size = 0.7, sy = 1, arc = 0.15, spin = 0, orient = false, trail = { color, size: 0.4, life: 260 } } = o;
   const dist = from.distanceTo(to); const ms = o.ms ?? clamp(dist * 55, 160, 520);
@@ -234,120 +145,171 @@ async function shot(w, from, to, color, o = {}) {
   }, Ease.linear);
   w.fxGroup.remove(s); mat.dispose();
 }
-// Things falling out of the sky onto each cell (arrows, ice).
-async function rain(w, pts, color, o) {
-  pts.slice(0, 10).forEach((p, i) => after(i * 45, () => shot(w, p.clone().add(V(-1.6 + R(0.6), 7, -0.6)), p, color, { ...o, arc: 0, ms: 230 }).then(() => o.land?.(p))));
-  await sleep(Math.min(10, pts.length) * 45 + 200);
+
+// ───────── which pictures a card plays ─────────
+const CHARGE = { fire: 'charge_fire', ice: 'charge_ice', wind: 'charge_wind', earth: 'charge_earth', holy: 'charge_holy', poison: 'charge_poison' };
+const IMPACT = { fire: 'blast', ice: 'hit_ice', wind: 'hit_wind', earth: 'hit_earth', holy: 'hit_holy', shadow: 'hit_shadow', poison: 'hit_poison', arcane: 'hit_arcane', neutral: 'hit_spark' };
+const PROJ = { fire: 'fireball', ice: 'icelance', arrow: 'arrow', holy: 'orb_holy', arcane: 'orb_arcane', shadow: 'orb_shadow', poison: 'orb_poison', wind: 'orb_wind', earth: 'orb_earth', neutral: 'orb_arcane' };
+const MELEE = { sword: 'slash', dagger: 'flurry', hammer: 'smash', mace: 'smash', anvil: 'smash', wrench: 'smash', quake: 'smash', shield: 'hit_blunt', boot: 'thrust', skull: 'reap' };
+const AREA = { fire: 'blast', ice: 'frostnova', earth: 'dirt', wind: 'hit_wind', shadow: 'darkblast', holy: 'holypillar', poison: 'spores', arcane: 'hit_arcane', neutral: 'slam' };
+const BURST = { fire: 'blast', ice: 'frostnova', earth: 'slam', wind: 'hit_wind', shadow: 'darkblast', holy: 'hit_holy', poison: 'spores', arcane: 'hit_arcane', neutral: 'slam' };
+const BEAM = { holy: 'beam_holy', wind: 'beam_wind' };
+const SUPPORT = { heal: 'heal', block: 'shield', smoke: 'smoke', summon: 'portal', boon: 'hit_arcane', revive: 'revive', buff: 'bless' };
+// drawn round their own middle, so they go on the target's chest; every other picture stands on the floor
+const CHEST = new Set(['hit_ice', 'hit_shadow', 'hit_arcane', 'hit_spark', 'hit_crit', 'hit_blunt', 'zap', 'slash', 'slash2', 'flurry', 'claw', 'thrust', 'reap', 'poof']);
+const SINGLE = { blast: 0.5, hit_wind: 0.8, hit_earth: 0.75, hit_holy: 0.75, hit_arcane: 0.7 }; // size on one target
+const HEAVY = new Set(['smash', 'reap']);
+
+// What a card looks like, decided from the card alone: its element, icon, how it travels and what it does.
+// `hostile` says whether a "special" card is aimed at an enemy. Returns the mode and every sheet it needs.
+export function fxPlan(card, monster = false, hostile = card.cat === 'attack') {
+  const el = card.el || 'neutral'; const plain = card.proj === 'arrow' || card.proj === 'knife';
+  const aoe = !!card.shape && card.shape !== 'single';
+  const has = (...ts) => (card.fx || []).some((f) => ts.includes(f.t));
+  const status = (...ss) => (card.fx || []).some((f) => f.t === 'status' && ss.includes(f.st));
+  const magic = card.cat !== 'attack' || (card.proj && !plain) || card.mp > 0 || (aoe && card.shape !== 'burst') || (monster && el !== 'neutral' && (card.proj || aoe));
+  const P = { el, aoe, magic: !!magic, plain, charge: magic ? CHARGE[plain ? 'neutral' : el] || 'charge_arcane' : null, mode: 'melee', main: null, proj: null, impact: null, extra: null };
+  if (!hostile) {
+    // (monster actions and items come as bare cards without an fx list: their category says what they are)
+    P.mode = 'support';
+    P.kind = card.kind || (card.icon === 'smoke' ? 'smoke' : has('heal', 'revive') ? (has('revive') ? 'revive' : 'heal') : has('block') ? 'block' : has('summon') ? 'summon' : has('draw', 'energy', 'mp') ? 'boon' : !card.fx && card.cat === 'defense' ? 'block' : 'buff');
+    P.main = SUPPORT[P.kind]; if (aoe && P.kind === 'heal') P.extra = 'heal_area';
+  } else if (aoe) {
+    P.mode = card.shape;
+    if (card.shape === 'area') {
+      if (card.icon === 'meteor') P.main = el === 'holy' ? 'starfall' : 'meteor';
+      else if (card.icon === 'arrows') { P.proj = 'arrow'; P.impact = 'hit_spark'; }
+      else if (el === 'fire') { P.proj = 'fireball'; P.main = 'blast'; }
+      else P.main = AREA[el] || 'slam';
+    } else if (card.shape === 'line') {
+      if (card.icon === 'bolt') { P.main = 'beam_wind'; P.impact = 'zap'; }
+      else if (el === 'earth' || card.icon === 'quake') P.impact = 'hit_earth';
+      else if (card.icon === 'arrow') { P.proj = 'arrow'; P.impact = 'hit_spark'; }
+      else { P.main = BEAM[el] || 'beam_arcane'; P.impact = el === 'holy' ? 'hit_spark' : IMPACT[el]; }
+    } else if (card.shape === 'cone') {
+      if (el === 'ice') P.main = 'breath_ice'; else P.impact = IMPACT[el];
+    } else { // burst: round the caster
+      P.main = card.icon === 'whirl' ? 'spin' : card.icon === 'blink' ? 'hit_shadow' : card.icon === 'roar' ? 'slam' : BURST[el] || 'slam';
+    }
+  } else if (card.proj) {
+    P.mode = 'shot'; P.proj = card.proj === 'knife' ? null : plain ? 'arrow' : PROJ[card.proj] || PROJ[el];
+    P.impact = plain ? IMPACT[el] : IMPACT[card.proj] || IMPACT[el];
+  } else if ((card.range || 1) > 1 && !has('dash')) { // worked on the target from afar: a snare, a curse, a brand
+    P.mode = 'remote'; P.main = card.icon === 'trap' ? 'snare' : status('frozen') ? 'freeze' : el === 'neutral' ? 'curse' : IMPACT[el];
+  } else {
+    P.main = monster ? (el === 'neutral' ? 'claw' : 'slash2') : card.icon === 'bolt' ? 'zap' : MELEE[card.icon] || 'slash';
+    if (!card.mp) { P.magic = false; P.charge = null; } // a blow is wound up by the body, not by a spell
+    if (el !== 'neutral') P.extra = IMPACT[el];
+  }
+  P.sheets = [P.charge, P.main, P.proj, P.impact, P.extra].filter(Boolean);
+  return P;
 }
+// Every sheet a card could play (a "special" may be friendly or hostile), for loading before the fight.
+export const fxSheetsFor = (card, monster = false) => [...fxPlan(card, monster, true).sheets, ...fxPlan(card, monster, false).sheets];
+export const ALWAYS_SHEETS = ['hit_crit', 'poof'];
 
 // ───────── a card resolves ─────────
+const flightMs = (from, to) => clamp(from.distanceTo(to) * 75, 240, 600);
+// How long a world-space stretch looks on screen, in the units a billboard is sized in.
+function screenLen(w, a, b) { const p = w.project(a), q = w.project(b), o = w.project(V(0, 0, 0)), u = w.project(screenDir(w, 0, 1)); return Math.hypot(q.x - p.x, q.y - p.y) / Math.max(1e-3, Math.hypot(u.x - o.x, u.y - o.y)); }
+// A projectile: the sheet flies from `from` to `to`, nose first, speeding up a little on the way.
+function fly(w, name, from, to, { s = 1, ms = flightMs(from, to), arc = 0 } = {}) {
+  const ang = screenAngle(w, from, to);
+  return play(w, name, from, { s, rot: ang, flipY: Math.cos(ang) < 0, ms, loop: true, fadeIn: 0.08, fadeOut: 0, order: 34,
+    move: (p, k) => { p.lerpVectors(from, to, k * k * 0.35 + k * 0.65); p.y += Math.sin(k * Math.PI) * arc; } });
+}
+
 export async function castVfx(w, d) {
   const { unit: u, card, cells, targets, target } = d;
-  const el = card.el || 'neutral';
-  const plain = card.proj === 'arrow' || card.proj === 'knife';
-  const color = plain ? 0xfff0c8 : elColor(el);
+  const hostile = card.cat === 'attack' || targets.some((t) => t.side !== u.side);
+  const P = fxPlan(card, !!d.monster, hostile); const el = P.el;
+  const color = P.plain ? 0xfff0c8 : elColor(el);
   const sc = Math.max(1, Math.min(1.8, (u.scale || 1) * 0.8));
-  const from = w.unitPos(u.uid, 0.95); const feet = w.unitPos(u.uid, 0.02);
-  const tpos = (c) => { const p = w.cellPos(c.q, c.r); p.y += 0.7; return p; };
-  const aoe = card.shape && card.shape !== 'single';
-  const magic = card.cat !== 'attack' || (card.proj && !plain) || card.mp > 0 || (aoe && card.shape !== 'burst') || (d.monster && el !== 'neutral' && (card.proj || aoe));
+  const from = w.unitPos(u.uid, 0.95); const feet = w.unitPos(u.uid, 0.04);
+  const chest = (c) => { const p = w.cellPos(c.q, c.r); p.y += 0.7; return p; };
+  const floor = (c) => { const p = w.cellPos(c.q, c.r); p.y += 0.04; return p; };
+  const land = (name, c, o) => play(w, name, CHEST.has(name) ? chest(c) : floor(c), o); // each picture on its own anchor
+  const self = !target || (target.q === u.q && target.r === u.r);
+  const aim = self ? null : chest(target);
   w.setFacing(u.uid, u.facing);
-  w.playOnce(u.uid, magic ? 'cast' : 'attack').then(() => { if (w.units.has(u.uid)) w.setAnim(u.uid, 'idle'); });
-  if (magic) { // a rune circle opens under the caster
-    decal(w, 'circle', feet, { color, size: 1.1 * sc, to: 2.7 * sc, ms: 560, spin: 2.2, hold: 0.5 });
-    w.rise(feet, { color, count: 8, speed: 1.4 }); audio.sfx('magic');
+  w.playOnce(u.uid, P.magic ? 'cast' : 'attack').then(() => { if (w.units.has(u.uid)) w.setAnim(u.uid, 'idle'); });
+
+  // beat 1 · the wind-up: a spell gathers in the hand while the caster sinks into it, then lets go
+  if (P.magic) {
+    audio.sfx('magic');
+    const hand = aim ? from.clone().add(screenDir(w, screenAngle(w, from, aim), 0.35 * sc)) : from.clone().add(V(0, 0.5 * sc, 0));
+    play(w, P.charge, hand, { s: sc, ms: 400, loop: true, fadeIn: 0.2, fadeOut: 0.12, order: 34 });
+    await w.gather(u.uid, 380);
+    w.release(u.uid, P.mode === 'support' ? null : aim);
   }
-  await sleep(magic ? 230 : 150);
 
-  const hostile = card.cat === 'attack' || (card.cat === 'special' && targets.some((t) => t.side !== u.side));
-  if (!hostile) { supportFx(w, d, color, sc, aoe); await sleep(160); return; }
+  if (P.mode === 'support') { supportFx(w, d, P, sc); await tween(200, () => {}); return; }
 
-  if (aoe) {
-    const origin = card.shape === 'area' ? tpos(target) : from;
+  // beats 2 and 3 · it travels, and it lands
+  const wait = (name, s = 1) => tween(Math.max(1, hitMs(name, s)), () => {});
+  if (P.aoe) {
+    const big = (card.size || 1) >= 2 || card.big; const S = (card.size || 1) >= 3 ? 1.6 : big ? 1.3 : 1;
+    const origin = card.shape === 'area' ? chest(target) : from;
     // the effect sweeps outward: cells nearer the origin go first
-    const pts = cells.slice(0, 26).map(tpos).sort((a, b) => a.distanceToSquared(origin) - b.distanceToSquared(origin));
-    const sweep = (gap, fn) => pts.forEach((p, i) => after(i * gap, () => fn(p, i)));
-    const hit = (p) => elemHit(w, el, p, 0.8);
+    const order = cells.slice(0, 26).sort((a, b) => chest(a).distanceToSquared(origin) - chest(b).distanceToSquared(origin));
+    const sweep = (gap, name, o, max = 8) => order.slice(0, max).forEach((c, i) => after(i * gap, () => land(name, c, o)));
     if (card.shape === 'area') {
-      const big = card.el === 'fire' || card.icon === 'meteor' || card.big;
-      if (card.icon === 'arrows') await rain(w, pts, color, { ...SHOT.arrow, land: (p) => elemHit(w, 'neutral', p, 0.7) });
-      else if (el === 'ice') await rain(w, pts, color, { ...SHOT.ice, land: hit });
-      else {
-        if (big) await w.meteor(origin, color); else await shot(w, from, origin, color, { size: 0.95, ...(SHOT[card.proj] || SHOT[el] || {}) });
-        const g = origin.clone(); g.y -= 0.62;
-        decal(w, 'shock', g, { color, size: 1, to: (card.size || 1) * 3.8 + 2.4, ms: 420 });
-        if (big) spr(w, 'spark', origin, { color: 0xffffff, size: 1, to: 4.5, ms: 240, rot: R(3) });
-        sweep(26, hit);
+      if (P.proj === 'arrow') { // a volley falls on every cell
+        order.slice(0, 10).forEach((c, i) => after(i * 45, () => { const p = chest(c); fly(w, 'arrow', p.clone().add(V(-1.6 + R(0.6), 7, -0.6)), p, { ms: 230 }).then(() => land('hit_spark', c, { s: 0.8 })); }));
+        audio.sfx('arrow'); await tween(Math.min(10, order.length) * 45 + 230, () => {});
+      } else {
+        if (P.proj) { audio.sfx(EL_SFX[el] || 'magic'); await fly(w, P.proj, from, origin, { s: big ? 1.3 : 1 }); }
+        land(P.main, target, { s: S });
+        await wait(P.main);
       }
     } else if (card.shape === 'line') {
-      if (card.icon === 'bolt') sweep(40, (p) => { spr(w, 'bolt', V(p.x, p.y + 1.6, p.z), { color, size: 1.5, to: 1.7, sy: 2.6, ms: 220, hold: 0.5 }); hit(p); });
-      else if (el === 'earth' || card.icon === 'quake') sweep(60, (p) => { elemHit(w, 'earth', p, 1); w.shake(0.12, 120); });
-      else { w.beam(from, pts.length ? pts[pts.length - 1] : from, color); sweep(38, hit); }
-      await sleep(Math.min(240, pts.length * 40));
-    } else if (card.shape === 'burst') {
-      const r = (card.size || 1) * 3.8 + 2;
-      if (card.icon === 'whirl') { spr(w, 'swirl', from, { color, size: 1.4 * sc, to: r * 0.9, ms: 400, spin: 13 }); spr(w, 'swirl', from, { color: 0xffffff, size: 0.9 * sc, to: r * 0.6, ms: 320, spin: -15, opacity: 0.7 }); }
-      else if (card.icon === 'roar') [0, 110, 220].forEach((ms) => after(ms, () => decal(w, 'shock', feet, { color, size: 0.6, to: r, ms: 420 })));
-      else { decal(w, 'shock', feet, { color, size: 0.6, to: r, ms: 420 }); decal(w, 'circle', feet, { color, size: 1, to: r * 0.7, ms: 480, spin: 2 }); }
-      sweep(30, hit);
-    } else { // cone
-      if (el === 'neutral') spr(w, 'slash', pts[0] || from, { color, size: 1.6 * sc, to: 4.2 * sc, ms: 280, rot: screenAngle(w, from, pts[pts.length - 1] || from) - Math.PI / 2 });
-      sweep(42, hit);
+      const far = order.length ? chest(order[order.length - 1]) : from;
+      if (P.proj) await fly(w, P.proj, from, far, { ms: 200 });
+      else if (P.main) { const ang = screenAngle(w, from, far); play(w, P.main, from, { rot: ang, flipY: Math.cos(ang) < 0, len: screenLen(w, from, far) + 0.8, ms: 460, loop: true, fadeIn: 0.1, fadeOut: 0.3, order: 34 }); await tween(90, () => {}); }
+      if (P.impact) sweep(P.impact === 'hit_earth' ? 70 : 40, P.impact, { s: SINGLE[P.impact] || 0.8 });
+      if (P.impact === 'hit_earth') { order.slice(0, 6).forEach((c, i) => after(i * 70 + 200, () => w.shake(0.12, 120))); await wait('hit_earth'); }
+      await tween(Math.min(240, order.length * 40), () => {});
+    } else if (card.shape === 'cone') {
+      const far = order.length ? chest(order[order.length - 1]) : from; const ang = screenAngle(w, from, far);
+      if (P.main) { play(w, P.main, from, { rot: ang, flipY: Math.cos(ang) < 0, fit: screenLen(w, from, far) + 1, ms: 700, loop: true, fadeIn: 0.12, fadeOut: 0.3, order: 34 }); await tween(220, () => {}); }
+      else { sweep(45, P.impact, { s: (SINGLE[P.impact] || 0.8) * 0.9 }, 6); await tween(180, () => {}); }
+    } else { // burst
+      const centred = CHEST.has(P.main);
+      play(w, P.main, centred ? from : feet, { s: P.main === 'spin' ? sc : centred ? S * 2 : (card.size || 1) >= 3 ? 1.15 : (card.size || 1) >= 2 ? 0.85 : 0.7 });
+      await wait(P.main);
     }
-    audio.sfx(card.el === 'fire' ? 'explosion' : EL_SFX[card.el] || 'earth');
+    audio.sfx(el === 'fire' ? 'explosion' : EL_SFX[el] || 'earth');
     w.flashCells(cells, color, 520);
-    w.shake(card.big || card.size >= 2 ? 0.45 : 0.25, 320);
-    await sleep(160);
-  } else if (card.proj) {
-    const tp = tpos(target);
-    audio.sfx(plain ? 'arrow' : EL_SFX[card.el] || 'magic');
-    await shot(w, from, tp, color, SHOT[card.proj] || {});
-    elemHit(w, plain ? 'neutral' : el, tp, 1);
-  } else {
-    const tp = tpos(target);
+    w.shake(big ? 0.45 : 0.25, 320);
+    await tween(120, () => {});
+  } else if (P.mode === 'shot') {
+    audio.sfx(P.plain ? 'arrow' : EL_SFX[el] || 'magic');
+    if (P.proj) await fly(w, P.proj, from, aim, { arc: P.plain ? 0.5 : 0.1 }); else await shot(w, from, aim, color, SHOT.knife);
+    land(P.impact, target, { s: SINGLE[P.impact] || 1 });
+    await wait(P.impact);
+  } else if (P.mode === 'remote') {
+    audio.sfx(EL_SFX[el] || 'magic');
+    land(P.main, target, { s: SINGLE[P.main] || 1 });
+    await wait(P.main);
+  } else { // melee: pull back, snap in, and the cut opens on the target
     audio.sfx(el !== 'neutral' ? EL_SFX[el] : 'slash');
-    await w.lunge(u.uid, tp);
-    if (card.icon === 'bolt') spr(w, 'bolt', V(tp.x, tp.y + 1.6, tp.z), { color, size: 1.6, to: 1.8, sy: 2.6, ms: 240, hold: 0.5 });
-    else meleeFx(w, d.monster ? (el === 'neutral' ? 'claw' : 'sword') : MELEE[card.icon] || 'sword', from, tp, color, sc);
-    if (el !== 'neutral') elemHit(w, el, tp, 0.9);
+    const heavy = HEAVY.has(P.main);
+    await w.strike(u.uid, aim || from, { heavy });
+    const left = aim ? w.project(aim).x < w.project(from).x : false;
+    land(P.main, target || u, { s: sc * (P.main === 'slash' ? 1.15 : 1), flipX: left, speed: 1.15 });
+    if (heavy) w.shake(0.32, 240);
+    if (P.extra) land(P.extra, target || u, { s: (SINGLE[P.extra] || 0.8) * 0.85 });
+    await wait(P.main, 1.15);
   }
 }
 
 // Blocks, heals, buffs and other helpful cards: each kind has its own sign over whoever receives it.
-function supportFx(w, d, color, sc, aoe) {
-  const { unit: u, card, targets, target } = d;
-  // (monster actions and items come as bare cards without an fx list: their category says what they are)
-  const has = (...ts) => (card.fx || []).some((f) => ts.includes(f.t));
-  const kind = card.kind || (has('heal', 'revive') ? 'heal' : has('block') ? 'block' : card.icon === 'smoke' ? 'smoke' : has('summon') ? 'summon' : has('draw', 'energy', 'mp') ? 'boon' : !card.fx && card.cat === 'defense' ? 'block' : 'buff');
-  const spots = targets.length ? targets.map((t) => [w.unitPos(t.uid, 0.9), w.unitPos(t.uid, 0.02)]) : [target ? (() => { const g = w.cellPos(target.q, target.r); return [g.clone().add(V(0, 0.8, 0)), g]; })() : [w.unitPos(u.uid, 0.9), w.unitPos(u.uid, 0.02)]];
-  for (const [p, g] of spots) {
-    switch (kind) {
-      case 'heal':
-        spr(w, 'pillar', V(p.x, p.y + 0.9, p.z), { add: true, color: 0x7fffa0, size: 0.9, to: 1.5, sy: 2.6, ms: 520, hold: 0.3, opacity: 0.5 });
-        for (let i = 0; i < 6; i++) bit(w, 'cross', V(p.x + R(1), g.y + Math.random() * 0.8, p.z + R(0.4)), { color: i % 2 ? 0xd8ffe0 : 0x5fe08a, size: 0.22 + Math.random() * 0.14, life: 700 + Math.random() * 300, vel: V(0, 1.3 + Math.random(), 0) });
-        decal(w, 'circle', g, { color: 0x7fffa0, size: 1, to: 2.2, ms: 520, spin: 1.5 });
-        break;
-      case 'block':
-        spr(w, 'shield', p, { color: 0xa8ccff, size: 0.6, to: 1.75, ms: 460, hold: 0.55, ease: Ease.outBack });
-        decal(w, 'shock', g, { color: 0x9fc8ff, size: 0.6, to: 2.4, ms: 380 });
-        break;
-      case 'smoke':
-        for (let i = 0; i < 7; i++) bit(w, 'smoke', V(p.x + R(1.2), g.y + 0.3 + Math.random() * 0.8, p.z + R(0.6)), { color: 0xa8a0b0, size: 0.9 + Math.random() * 0.6, life: 800 + Math.random() * 300, opacity: 0.6, grow: 1.6, vel: V(R(0.8), 0.5, 0) });
-        break;
-      case 'summon':
-        decal(w, 'circle', g, { color, size: 0.8, to: 2.4, ms: 620, spin: 4, hold: 0.5 });
-        spr(w, 'pillar', V(p.x, p.y + 0.9, p.z), { add: true, color, size: 0.6, to: 1.1, sy: 3, ms: 420, hold: 0.3, opacity: 0.6 });
-        break;
-      case 'boon':
-        for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; bit(w, 'spark', p.clone().add(screenDir(w, a, 1.1)), { color: i % 2 ? 0xffffff : color, size: 0.32, life: 460, spin: 8, vel: screenDir(w, a + 1.4, 2.2), drag: 0.93 }); }
-        spr(w, 'spark', p, { color, size: 0.4, to: 1.6, ms: 320, spin: 3 });
-        break;
-      default: // a buff: chevrons climbing
-        for (let i = 0; i < 5; i++) bit(w, 'chevron', V(p.x + R(1), g.y + 0.2 + i * 0.22, p.z + R(0.3)), { color: i % 2 ? 0xffffff : color, size: 0.34, life: 620 + i * 60, vel: V(0, 1.7, 0) });
-        decal(w, 'circle', g, { color, size: 1, to: 2.1, ms: 480, spin: 1.5 });
-    }
-  }
-  if (aoe) decal(w, 'shock', w.unitPos(u.uid, 0.02), { color, size: 0.6, to: (card.size || 1) * 3.8 + 2, ms: 460 });
+function supportFx(w, d, P, sc) {
+  const { unit: u, targets, target } = d;
+  const spots = targets.length ? targets.map((t) => [w.unitPos(t.uid, 0.9), w.unitPos(t.uid, 0.04), Math.max(1, Math.min(1.8, (t.scale || 1) * 0.8))])
+    : [target ? (() => { const g = w.cellPos(target.q, target.r); g.y += 0.04; return [g.clone().add(V(0, 0.8, 0)), g, 1]; })() : [w.unitPos(u.uid, 0.9), w.unitPos(u.uid, 0.04), sc]];
+  for (const [p, g, s] of spots) play(w, P.main, CHEST.has(P.main) ? p : g, { s: s * (P.kind === 'boon' ? 0.6 : 1), fadeIn: P.kind === 'block' || P.kind === 'buff' ? 0.2 : 0, order: 34 });
+  if (P.extra) play(w, P.extra, w.unitPos(u.uid, 0.04), { s: (d.card.size || 1) >= 3 ? 1.5 : 1.15 });
 }
 
 // A dash: streaks of speed trail behind the unit, dust where it left.
@@ -358,3 +320,6 @@ export function dashFx(w, from, to) {
 }
 // Teleport: a rune circle where the unit leaves and where it arrives.
 export function blinkFx(w, pos, color) { const g = pos.clone(); decal(w, 'circle', g, { color, size: 0.7, to: 2.2, ms: 420, spin: 5 }); spr(w, 'pillar', V(g.x, g.y + 1.4, g.z), { add: true, color, size: 0.5, to: 0.9, sy: 3.4, ms: 320, hold: 0.3, opacity: 0.7 }); }
+// A critical hit and a monster's last breath, for the battle screen.
+export const critFx = (w, pos) => play(w, 'hit_crit', pos, { order: 35 });
+export const poofFx = (w, pos, s = 1) => play(w, 'poof', pos, { s, order: 35 });

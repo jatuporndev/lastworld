@@ -94,6 +94,9 @@ a new effect. Animations are short (0.15 to 0.45 s) and never block input.
 ## Do not
 
 - Pixel art, 3D characters, anime eyes, or art taken from reference images. Characters and monsters
-  are procedural 2D sprites (`src/engine/chibi.js`, `src/engine/sprites.js`).
+  are procedural 2D sprites (`src/engine/chibi.js`, `src/engine/sprites.js`). The one exception is skill
+  effects: they are pixel-art sprite sheets in `public/vfx`, chosen per card by `fxPlan()` in
+  `src/engine/vfx.js` and baked by `tools/bake-vfx.mjs`. A new effect is a new `fx(...)` in `tools/vfx/effects.mjs`, drawn with the painter in `tools/vfx/kit.mjs` (its header lists the look every effect shares), never a
+  picture drawn by hand or an effect simulated while the game runs.
 - Boxed web buttons, glowing borders, glass panels, dark fantasy gold-on-black panels (the old look).
 - A second resource display. Action Slots are the only turn resource.
