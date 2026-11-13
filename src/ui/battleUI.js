@@ -19,10 +19,12 @@ import { CLASSES } from '../data/classes.js';
 import { MONSTERS } from '../data/monsters.js';
 import { Coop } from '../net/coop.js';
 import { bus } from '../core/util.js';
-import { ui, cardEl, unitSprite, statusChips, bar, btn, icon, toast, banner, openModal, diceChip } from './components.js';
+import { cardArt } from './cardArt.js';
+import { ui, cardEl, unitSprite, statusChips, bar, btn, icon, toast, banner, openModal, diceChip, die } from './components.js';
 
-// A monster attack reads as its dice plus the fixed bonus, e.g. 🎲+2.
-const pw = (i) => '🎲'.repeat(i.dice || 1) + '+' + i.power;
+// A monster attack reads as its dice plus the fixed bonus: drawn dice on the board, words in a sentence.
+const pw = (i) => t('{n} dice', { n: i.dice || 1 }) + ' +' + i.power;
+const pwEl = (i) => [...die(i.dice || 1), '+' + i.power + (i.hits > 1 ? '×' + i.hits : '')];
 const INTENT_ICON = { strike: 'sword', shoot: 'arrow', aoe: 'meteor', guard: 'shield', buff: 'star', heal: 'cross', summon: 'skull', wait: 'orb' };
 
 export class BattleScene {
@@ -68,7 +70,12 @@ export class BattleScene {
     try {
       switch (c.k) {
         case 'move': await b.heroMove(u, { q: c.q, r: c.r }); break;
-        case 'plan': if (b.plan(u, c.c, c.q == null ? null : { q: c.q, r: c.r })) audio.sfx('place'); else audio.sfx('error'); break;
+        case 'plan': {
+          if (!b.plan(u, c.c, c.q == null ? null : { q: c.q, r: c.r })) { audio.sfx('error'); break; }
+          let x = 0; for (let i = 0; i < (c.x || 0); i++) if (b.chargePlan(u, 1)) x++; // the charge chosen with the card comes in the same command
+          audio.sfx('place'); const e = u.plan[u.plan.length - 1]; if (e?.inst.card.charge) this.showCharge(u, e.inst, x);
+          break;
+        }
         case 'unplan': if (b.unplan(u)) audio.sfx('close'); break;
         case 'charge': if (b.chargePlan(u, c.d)) audio.sfx(c.d > 0 ? 'place' : 'close'); else audio.sfx('error'); break;
         case 'exec': await b.execute(u); break;
@@ -163,9 +170,9 @@ export class BattleScene {
     const st = el.querySelector('.ul-status'); st.replaceChildren(...statusChips(u));
     const it = el.querySelector('.ul-intent');
     if (u.intent && u.alive) {
-      const i = u.intent; const val = i.power != null ? (i.hits > 1 ? `${pw(i)}×${i.hits}` : pw(i)) : i.blockValue || (i.k === 'wait' && i.turns ? i.turns : '');
+      const i = u.intent; const val = i.power != null ? pwEl(i) : i.blockValue || (i.k === 'wait' && i.turns ? i.turns : '');
       it.className = 'ul-intent on k-' + i.k;
-      it.replaceChildren(icon(INTENT_ICON[i.k], '#fff', 16), val ? h('b', val) : null);
+      it.replaceChildren(icon(INTENT_ICON[i.k], '#fff', 16), val ? h('b', ...[].concat(val)) : null);
       it.dataset.tip = this.intentText(u);
     } else { it.className = 'ul-intent'; it.replaceChildren(); }
   }
@@ -176,7 +183,7 @@ export class BattleScene {
   // Roll log (bottom right): the dice tray is gone in a moment, so each result stays here as a small line.
   logRoll(who, color, faces, total, notes = []) {
     const SYM = { crit: '✸', surge: '◈', star: '★' };
-    const line = h('div.dl-line', h('i.dl-dot.' + color), h('b', who), h('span.dl-faces', '🎲 ' + faces.map((f) => (f.k ? SYM[f.k] : '') + f.v).join(' + ')), faces.length > 1 || notes.length ? h('span.dl-total', '= ' + total) : null, ...notes.map((n) => h('em', n)));
+    const line = h('div.dl-line', h('i.dl-dot.' + color), h('b', who), h('span.dl-faces', ...die(), ' ' + faces.map((f) => (f.k ? SYM[f.k] : '') + f.v).join(' + ')), faces.length > 1 || notes.length ? h('span.dl-total', '= ' + total) : null, ...notes.map((n) => h('em', n)));
     this.el.log.appendChild(line);
     while (this.el.log.children.length > 6) this.el.log.firstChild.remove();
   }
@@ -263,6 +270,46 @@ export class BattleScene {
 
   hero() { const u = this.battle.current; return u && u.cards && u.alive ? u : null; }
 
+  // A card that can be charged asks how hard to play it before it goes into a slot: the same card laid out
+  // once per choice in the middle of the table. cb(extra) with the dice added, or cb(null) when called off.
+  pickCharge(u, inst, cb) {
+    const c = inst.card; const max = Math.min(2, u.energy - c.cost);
+    if (!c.charge || max <= 0) return cb(0);
+    const done = (x) => { wrap.remove(); this._pick = null; cb(x); };
+    const opt = (x) => h('button.cp-opt', { disabled: x > max, onclick: () => done(x) }, cardEl(inst.id, inst.lv, { unit: u }),
+      h('div.cp-tag', ...(x ? ['+', ...die(x)] : [t('Normal')])), h('div.cp-cost', t('{n} Action Slot(s)', { n: c.cost + x })));
+    const wrap = h('div.charge-pick', { onpointerdown: (e) => { if (e.target === wrap) done(null); } },
+      h('div.cp-title', t('{name} — how hard?', { name: c.name })), h('div.cp-row', opt(0), opt(1), opt(2)), h('div.cp-note', t('Each extra Action Slot adds one die. Click outside to take the card back.')));
+    this.renderHand(); this.refreshBoard(); // the card goes back among the others while the choice is open
+    this._pick = () => done(null); this.hud.appendChild(wrap); audio.sfx('open');
+  }
+  // Everyone at the table sees which choice was made: the card and its added dice, for a moment, mid-screen.
+  showCharge(u, inst, x) {
+    this.hud.querySelector('.charge-show')?.remove();
+    const el = h('div.charge-show', cardEl(inst.id, inst.lv, { unit: u }), h('div.cp-tag', ...(x ? [u.name + ' +', ...die(x)] : [u.name + ' · ' + t('Normal')])));
+    this.hud.appendChild(el); setTimeout(() => el.remove(), 1500);
+  }
+  planCard(inst, cell) {
+    const u = this.hero(); if (!u) return;
+    return new Promise((res) => this.pickCharge(u, inst, async (x) => {
+      if (x == null) { this.renderHand(); this.refreshBoard(); return res(false); }
+      await this.act({ k: 'plan', c: inst.uid, ...(cell ? { q: cell.q, r: cell.r } : {}), ...(x ? { x } : {}) }); res(true);
+    }));
+  }
+
+  // The hero's cards that are not in hand, laid out to read: what is cooling down, what was discarded, what is left to draw.
+  openPiles(u) {
+    const face = (inst, tag = null) => h('div.pile-card', cardEl(inst.id, inst.lv, { unit: u }), tag ? h('b.pile-tag', tag) : null);
+    const sec = (title, list, note = null) => h('div.piles-sec', h('h4', title, h('i', String(list.length))), note && list.length ? h('p', note) : null,
+      list.length ? h('div.card-grid', ...list) : h('p.empty', t('No cards here.')));
+    const byName = (a, b) => a.card.name.localeCompare(b.card.name);
+    openModal(h('div.piles',
+      sec(t('Cooling down'), [...u.cards.cooldown].sort((a, b) => a.left - b.left).map((e) => face(e.inst, t('{n} round(s)', { n: e.left }))), t('Back in the discard pile when the count runs out.')),
+      sec(t('Discard pile'), [...u.cards.discard].sort(byName).map((i) => face(i)), t('Shuffled into the draw pile when it runs out.')),
+      sec(t('Draw pile'), [...u.cards.draw].sort(byName).map((i) => face(i)), t('Listed by name, not in the order you will draw them.'))),
+    { title: t("{name}'s cards", { name: u.name }), cls: 'wide piles-modal' });
+  }
+
   renderHand(drawn = []) {
     const u = this.hero(); const E = this.el;
     const active = !!u && this.inputOn;
@@ -298,19 +345,20 @@ export class BattleScene {
       // clicking the last one takes it back; on touch a tap opens the card, which carries a Remove button.
       const touch = window.matchMedia('(hover: none)').matches;
       const peek = h('div.slot-peek', cardEl(e.inst.id, e.inst.lv, { unit: u }), last && touch ? h('button.mini.slot-remove', { onclick: (ev) => { ev.stopPropagation(); this.undo(); } }, t('Remove')) : null);
-      const w = c.cost + (e.extra || 0); const canCharge = last && c.charge && active;
-      const chg = (d, label, ok) => h('button.slot-chg', { disabled: !ok, 'data-tip': t(d > 0 ? 'Charge: spend 1 more slot for +1 die' : 'Uncharge'), onclick: (ev) => { ev.stopPropagation(); if (ok) this.act({ k: 'charge', d }); } }, label);
-      slots.push(h('div.slot.filled' + (last ? '.last' : '') + (w === 0 ? '.free' : w > 1 ? '.w' + Math.min(3, w) : '') + (e.extra ? '.charged' : ''), { style: { '--el': ELEMENTS[c.el].color }, 'data-tip': last && !touch ? t('Click to remove') : null,
+      const w = c.cost + (e.extra || 0);
+      slots.push(h('div.slot.filled' + (last ? '.last' : '') + (w === 0 ? '.free' : w > 1 ? '.w' + Math.min(3, w) : '') + (e.extra ? '.charged' : ''), { style: { '--el': ELEMENTS[c.el].color, '--art': `url(${cardArt(e.inst.id)})` }, 'data-tip': last && !touch ? t('Click to remove') : null,
         onclick: (ev) => { if (touch) { const el = ev.currentTarget; const on = el.classList.contains('peek'); this.el.slots.querySelectorAll('.slot.peek').forEach((x) => x.classList.remove('peek')); if (!on) el.classList.add('peek'); } else if (last) this.undo(); } }, peek,
-        h('div.slot-n', w === 0 ? '★' : w > 1 ? `${sn + 1}–${sn + w}` : sn + 1), icon(c.icon, '#fff', 30), h('div.slot-name', c.name + (e.extra ? ` +${e.extra}🎲` : '')),
-        canCharge ? h('div.slot-chgs', chg(-1, '−', (e.extra || 0) > 0), chg(1, '+🎲', (e.extra || 0) < 2 && u.energy >= 1)) : null));
+        h('div.slot-n', w === 0 ? '★' : w > 1 ? `${sn + 1}–${sn + w}` : sn + 1), icon(c.icon, '#fff', 30), h('div.slot-name', c.name, ...(e.extra ? [' +', ...die(e.extra)] : [])),
+        null));
       sn += w;
     });
     for (let i = 0; i < u.energy; i++) slots.push(h('div.slot.empty' + (this.pending && i === 0 ? '.awaiting' : ''), h('div.slot-n', ++sn), h('span', this.pending && i === 0 ? t('Choose target') : t('Drop card'))));
     E.slots.replaceChildren(...slots);
     // cooldown track
-    E.cool.replaceChildren(...(u.cards.cooldown.length ? u.cards.cooldown.map((e) => h('div.cool-card', { style: { '--el': ELEMENTS[e.inst.card.el].color }, 'data-tip': t('{name} — ready in {n} round(s)', { name: e.inst.card.name, n: e.left }) }, icon(e.inst.card.icon, '#fff', 22), h('b', e.left))) : [h('div.cool-empty', '—')]),
-      h('div.pile', { 'data-tip': t('Draw pile {d} · Discard {x}', { d: u.cards.draw.length, x: u.cards.discard.length }) }, h('span', u.cards.draw.length), h('small', t('DECK'))));
+    const piles = () => this.openPiles(u);
+    E.cool.replaceChildren(...(u.cards.cooldown.length ? u.cards.cooldown.map((e) => h('div.cool-card', { onclick: piles, style: { '--el': ELEMENTS[e.inst.card.el].color, '--art': `url(${cardArt(e.inst.id)})` }, 'data-tip': t('{name} — ready in {n} round(s)', { name: e.inst.card.name, n: e.left }) }, icon(e.inst.card.icon, '#fff', 22), h('b', e.left))) : [h('div.cool-empty', '—')]),
+      h('div.pile.discard', { onclick: piles, 'data-tip': t('Discard pile {n} — click to look', { n: u.cards.discard.length }) }, h('span', String(u.cards.discard.length)), h('small', t('DISCARD'))),
+      h('div.pile', { onclick: piles, 'data-tip': t('Draw pile {n} — click to look', { n: u.cards.draw.length }) }, h('span', String(u.cards.draw.length)), h('small', t('DECK'))));
     E.exec.disabled = !active || !u.plan.length; E.end.disabled = !active; E.undo.disabled = !active || !u.plan.length;
     const cons = Object.values(this.consOf(u)).reduce((s, v) => s + v, 0);
     E.items.disabled = !active || u.itemUsed || !cons; E.items.querySelector('span').textContent = t('Items ({n})', { n: cons });
@@ -432,7 +480,7 @@ export class BattleScene {
     if (!cell) { audio.sfx('error'); return false; }
     this.pending = null;
     if (!this.battle.canPlan(u, pend.inst.uid, cell)) { audio.sfx('error'); this.renderHand(); this.refreshBoard(); return true; }
-    await this.act({ k: 'plan', c: pend.inst.uid, q: cell.q, r: cell.r });
+    await this.planCard(pend.inst, cell);
     return true;
   }
 
@@ -446,7 +494,7 @@ export class BattleScene {
     this.world.clearLayer('range');
     if (T.mode === 'none') {
       this.pending = null;
-      if (this.battle.canPlan(u, inst.uid, null)) this.act({ k: 'plan', c: inst.uid });
+      if (this.battle.canPlan(u, inst.uid, null)) this.planCard(inst, null);
       return;
     }
     if (!T.cells.length) { toast(t(inst.card.tg === 'hex' ? 'No valid destination' : 'No valid target in range'), 'bad'); audio.sfx('error'); this.cancelPending(); return; }
@@ -494,6 +542,7 @@ export class BattleScene {
 
   key(e) {
     if (e.repeat || document.querySelector('.modal-wrap')) return;
+    if (this._pick) { if (e.key === 'Escape') this._pick(); return; }
     if (e.key === 'Escape') this.cancelPending();
     else if (e.key === 'ArrowLeft') this.world.rotateBy(-1);
     else if (e.key === 'ArrowRight') this.world.rotateBy(1);
@@ -603,7 +652,8 @@ export class BattleScene {
         } else if (blocked > 0) { w.floatText(pos(tgt, 1.6), t('Blocked'), 'blocked'); audio.sfx('block'); w.burst(p, { color: 0x9fc8ff, count: 12, speed: 3 }); w.ring(pos(tgt, 0.1), 0x9fc8ff, 1.1, 220); w.shake(0.1, 140); await w.hitStop(45); }
         if (blocked > 0 && dmg > 0) w.floatText(pos(tgt, 2.0), t('-{n} block', { n: blocked }), 'blocked small');
         { const roll = tags.find((x) => x.startsWith('🎲')); if (roll && d.src) this.logRoll(d.src.name, 'grey', [{ v: +roll.replace(/\D/g, '') }], +roll.replace(/\D/g, '')); }
-        tags.forEach((t, i) => setTimeout(() => w.floatText(pos(tgt, 2.2 + i * 0.35), tr(t), d.combo && t.startsWith(d.combo) ? 'combo' : 'tag'), 90 * (i + 1)));
+        tags.forEach((t, i) => setTimeout(() => { const roll = t.startsWith('🎲'); // a roll is written as a drawn die and its number
+          const el = w.floatText(pos(tgt, 2.2 + i * 0.35), roll ? t.replace('🎲', '') : tr(t), d.combo && t.startsWith(d.combo) ? 'combo' : 'tag'); if (roll) el.prepend(...die()); }, 90 * (i + 1)));
         if (d.combo) { audio.sfx('magic'); w.ring(pos(tgt, 0.1), elColor(el), 2); }
         this.syncLabel(tgt); this.renderParty(); this.updateDanger(); if (this.inspect === tgt) this.renderInfo();
         await sleep(killed ? 60 : dot ? 240 : 170);

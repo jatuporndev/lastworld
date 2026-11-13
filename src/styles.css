@@ -822,6 +822,39 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 /* the quest log is its own sheet */
 .quest-log { display: flex; flex-direction: column; min-height: 0; max-height: 70vh; } .quest-log .tab-quests { overflow-y: auto; padding-right: 0.3em; }
 
+/* The party and the info slip sit in the top corners of the battle screen, level with the stage name. */
+.b-party { top: 0.9em; } @media (min-aspect-ratio: 4/3) { .b-info { top: 0.9em; } }
+/* A die is drawn as a small paper cube with ink pips, not an emoji. */
+.die { display: inline-block; flex: none; width: 0.95em; height: 0.95em; margin: 0 0.06em; border-radius: 0.2em; vertical-align: -0.14em; box-shadow: 0 0.1em 0 rgba(0, 0, 0, 0.35);
+  background: radial-gradient(circle at 50% 50%, var(--ink-d) 0 0.085em, transparent 0.1em), radial-gradient(circle at 25% 25%, var(--ink-d) 0 0.085em, transparent 0.1em), radial-gradient(circle at 75% 75%, var(--ink-d) 0 0.085em, transparent 0.1em), var(--paper); }
+.ul-intent b { display: inline-flex; align-items: center; } .float-text .die { margin-right: 0.2em; }
+/* A chargeable card is laid out once per choice in the middle of the table; the choice made is then shown to everyone. */
+.charge-pick { position: absolute; inset: 0; z-index: 94; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1em; background: rgba(10, 8, 12, 0.72); pointer-events: auto; animation: fadeIn 0.15s; }
+.cp-title { font-family: var(--f-head); font-weight: 600; font-size: 1.5em; color: var(--scene); text-shadow: var(--tshadow); pointer-events: none; } .cp-note { color: var(--dim); font-size: 0.9em; text-shadow: var(--tshadow); pointer-events: none; }
+.cp-row { display: flex; gap: 2em; align-items: flex-start; pointer-events: none; }
+.cp-opt { pointer-events: auto; display: flex; flex-direction: column; align-items: center; gap: 0.5em; padding: 0; border: 0; background: none; cursor: pointer; font: inherit; color: var(--scene); transition: transform 0.15s; }
+.cp-opt .card { font-size: 1.15em; pointer-events: none; } .cp-opt:hover:not(:disabled) { transform: translateY(-0.6em); } .cp-opt:hover:not(:disabled) .cp-tag { background: var(--coin); }
+.cp-opt:disabled { opacity: 0.35; cursor: default; }
+.cp-tag { display: inline-flex; align-items: center; gap: 0.15em; padding: 0.15em 0.9em; border-radius: 1em; background: var(--paper); color: var(--ink-d); font-family: var(--f-head); font-weight: 600; font-size: 1.15em; box-shadow: 0 0.2em 0 rgba(0, 0, 0, 0.3); }
+.cp-cost { font-size: 0.85em; color: var(--dim); text-shadow: var(--tshadow); }
+.charge-show { position: absolute; left: 50%; top: 42%; z-index: 93; display: flex; flex-direction: column; align-items: center; gap: 0.5em; pointer-events: none; transform: translate(-50%, -50%); animation: chargeShow 1.5s ease-out forwards; }
+.charge-show .card { font-size: 1.1em; } @keyframes chargeShow { 0% { opacity: 0; transform: translate(-50%, -42%) scale(0.8); } 12%, 75% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -56%) scale(1); } }
+@media (max-height: 560px) { .charge-pick { gap: 0.4em; } .cp-title { font-size: 1.1em; } .cp-row { gap: 1em; } .cp-opt { gap: 0.25em; } .cp-opt .card, .charge-show .card { font-size: 0.74em; } .cp-tag { font-size: 0.95em; } }
+/* A card in an action slot or on the cooldown track shows its own painting, like the card in hand. */
+.slot.filled, .slot.filled.free { background: #14101a var(--art) 50% 27% / cover no-repeat; color: #fff; justify-content: flex-end; }
+.slot.filled::before { content: ''; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(180deg, transparent 30%, rgba(13, 11, 16, 0.9)); pointer-events: none; }
+.slot.filled .icon { display: none; } .slot.filled .slot-name { position: relative; padding-bottom: 0.3em; text-shadow: 0 0.08em 0 #000; } .slot.filled .slot-chgs { z-index: 1; }
+.cool-card { background: #14101a var(--art) 50% 27% / cover no-repeat; filter: saturate(0.45) brightness(0.8); } .cool-card img { display: none; }
+/* The cooldown cards and the two piles can be clicked: they open the hero's cards, grouped by where they are. */
+.cool-card, .pile { cursor: pointer; } .cool-card:hover { filter: none; } .pile:hover { background: var(--coin); }
+.pile.discard { transform: rotate(-5deg); box-shadow: 0.14em 0.14em 0 var(--paper3); }
+.piles { display: flex; flex-direction: column; gap: 1.1em; } .piles-sec h4 { margin: 0; font-family: var(--f-head); font-weight: 600; font-size: 1.05em; color: var(--ink-d); display: flex; align-items: center; gap: 0.5em; }
+.piles-sec h4 i { font-style: normal; font-size: 0.8em; min-width: 1.7em; text-align: center; padding: 0.05em 0.4em; border-radius: 1em; background: var(--ink-d); color: var(--scene); }
+.piles-sec p { margin: 0.15em 0 0; font-size: 0.82em; color: var(--dim-d); } .piles-sec .card-grid { padding: 0.7em 0.2em 0.2em; }
+/* An open window covers the hand and the action slots instead of sitting under them. */
+#ui:has(.modal-wrap) .b-bottom { z-index: 10; }
+.pile-card { position: relative; } .pile-tag { position: absolute; left: 50%; top: -0.55em; transform: translateX(-50%); z-index: 6; white-space: nowrap; padding: 0.1em 0.6em; border-radius: 1em; background: var(--coin); color: var(--ink-d); font-family: var(--f-head); font-weight: 600; font-size: 0.78em; box-shadow: 0 0.15em 0 rgba(0, 0, 0, 0.28); }
+
 /* ── phones ──
    The game is a wide tabletop, so phones play it in landscape. A short screen gets a larger base
    font than the desktop formula would give (text stays readable) and a compact HUD to make room. */
