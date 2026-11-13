@@ -89,6 +89,14 @@ fx('fireball', { ...shot, px: 0.04 }, () => (p, t) => {
   p.ink = false; p.ball(-9, 0, 5.5, [C[3], C[4], C[5]]); p.diamond(-7, -1, 2.5, WHITE); p.ink = true;
   wake(t, 0.8, 9, 110, 30, (x, y, ph, i) => { p.ink = false; p.px(x - 10, y, C[ph < 0.4 ? 5 : ph < 0.7 ? 4 : 2]); if (i % 3 === 0 && ph < 0.6) p.diamond(x - 10, y, 1.5, C[4]); p.ink = true; });
 });
+// a firebolt: a thin dart of flame, quick and straight (the fireball above is the heavy one)
+fx('firebolt', { ...shot, w: 130, ox: 112, h: 36, oy: 18, px: 0.032 }, () => (p, t) => {
+  const C = RAMP.fire, f = Math.sin(t * TAU * 5); p.glow(-10, 0, 16, C[3], 0.7);
+  p.poly([[0, 0], [-14, -5 - f], [-30, -3], [-62, 0]], C[3]); p.poly([[0, 0], [-14, 5 + f], [-30, 3], [-62, 0]], C[2]);
+  for (let i = 0; i < 3; i++) { const ph = (t / 0.8 * 2 + i / 3) % 1, sd = i % 2 ? 1 : -1; p.poly([[-18 - ph * 30, sd * 3], [-26 - ph * 34, sd * (6 + ph * 4)], [-30 - ph * 30, sd * 2]], C[ph < 0.5 ? 3 : 2]); } // tongues peel off the shaft
+  p.ink = false; p.poly([[-2, 0], [-13, -2.5], [-40, 0], [-13, 2.5]], C[4]); p.line(-3, 0, -30, 0, WHITE, 1, 1); p.ink = true;
+  wake(t, 0.8, 8, 90, 14, (x, y, ph) => { p.ink = false; p.px(x - 40, y, C[ph < 0.4 ? 5 : ph < 0.7 ? 4 : 2]); p.ink = true; });
+});
 fx('icelance', { ...shot, h: 44, oy: 22, px: 0.032 }, () => (p, t) => {
   const C = RAMP.ice; p.glow(-14, 0, 20, C[3], 0.6);
   p.poly([[0, 0], [-16, -5], [-58, -2], [-66, 0]], C[4]); p.poly([[0, 0], [-16, 5], [-58, 2], [-66, 0]], C[2]); p.poly([[-16, -5], [-24, -9], [-34, -4]], C[3]); p.poly([[-20, 5], [-30, 9], [-40, 3]], C[1]);
@@ -130,6 +138,18 @@ fx('blast', { w: 230, h: 220, ox: 115, oy: 176, dur: 2.4, px: 0.04, hit: 0.05, f
     p.glow(0, -14, 80, C[3], 1.2 * (1 - seg(t, 0.04, 0.7))); p.glow(0, 0, 60, C[2], 0.5 * (1 - seg(t, 0.3, 1.6)), FY);
     shock(p, 0, 0, t, 0.04, 0.45, 8, 84, C, { rot: 0.3 }); shock(p, 0, 0, t, 0.12, 0.5, 4, 60, C, { th: 2, rot: 0.3 });
     k.ps.draw(p, true); k.ps.draw(p); flash(p, 0, -12, 17, t, 0.0, C);
+  };
+});
+// a small burn where one fire bolt lands: tongues of flame snap out and are gone (the blast above is for explosions)
+fx('hit_fire', { w: 120, h: 130, ox: 60, oy: 70, dur: 1.0, px: 0.034, hit: 0.08 }, (k) => {
+  const C = RAMP.fire, N = 7, sp = [...Array(N)].map((_, i) => ({ a: (i / N) * TAU + k.R.range(-0.3, 0.3), l: k.R.range(14, 26), w: k.R.range(3, 5) }));
+  k.at(0.08, () => { sparks(k, 0, 0, 12, 190, C, { g: 300 });
+    k.ps.burst(k.R, 5, 0, 0, 15, 50, () => ({ kind: 'puff', ramp: C, tone: 3, s: k.R.range(4, 7), life: k.R.range(0.3, 0.55), drag: 4, g: -90 }));
+    k.ps.burst(k.R, 3, 0, -4, 8, 30, () => ({ kind: 'puff', ramp: smokeR, tone: 2, s: k.R.range(4, 6), life: k.R.range(0.5, 0.8), delay: 0.2, drag: 2.5, g: -40 })); });
+  return (p, t) => {
+    p.glow(0, 0, 36, C[3], 1 - seg(t, 0.08, 0.6)); shock(p, 0, 0, t, 0.08, 0.3, 4, 34, C, { sy: 1, th: 2 });
+    const g = seg(t, 0.06, 0.16), fade = seg(t, 0.2, 0.42); if (g > 0 && fade < 1) sp.forEach((s) => spike(p, 0, 0, s.a, s.l * out(g) * (1 - fade), s.w * (1 - fade * 0.6), C, false));
+    k.ps.draw(p, true); k.ps.draw(p); flash(p, 0, 0, 9, t, 0.05, C);
   };
 });
 fx('hit_ice', { w: 130, h: 130, ox: 65, oy: 65, dur: 1.6, px: 0.034, hit: 0.1 }, (k) => {

@@ -49,7 +49,7 @@ export const icon = (name, color = '#fff', size = 20) => h('img.icon', { src: ic
 // ───── cards ─────
 // A dice chip such as [■■ red ×2]; card text marks dice as ⟦red:2⟧ (see describeCard).
 // A small drawn die (or several), for wherever a roll is written next to text.
-export const die = (n = 1) => Array.from({ length: n }, () => h('i.die'));
+export const die = (n = 1) => Array.from({ length: n }, () => h('i.d6'));
 export function diceChip(color, n) {
   return h(`span.dchip.${color}`, { 'data-tip': diceLabel(color, n) }, ...Array.from({ length: n }, () => h('i')), h('b', `${t(DICE_NAME[color])}×${n}`));
 }

@@ -825,9 +825,9 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 /* The party and the info slip sit in the top corners of the battle screen, level with the stage name. */
 .b-party { top: 0.9em; } @media (min-aspect-ratio: 4/3) { .b-info { top: 0.9em; } }
 /* A die is drawn as a small paper cube with ink pips, not an emoji. */
-.die { display: inline-block; flex: none; width: 0.95em; height: 0.95em; margin: 0 0.06em; border-radius: 0.2em; vertical-align: -0.14em; box-shadow: 0 0.1em 0 rgba(0, 0, 0, 0.35);
+.d6 { display: inline-block; flex: none; width: 0.95em; height: 0.95em; margin: 0 0.06em; border-radius: 0.2em; vertical-align: -0.14em; box-shadow: 0 0.1em 0 rgba(0, 0, 0, 0.35);
   background: radial-gradient(circle at 50% 50%, var(--ink-d) 0 0.085em, transparent 0.1em), radial-gradient(circle at 25% 25%, var(--ink-d) 0 0.085em, transparent 0.1em), radial-gradient(circle at 75% 75%, var(--ink-d) 0 0.085em, transparent 0.1em), var(--paper); }
-.ul-intent b { display: inline-flex; align-items: center; } .float-text .die { margin-right: 0.2em; }
+.ul-intent b { display: inline-flex; align-items: center; } .float-text .d6 { margin-right: 0.2em; }
 /* A chargeable card is laid out once per choice in the middle of the table; the choice made is then shown to everyone. */
 .charge-pick { position: absolute; inset: 0; z-index: 94; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1em; background: rgba(10, 8, 12, 0.72); pointer-events: auto; animation: fadeIn 0.15s; }
 .cp-title { font-family: var(--f-head); font-weight: 600; font-size: 1.5em; color: var(--scene); text-shadow: var(--tshadow); pointer-events: none; } .cp-note { color: var(--dim); font-size: 0.9em; text-shadow: var(--tshadow); pointer-events: none; }

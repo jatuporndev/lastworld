@@ -148,15 +148,15 @@ async function shot(w, from, to, color, o = {}) {
 
 // ───────── which pictures a card plays ─────────
 const CHARGE = { fire: 'charge_fire', ice: 'charge_ice', wind: 'charge_wind', earth: 'charge_earth', holy: 'charge_holy', poison: 'charge_poison' };
-const IMPACT = { fire: 'blast', ice: 'hit_ice', wind: 'hit_wind', earth: 'hit_earth', holy: 'hit_holy', shadow: 'hit_shadow', poison: 'hit_poison', arcane: 'hit_arcane', neutral: 'hit_spark' };
-const PROJ = { fire: 'fireball', ice: 'icelance', arrow: 'arrow', holy: 'orb_holy', arcane: 'orb_arcane', shadow: 'orb_shadow', poison: 'orb_poison', wind: 'orb_wind', earth: 'orb_earth', neutral: 'orb_arcane' };
+const IMPACT = { fire: 'hit_fire', ice: 'hit_ice', wind: 'hit_wind', earth: 'hit_earth', holy: 'hit_holy', shadow: 'hit_shadow', poison: 'hit_poison', arcane: 'hit_arcane', neutral: 'hit_spark' };
+const PROJ = { fire: 'firebolt', ice: 'icelance', arrow: 'arrow', holy: 'orb_holy', arcane: 'orb_arcane', shadow: 'orb_shadow', poison: 'orb_poison', wind: 'orb_wind', earth: 'orb_earth', neutral: 'orb_arcane' };
 const MELEE = { sword: 'slash', dagger: 'flurry', hammer: 'smash', mace: 'smash', anvil: 'smash', wrench: 'smash', quake: 'smash', shield: 'hit_blunt', boot: 'thrust', skull: 'reap' };
 const AREA = { fire: 'blast', ice: 'frostnova', earth: 'dirt', wind: 'hit_wind', shadow: 'darkblast', holy: 'holypillar', poison: 'spores', arcane: 'hit_arcane', neutral: 'slam' };
 const BURST = { fire: 'blast', ice: 'frostnova', earth: 'slam', wind: 'hit_wind', shadow: 'darkblast', holy: 'hit_holy', poison: 'spores', arcane: 'hit_arcane', neutral: 'slam' };
 const BEAM = { holy: 'beam_holy', wind: 'beam_wind' };
 const SUPPORT = { heal: 'heal', block: 'shield', smoke: 'smoke', summon: 'portal', boon: 'hit_arcane', revive: 'revive', buff: 'bless' };
 // drawn round their own middle, so they go on the target's chest; every other picture stands on the floor
-const CHEST = new Set(['hit_ice', 'hit_shadow', 'hit_arcane', 'hit_spark', 'hit_crit', 'hit_blunt', 'zap', 'slash', 'slash2', 'flurry', 'claw', 'thrust', 'reap', 'poof']);
+const CHEST = new Set(['hit_fire', 'hit_ice', 'hit_shadow', 'hit_arcane', 'hit_spark', 'hit_crit', 'hit_blunt', 'zap', 'slash', 'slash2', 'flurry', 'claw', 'thrust', 'reap', 'poof']);
 const SINGLE = { blast: 0.5, hit_wind: 0.8, hit_earth: 0.75, hit_holy: 0.75, hit_arcane: 0.7 }; // size on one target
 const HEAVY = new Set(['smash', 'reap']);
 
@@ -258,7 +258,7 @@ export async function castVfx(w, d) {
         order.slice(0, 10).forEach((c, i) => after(i * 45, () => { const p = chest(c); fly(w, 'arrow', p.clone().add(V(-1.6 + R(0.6), 7, -0.6)), p, { ms: 230 }).then(() => land('hit_spark', c, { s: 0.8 })); }));
         audio.sfx('arrow'); await tween(Math.min(10, order.length) * 45 + 230, () => {});
       } else {
-        if (P.proj) { audio.sfx(EL_SFX[el] || 'magic'); await fly(w, P.proj, from, origin, { s: big ? 1.3 : 1 }); }
+        if (P.proj) { audio.sfx(EL_SFX[el] || 'magic'); await fly(w, P.proj, from, origin, { s: big ? 1.5 : 1.2, arc: 1.1 }); } // lobbed, where a bolt flies straight
         land(P.main, target, { s: S });
         await wait(P.main);
       }
