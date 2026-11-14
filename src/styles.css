@@ -407,6 +407,8 @@ html:lang(th) .logo-sub { font-size: 1.05em; }
   background: linear-gradient(180deg, rgba(40, 28, 52, 0.92), rgba(20, 14, 26, 0.92)); border: 1px solid rgba(232, 200, 130, 0.45); box-shadow: 0 0.3em 1em rgba(0, 0, 0, 0.5); font-size: 0.85em; color: #e8dcc0; }
 #coop-badge b { font-family: 'Cinzel', monospace; color: var(--gold); letter-spacing: 0.15em; }
 #coop-badge:hover { border-color: var(--gold); }
+/* in a fight the room badge steps aside: the stage name and turn order own the top centre */
+#game:has(.battle-hud) #coop-badge { display: none; }
 .cb-dots { display: flex; gap: 0.25em; }
 .cb-dots i { width: 0.6em; height: 0.6em; border-radius: 50%; }
 .coop-wait { display: grid; place-items: center; }
