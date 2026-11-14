@@ -64,6 +64,9 @@ export class Battle {
     // MVP arenas with nests: a lone hero faces slower nests that keep one hatchling each
     const heads = party.filter((h) => h.hp > 0).length;
     this.nestCap = heads >= 2 ? 2 : 1; this.nestSlow = heads >= 2 ? 0 : 1;
+    // A boss has more life for a bigger party: +50% for each hero after the first (x1.5 for two, x2 for three).
+    // Ordinary monsters do not: a bigger party already meets more of them.
+    this.bossHp = 1 + 0.5 * Math.max(0, heads - 1);
     this._setup(party, enemies, levelOf, nextBuff);
   }
 
@@ -128,7 +131,7 @@ export class Battle {
 
   _monsterUnit(id, { minion = false } = {}) {
     const d = MONSTERS[id];
-    const hp = Math.round(d.hp * (minion ? 0.6 : 1));
+    const hp = Math.round(d.hp * (minion ? 0.6 : (d.rank === 'mvp' || d.rank === 'mini') ? this.bossHp || 1 : 1));
     return {
       uid: 'u' + this.nextId(), side: d.construct ? 'hero' : 'enemy', def: d, monsterId: id, name: d.name, look: d.look, spriteKey: 'mon_' + id,
       size: d.size || 1, scale: d.scale || 1, q: 0, r: 0, facing: 3, level: d.level || 1, rank: d.rank || 'normal', construct: !!d.construct, nest: !!d.nest, minion,
