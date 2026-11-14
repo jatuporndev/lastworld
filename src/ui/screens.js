@@ -232,12 +232,12 @@ export function charCreateScreen(app, back = {}) {
 
 // ───────── World Map ─────────
 export function worldMapScreen(app) {
-  const st = G.state; let selId = Math.min(6, st.run?.stageId || st.unlocked);
+  const st = G.state; let selId = Math.min(STAGES.length, st.run?.stageId || st.unlocked);
   const detail = h('div.wm-detail'); const nodes = h('div.wm-nodes');
   const W = 1000, H = 600;
   const pts = STAGES.map((s) => [s.mapPos[0] * W, s.mapPos[1] * H]);
   const pathD = pts.map((p, i) => { if (!i) return `M${p[0]},${p[1]}`; const q = pts[i - 1]; const mx = (p[0] + q[0]) / 2 + (i % 2 ? 40 : -40), my = (p[1] + q[1]) / 2 + (i % 2 ? -30 : 30); return `Q${mx},${my} ${p[0]},${p[1]}`; }).join(' ');
-  const svg = h('div.wm-svg', { html: `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><path class="wm-path-bg" d="${pathD}"/><path class="wm-path" d="${pathD}" pathLength="100" style="stroke-dasharray:${((st.unlocked - 1) / 5) * 100} 100"/></svg>` });
+  const svg = h('div.wm-svg', { html: `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><path class="wm-path-bg" d="${pathD}"/><path class="wm-path" d="${pathD}" pathLength="100" style="stroke-dasharray:${((st.unlocked - 1) / (STAGES.length - 1)) * 100} 100"/></svg>` });
   const render = () => {
     nodes.replaceChildren(...STAGES.map((s) => { const locked = s.id > st.unlocked; const cleared = !!st.cleared[s.id];
       return h('div.wm-node' + (locked ? '.locked' : '') + (cleared ? '.cleared' : '') + (s.id === selId ? '.sel' : '') + (s.id === st.unlocked && !cleared ? '.next' : ''), { style: { left: s.mapPos[0] * 100 + '%', top: s.mapPos[1] * 100 + '%', '--c': '#' + s.sky.toString(16).padStart(6, '0') },
@@ -265,11 +265,17 @@ export function worldMapScreen(app) {
   return mount(el);
 }
 
-export function epilogue(app) {
+export function epilogue(app, final = false) {
+  if (final) return new Promise((res) => {
+    const m = openModal(h('div.intro.epi', h('div.intro-text', h('p', t('Aeon falls silent, and the pen drops from its hand. The page it was erasing is still there: your world, whole, with every realm you walked through written back into it.')),
+      h('p', t('Nobody is left to unmake it. What is written next is up to the people who live there.')),
+      h('p', h('b', t('The Last World is the first of many again.'))),
+      h('div.row.center', btn(t('Continue'), () => { m.close(); res(); }, { cls: 'primary' })))), { title: t('The Last Page'), closable: false, cls: 'wide intro-modal' });
+  });
   return new Promise((res) => {
     const m = openModal(h('div.intro.epi', h('div.intro-text', h('p', t("Xal'Zhul falls, and the Abyss closes like a wound. One by one the drifting realms settle back into the sky, bound together by the paths you carved through them.")),
       h('p', t('The forest breathes. The desert cools. Frostfall thaws for the first time in an age. The dead of Velmora finally sleep, and above the Celestial Ruins a new star is lit.')),
-      h('p', h('b', t('The Last World endures — because of you.'))), h('p.note', t('You may keep exploring: replay any stage to forge legendary gear, master every card and perfect your party.')),
+      h('p', h('b', t('The Last World endures — because of you.'))), h('p', t('But where the Citadel stood, a door has opened that was never there before. Five more realms lie beyond it.')), h('p.note', t('You may keep exploring: replay any stage to forge legendary gear, master every card and perfect your party.')),
       h('div.row.center', btn(t('Continue'), () => { m.close(); res(); }, { cls: 'primary' })))), { title: t('Heroes of the Last World'), closable: false, cls: 'wide intro-modal' });
   });
 }

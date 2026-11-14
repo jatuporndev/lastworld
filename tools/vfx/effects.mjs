@@ -550,3 +550,143 @@ fx('poof', { w: 110, h: 100, ox: 55, oy: 50, dur: 1.3, px: 0.036 }, (k) => {
   k.ps.burst(R, 8, 0, 0, 80, 200, () => ({ kind: 'chip', ramp: RAMP.shadow, tone: R.pick([2, 3, 4]), s: 3, life: R.range(0.4, 0.8), drag: 2.5, g: 200 }));
   return (p, t) => { shock(p, 0, 0, t, 0.03, 0.4, 6, 44, RAMP.shadow, { sy: 1, th: 2 }); k.ps.draw(p); for (let i = 0; i < 4; i++) { const d = seg(t, 0.2 + i * 0.12, 0.7 + i * 0.12); if (d > 0 && d < 1) p.star((hash(i, 2) - 0.5) * 50, (hash(i, 4) - 0.5) * 40 - d * 8, Math.round(4 * bump(d)), WHITE, RAMP.shadow[4]); } flash(p, 0, 0, 12, t, 0, RAMP.shadow); };
 });
+
+// ───────── signature effects: each belongs to one card, or to one small family of cards ─────────
+// Detonate: the burns on the target are pulled in to a point, then go off as one column of fire
+fx('detonate', { w: 150, h: 190, ox: 75, oy: 150, dur: 1.3, px: 0.036, hit: 0.38, floor: true }, (k) => {
+  const C = RAMP.fire;
+  k.at(0.38, () => boom(k, 0, -6, 0.9, C, { up: 1.6 }));
+  return (p, t) => {
+    const g = seg(t, 0, 0.36), b = seg(t, 0.38, 1.0);
+    if (t < 0.38) { for (let i = 0; i < 3; i++) p.ring(0, -20, lerp(58 - i * 14, 4, g * g), 2, C[3 + (i % 2)], 1, { sides: 6, rot: t * (4 + i) });
+      p.ink = false; for (let i = 0; i < 10; i++) { const a = (i / 10) * TAU + g * 2, r = lerp(60, 6, g); p.line(Math.cos(a) * r, -20 + Math.sin(a) * r, Math.cos(a) * (r + 8), -20 + Math.sin(a) * (r + 8), C[5], 1, 1); } p.ink = true; p.diamond(0, -20, 3 + g * 5, WHITE); }
+    else { const h = 150 * out(seg(t, 0.38, 0.5)) * (1 - seg(t, 0.8, 1.2)), w = 16 * (1 - b); if (w > 1) { p.poly([[-w, 0], [-w * 0.6, -h], [w * 0.6, -h], [w, 0]], C[3]); p.ink = false; p.poly([[-w * 0.5, 0], [-w * 0.3, -h * 0.95], [w * 0.3, -h * 0.95], [w * 0.5, 0]], C[5]); p.ink = true; } p.glow(0, -30, 70, C[3], 1.1 * (1 - b)); }
+    shock(p, 0, 0, t, 0.38, 0.4, 8, 66, C); k.ps.draw(p, true); k.ps.draw(p); flash(p, 0, -20, 14, t, 0.36, C);
+  };
+});
+// Wildfire / Contagion: it runs outward along the floor in six lines, toward whoever stands next to the target
+const creep = (name, C) => fx(name, { w: 220, h: 120, ox: 110, oy: 84, dur: 1.4, px: 0.04, hit: 0.3, floor: true }, (k) => {
+  k.at(0.1, () => sparks(k, 0, -6, 10, 160, C, { g: 200 }));
+  return (p, t) => {
+    p.glow(0, 0, 80, C[3], 0.6 * bump(seg(t, 0, 1.3)), FY);
+    for (let i = 0; i < 6; i++) { const a = (i / 6) * TAU + 0.26, head = out(seg(t, 0.05 + i * 0.03, 0.6)) * 92;
+      for (let j = 1; j < 8; j++) { const d = (j / 7) * head, t0 = 0.05 + (d / 92) * 0.5, age = seg(t, t0, t0 + 0.7); if (d < 4 || age <= 0 || age >= 1) continue;
+        spike(p, Math.cos(a) * d, Math.sin(a) * d * FY, -Math.PI / 2 + (hash(j, i) - 0.5) * 0.5, (10 + hash(i, j) * 12) * bump(age) * (1 + 0.3 * Math.sin(t * 30 + j)), 3.5, C, false); } }
+    shock(p, 0, 0, t, 0.05, 0.5, 6, 96, C, { th: 2 }); k.ps.draw(p); flash(p, 0, -8, 9, t, 0.02, C);
+  };
+});
+creep('creep_fire', RAMP.fire); creep('creep_poison', RAMP.poison);
+// Shatter: the frost on the target sets into one block, cracks, and bursts
+fx('shatter', { w: 150, h: 150, ox: 75, oy: 75, dur: 1.2, px: 0.034, hit: 0.3 }, (k) => {
+  const C = RAMP.ice;
+  k.at(0.3, () => { for (let i = 0; i < 16; i++) { const a = k.R.range(0, TAU), v = k.R.range(120, 300); k.ps.spawn({ kind: 'shard', ramp: C, tone: k.R.pick([2, 3, 4, 5]), x: Math.cos(a) * 8, y: Math.sin(a) * 8, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 40, g: 380, s: k.R.range(4, 9), rot: a, va: k.R.range(-10, 10), life: k.R.range(0.45, 0.8) }); } sparks(k, 0, 0, 12, 240, C); });
+  return (p, t) => {
+    p.glow(0, 0, 50, C[3], 0.9 * (1 - seg(t, 0.3, 1.0)));
+    if (t < 0.3) { const r = 26 * out(seg(t, 0, 0.12)), sh = t > 0.18 ? (Math.floor(t * 40) % 2) * 1.5 : 0;
+      if (r > 3) { p.poly([[sh, -r * 1.3], [r + sh, -r * 0.4], [r * 0.8 + sh, r], [-r * 0.8 + sh, r], [-r + sh, -r * 0.4]], C[3]); p.poly([[sh, -r * 1.3], [r + sh, -r * 0.4], [sh, 0]], C[4]); p.poly([[sh, -r * 1.3], [-r + sh, -r * 0.4], [sh, 0]], C[5]); }
+      const c = seg(t, 0.12, 0.3); if (c > 0) { p.ink = false; for (let i = 0; i < 6; i++) { const a = (i / 6) * TAU + hash(i, 2), l = r * 1.1 * c; p.path([[sh, 0], [sh + Math.cos(a) * l * 0.5 + (hash(i, 5) - 0.5) * 6, Math.sin(a) * l * 0.5], [sh + Math.cos(a) * l, Math.sin(a) * l]], WHITE, 1, 1); } p.ink = true; } }
+    shock(p, 0, 0, t, 0.3, 0.4, 8, 64, C, { sy: 1, th: 3 }); k.ps.draw(p); flash(p, 0, 0, 15, t, 0.28, C);
+  };
+});
+// Arcane Overload: every drop of mana is drawn to one point, and let go at once
+fx('overload', { w: 190, h: 190, ox: 95, oy: 95, dur: 1.3, px: 0.034, hit: 0.34 }, (k) => {
+  const C = RAMP.arcane; k.at(0.34, () => sparks(k, 0, 0, 22, 320, C));
+  return (p, t) => {
+    const g = seg(t, 0, 0.32), b = seg(t, 0.34, 1.1); p.glow(0, 0, 30 + 60 * (t < 0.34 ? g : 1 - b), C[3], 1.1 * (t < 0.34 ? g : 1 - b));
+    if (t < 0.34) { p.ink = false; for (let i = 0; i < 12; i++) { const a = (i / 12) * TAU + hash(i) * 0.3, r0 = lerp(88, 10, g), r1 = lerp(88, 10, clamp(g * 1.5)); p.line(Math.cos(a) * r0, Math.sin(a) * r0, Math.cos(a) * r1, Math.sin(a) * r1, C[i % 2 ? 4 : 5], 1, 2, 1); } p.ink = true; }
+    else { for (let i = 0; i < 8; i++) spike(p, 0, 0, (i / 8) * TAU + 0.2, 84 * out(seg(t, 0.34, 0.5)) * (1 - seg(t, 0.6, 1.0)), 6 * (1 - b), C, true);
+      p.ring(0, 0, 30 + b * 40, 2, C[4], 1 - b, { sides: 6, rot: t * 3 }); p.ring(0, 0, 18 + b * 30, 1.5, C[5], 1 - b, { sides: 3, rot: -t * 5 }); }
+    shock(p, 0, 0, t, 0.34, 0.45, 10, 88, C, { sy: 1, th: 3 }); k.ps.draw(p); flash(p, 0, 0, 18, t, 0.32, C);
+  };
+});
+// Shield Slam: the wall of Block itself is thrown forward into the target
+fx('shieldslam', { w: 170, h: 130, ox: 70, oy: 65, dur: 0.9, px: 0.036, hit: 0.14 }, (k) => {
+  const C = RAMP.ice, S = RAMP.steel; k.at(0.14, () => { sparks(k, 40, 0, 14, 260, RAMP.holy, { g: 300 }); k.ps.burst(k.R, 8, 40, 0, 60, 200, () => ({ kind: 'chip', ramp: S, tone: k.R.pick([3, 4]), s: k.R.range(3, 5), life: k.R.range(0.4, 0.7), g: 400 })); });
+  return (p, t) => {
+    const x = lerp(-50, 34, out(seg(t, 0, 0.14))) + 6 * seg(t, 0.14, 0.5), end = seg(t, 0.45, 0.9), r = 34, o = { sides: 6, rot: Math.PI / 6 };
+    if (t < 0.3) for (let j = 3; j >= 1; j--) p.plate(x - j * 16, 0, r - j * 4, C[2], 0.25, o); // after-images of the rush
+    p.plate(x, 0, r, C[3], 0.5 * (1 - end), o); p.ring(x, 0, r, 3, S[4], 1 - end, o); p.ring(x, 0, r * 0.6, 1.5, C[5], 1 - end, o);
+    shock(p, 44, 0, t, 0.14, 0.35, 8, 60, RAMP.holy, { sy: 1, th: 3 }); k.ps.draw(p); flash(p, 44, 0, 14, t, 0.12, RAMP.holy);
+  };
+});
+// Sunder: the target's guard splits down the middle and the halves fall away
+fx('sunder', { w: 150, h: 150, ox: 75, oy: 75, dur: 1.0, px: 0.036, hit: 0.12 }, (k) => {
+  const C = RAMP.ice, S = RAMP.steel; k.at(0.12, () => k.ps.burst(k.R, 12, 0, 0, 60, 220, () => ({ kind: 'chip', ramp: S, tone: k.R.pick([2, 3, 4]), s: k.R.range(3, 6), life: k.R.range(0.5, 0.9), g: 500 })));
+  return (p, t) => {
+    const d = seg(t, 0.12, 0.9), off = out(d) * 22, drop = d * d * 30, a = 1 - seg(t, 0.5, 1.0), r = 34;
+    for (const sd of [-1, 1]) { const pts = [[-4, -r], [sd * r, -r * 0.5], [sd * r, r * 0.5], [4, r], [-6, 6], [6, -8]]; p.poly(pts.map(([x, y]) => [x + sd * off, y + drop + (sd < 0 ? 0 : off * 0.3)]), sd < 0 ? C[3] : C[2], 0.75 * a); }
+    if (t < 0.3) { p.ink = false; p.path([[-4, -r - 4], [6, -8], [-6, 6], [4, r + 4]], WHITE, 1, 2); p.ink = true; }
+    k.ps.draw(p); flash(p, 0, 0, 13, t, 0.1, RAMP.holy);
+  };
+});
+// Ambush: two eyes open in the dark behind the target, then a crossed cut
+fx('ambush', { w: 150, h: 150, ox: 75, oy: 75, dur: 0.85, px: 0.036, hit: 0.22 }, (k) => {
+  const C = RAMP.shadow; k.at(0.22, () => sparks(k, 0, 0, 12, 240, C));
+  return (p, t) => {
+    p.glow(0, 0, 54, C[2], 0.9 * (1 - seg(t, 0.2, 0.8)));
+    if (t < 0.22) { const b = bump(seg(t, 0, 0.22)); for (const sx of [-9, 9]) { p.diamond(sx - 40, -34, 4 * b, WHITE); p.ink = false; p.line(sx - 46, -34, sx - 34, -34, C[5], b, 1); p.ink = true; } }
+    for (const [i, sgn] of [[0, 1], [1, -1]]) { const d = seg(t, 0.14 + i * 0.07, 0.44 + i * 0.07); if (d <= 0 || d >= 1) continue; const l = 62, e = out(d), e2 = clamp(e - 0.5 + d * 0.5), hx = lerp(-l * sgn, l * sgn, e), hy = lerp(-l, l, e), tx = lerp(-l * sgn, l * sgn, e2), ty = lerp(-l, l, e2);
+      p.line(tx, ty, hx, hy, C[2], 1, 1, 9 * (1 - d)); p.ink = false; p.line(tx, ty, hx, hy, C[4], 1, 1, 5 * (1 - d)); p.line(tx, ty, hx, hy, WHITE, 1, 1, 2 * (1 - d)); p.ink = true; }
+    shock(p, 0, 0, t, 0.24, 0.35, 6, 58, C, { sy: 1, th: 2 }); k.ps.draw(p); flash(p, 0, 0, 12, t, 0.22, C);
+  };
+});
+// A mark: a reticle closes on the target and locks
+fx('mark', { w: 130, h: 130, ox: 65, oy: 65, dur: 1.1, px: 0.036, hit: 0.3 }, (k) => (p, t) => {
+  const C = RAMP.blood, g = out(seg(t, 0, 0.3)), end = seg(t, 0.8, 1.1), r = lerp(58, 22, g), a = 1 - end; p.glow(0, 0, 40, C[3], 0.6 * a);
+  p.ring(0, 0, r, 2.5, C[3], a); p.ring(0, 0, r * 0.45, 1.5, C[4], a);
+  for (let i = 0; i < 4; i++) { const an = (i / 4) * TAU + (1 - g) * 1.6; p.line(Math.cos(an) * (r - 8), Math.sin(an) * (r - 8), Math.cos(an) * (r + 10), Math.sin(an) * (r + 10), C[4], a, 3); }
+  if (t > 0.3) p.diamond(0, 0, 3 + 4 * bump(seg(t, 0.3, 0.55)), WHITE, a); flash(p, 0, 0, 10, t, 0.28, C);
+});
+// Cooldown cards: a clock over the head runs fast
+fx('clock', { w: 90, h: 150, ox: 45, oy: 130, dur: 1.2, px: 0.04, floor: true }, (k) => (p, t) => {
+  const C = RAMP.wind, cy = -74, r = 26 * out(seg(t, 0, 0.15)), end = seg(t, 0.9, 1.2), a = 1 - end; p.glow(0, cy, 44, C[3], 0.7 * a);
+  if (r > 3) { p.plate(0, cy, r, C[1], 0.5 * a); p.ring(0, cy, r, 3, C[4], a); p.ink = false; for (let i = 0; i < 12; i++) { const an = (i / 12) * TAU; p.px(Math.cos(an) * (r - 5), cy + Math.sin(an) * (r - 5), i % 3 ? C[3] : WHITE); }
+    const spin = -Math.PI / 2 + smooth(seg(t, 0.1, 0.85)) * TAU * 2;
+    for (let j = 4; j >= 1; j--) p.line(0, cy, Math.cos(spin - j * 0.28) * (r - 7), cy + Math.sin(spin - j * 0.28) * (r - 7), C[4], (1 - j / 5) * 0.6 * a, 1); // the hand's blur
+    p.line(0, cy, Math.cos(spin) * (r - 7), cy + Math.sin(spin) * (r - 7), WHITE, a, 2); p.line(0, cy, Math.cos(spin / 12 - Math.PI / 2) * (r - 14), cy + Math.sin(spin / 12 - Math.PI / 2) * (r - 14), C[5], a, 2); p.ink = true; p.diamond(0, cy, 2.5, WHITE, a); }
+  p.ring(0, 0, 22 * out(seg(t, 0, 0.3)), 2, C[3], a, { sy: FY, sides: 6, rot: -t * 3 });
+});
+// A card comes back: cards rise from the floor and fan out
+fx('recall', { w: 110, h: 150, ox: 55, oy: 130, dur: 1.1, px: 0.04, floor: true }, (k) => (p, t) => {
+  const C = RAMP.holy, end = seg(t, 0.85, 1.1), al = 1 - end; p.glow(0, -50, 50, C[3], 0.6 * bump(seg(t, 0, 1.1)));
+  p.ring(0, 0, 24 * out(seg(t, 0, 0.25)), 2, C[3], al, { sy: FY, sides: 6, rot: t * 2 });
+  for (let i = 0; i < 3; i++) { const d = seg(t, i * 0.14, i * 0.14 + 0.6); if (d <= 0) continue; const e = out(d), x = (i - 1) * 26 * e, y = -10 - e * 80 + Math.abs(i - 1) * 10, a = (i - 1) * 0.35 * e, w = 9, hh = 13, ca = Math.cos(a), sa = Math.sin(a);
+    const pt = (px, py) => [x + px * ca - py * sa, y + px * sa + py * ca]; p.poly([pt(-w, -hh), pt(w, -hh), pt(w, hh), pt(-w, hh)], RAMP.steel[5], al); p.ink = false; p.poly([pt(-w + 2, -hh + 2), pt(w - 2, -hh + 2), pt(w - 2, 2), pt(-w + 2, 2)], C[3 + (i % 2)], al); p.ink = true; if (d < 0.4) p.star(x, y, 4, WHITE, C[4]); }
+});
+// Strength: flames climb the body and a chevron rises out of them
+fx('rage', { w: 90, h: 150, ox: 45, oy: 130, dur: 1.2, px: 0.04, floor: true }, (k) => (p, t) => {
+  const C = RAMP.blood, F = RAMP.fire, end = seg(t, 0.9, 1.2); p.glow(0, -34, 50, F[2], 0.8 * bump(seg(t, 0, 1.2)));
+  for (let i = 0; i < 9; i++) spike(p, (i - 4) * 8, 0, -Math.PI / 2 + (i - 4) * 0.05, (26 + hash(i, 5) * 40) * (1 - Math.abs(i - 4) / 6) * bump(seg(t, 0, 1.15)) * (0.7 + 0.3 * Math.sin(t * 26 + i * 2)), 5, i % 2 ? F : C, false);
+  p.ring(0, 0, 26 * out(seg(t, 0, 0.2)), 3, F[3], 1 - end, { sy: FY, sides: 6, rot: t * 4 }); shock(p, 0, 0, t, 0.1, 0.5, 8, 44, F, { th: 2 });
+  for (let i = 0; i < 2; i++) { const d = seg(t, 0.25 + i * 0.2, 0.8 + i * 0.2); if (d <= 0 || d >= 1) continue; const y = -70 - out(d) * 40, s = 12; p.path([[-s, y + s * 0.8], [0, y], [s, y + s * 0.8]], C[1], 1 - d, 5); p.ink = false; p.path([[-s + 1, y + s * 0.8], [0, y + 1], [s - 1, y + s * 0.8]], F[4], 1 - d, 2); p.ink = true; }
+});
+// Haste: wind winds up round the body
+fx('haste', { w: 100, h: 150, ox: 50, oy: 130, dur: 1.0, px: 0.04, floor: true }, (k) => (p, t) => {
+  const C = RAMP.wind, end = seg(t, 0.75, 1.0); p.glow(0, -40, 46, C[3], 0.5 * bump(seg(t, 0, 1)));
+  for (let i = 0; i < 7; i++) { const d = seg(t, i * 0.07, i * 0.07 + 0.55); if (d <= 0 || d >= 1) continue; const y = -4 - out(d) * 100, a = t * 9 + i * 2.1, r = 26 - d * 10;
+    p.arc(0, y, r, a, a + 1.5, 3 * (1 - d) + 1, i % 2 ? C[4] : C[3], 1, { sy: 0.4 }); p.ink = false; p.arc(0, y, r, a + 1.1, a + 1.5, 2, WHITE, 1 - d, { sy: 0.4 }); p.ink = true; }
+  p.ink = false; for (let i = 0; i < 5; i++) { const ph = (t * 2 + hash(i, 4)) % 1, x = (hash(i, 8) - 0.5) * 56; p.line(x, -ph * 110, x, -ph * 110 - 12, C[5], (1 - ph) * (1 - end), 1); } p.ink = true;
+});
+// Regeneration: leaves turn upward round the body
+fx('regen', { w: 100, h: 140, ox: 50, oy: 120, dur: 1.4, px: 0.04, floor: true }, (k) => (p, t) => {
+  const C = RAMP.leaf, end = seg(t, 1.1, 1.4); p.glow(0, -30, 48, C[3], 0.6 * bump(seg(t, 0, 1.4)));
+  p.ring(0, 0, 24 * out(seg(t, 0, 0.3)), 2, C[3], 1 - end, { sy: FY, sides: 6, rot: t });
+  for (let i = 0; i < 8; i++) { const d = seg(t, i * 0.09, i * 0.09 + 0.8); if (d <= 0 || d >= 1) continue; const a = i * 0.9 + d * 5, r = 28 - d * 8, x = Math.cos(a) * r, y = -6 - d * 84 + Math.sin(a) * r * 0.35, s = 5 * bump(d * 0.9 + 0.1), an = a + 1.2, ca = Math.cos(an), sa = Math.sin(an);
+    p.poly([[x - ca * s * 1.6, y - sa * s * 1.6], [x + sa * s * 0.7, y - ca * s * 0.7], [x + ca * s * 1.6, y + sa * s * 1.6], [x - sa * s * 0.7, y + ca * s * 0.7]], C[i % 2 ? 3 : 4]); }
+  const s2 = seg(t, 0.5, 1.2); if (s2 > 0 && s2 < 1) plus(p, 0, -96, 7 * bump(s2), C[3]);
+});
+// Extra Action Slots: power runs up the body and three slots light over the head
+fx('surge', { w: 110, h: 150, ox: 55, oy: 130, dur: 1.1, px: 0.04, floor: true }, (k) => (p, t) => {
+  const C = RAMP.arcane, G = RAMP.holy, end = seg(t, 0.85, 1.1), o = { sides: 6, rot: Math.PI / 6 }; p.glow(0, -60, 50, C[3], 0.6 * bump(seg(t, 0, 1.1)));
+  p.ink = false; for (let i = 0; i < 6; i++) { const ph = seg(t, i * 0.04, i * 0.04 + 0.35); if (ph <= 0 || ph >= 1) continue; const x = (hash(i, 3) - 0.5) * 50; p.line(x, -ph * 70, x, -ph * 70 - 16, C[5], 1 - ph, 2, 1); } p.ink = true;
+  for (let i = 0; i < 3; i++) { const d = seg(t, 0.25 + i * 0.13, 0.45 + i * 0.13); if (d <= 0) continue; const x = (i - 1) * 26, y = -96, r = 10 * out(d) * (1 + 0.3 * bump(d)); p.plate(x, y, r, G[2], 1 - end, o); p.ink = false; p.plate(x, y, r * 0.7, G[4], 1 - end, o); p.ink = true; if (d < 1) p.star(x, y, 6, WHITE, G[4]); }
+  p.ring(0, 0, 22 * out(seg(t, 0, 0.25)), 2, C[3], 1 - end, { sy: FY, sides: 6, rot: -t * 3 });
+});
+// Drawing cards: a hand of cards fans open over the head
+fx('cards', { w: 120, h: 150, ox: 60, oy: 130, dur: 1.1, px: 0.04, floor: true }, (k) => (p, t) => {
+  const C = RAMP.ice, end = seg(t, 0.85, 1.1), open = out(seg(t, 0.1, 0.45)), len = 34 * out(seg(t, 0, 0.2)), w = 8; p.glow(0, -80, 46, C[3], 0.6 * bump(seg(t, 0, 1.1)));
+  if (len > 4) for (let i = 0; i < 5; i++) { const a = (i - 2) * 0.32 * open - Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a); const pt = (u, v) => [ca * u - sa * v, -60 + sa * u + ca * v];
+    p.poly([pt(6, -w), pt(6 + len, -w), pt(6 + len, w), pt(6, w)], RAMP.steel[5], 1 - end); p.ink = false; p.poly([pt(10, -w + 2), pt(len, -w + 2), pt(len, w - 2), pt(10, w - 2)], i === 2 ? RAMP.holy[4] : C[3], 1 - end); p.ink = true; }
+  const s = seg(t, 0.4, 0.9); if (s > 0 && s < 1) p.star(0, -112, Math.round(8 * bump(s)), WHITE, C[4]);
+  p.ring(0, 0, 22 * out(seg(t, 0, 0.25)), 2, C[3], 1 - end, { sy: FY, sides: 6, rot: t * 2 });
+});

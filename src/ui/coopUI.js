@@ -41,34 +41,33 @@ export function coopModal(app) {
   // the host picks one of their worlds, or makes a new one right here
   const hostWorld = h('select.lb-select');
   const fillWorlds = (sel) => { const list = worldList();
-    hostWorld.replaceChildren(...(list.length ? list.map((w) => opt(w.id, `${w.name} · ${t('Stage {n}', { n: Math.min(6, w.unlocked) })}`, w.id === sel)) : [opt('', t('No world yet'))]));
+    hostWorld.replaceChildren(...(list.length ? list.map((w) => opt(w.id, `${w.name} · ${t('Stage {n}', { n: w.unlocked })}`, w.id === sel)) : [opt('', t('No world yet'))]));
     hostWorld.disabled = !list.length; };
   fillWorlds(P.last.world);
   const newWorld = h('button.mini.coop-new', { type: 'button', hidden: worlds.length >= MAX_WORLDS, onclick: (e) => { e.preventDefault(); newWorldModal((w) => { app.saveNow(); fillWorlds(w.id); createBtn.disabled = false; newWorld.hidden = worldList().length >= MAX_WORLDS; }); } }, '+ ' + t('Create World'));
-  const name = h('input', { value: defaultName(), maxlength: 16, autocomplete: 'nickname' });
   const code = h('input.code-input', { placeholder: 'ABCDE', maxlength: 5, autocomplete: 'off', spellcheck: 'false', oninput: () => { code.value = code.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); } });
   const msg = h('div.auth-msg');
   const say = (text, cls = 'bad') => { msg.className = 'auth-msg ' + cls; msg.textContent = text; };
-  const nick = () => { const n = name.value.trim().slice(0, 16) || defaultName(); try { localStorage.setItem('lw_name', n); } catch (e) { /* ignore */ } return n; };
+  // a player goes by their character's name: nothing extra to type
+  const nick = (sel) => (P.chars[sel.value]?.hero.name || defaultName()).slice(0, 16);
   let busy = false;
   const run = async (fn) => {
     if (busy) return; busy = true; say(t('Connecting…'), 'busy');
     try { await fn(); } catch (e) { console.warn('[co-op]', e); say(coopError(e)); } finally { busy = false; }
   };
-  const create = () => run(async () => { if (!hostWorld.value) return; await app.hostRoom(hostWorld.value, hostChar.value, nick()); m.close(); audio.sfx('buff'); lobbyModal(app); });
+  const create = () => run(async () => { if (!hostWorld.value) return; await app.hostRoom(hostWorld.value, hostChar.value, nick(hostChar)); m.close(); audio.sfx('buff'); lobbyModal(app); });
   const createBtn = btn(t('Create Room'), create, { cls: 'primary block', iconName: 'crown', disabled: !worlds.length });
   // no character yet: make one, then come straight back to this window
   const back = async () => { await app.toTitle(); coopModal(app); };
   const join = () => run(async () => {
     if (code.value.length < 5) { say(t('Enter the 5-letter room code.')); return; }
-    await app.joinRoom(code.value, joinChar.value, nick()); m.close(); audio.sfx('buff');
+    await app.joinRoom(code.value, joinChar.value, nick(joinChar)); m.close(); audio.sfx('buff');
   });
   const field = (label, el) => h('label.auth-field', h('span.auth-label', label), el);
   const needChar = h('div.coop-box.coop-need', h('p', t('You need a character to play online.')), btn(t('Create Character'), () => { m.close(); app.toCharCreate({ join: back, cancel: back }); }, { cls: 'primary block', iconName: 'star' }));
   const body = h('div.coop',
     h('div.auth-head', h('div.auth-crest', h('div.auth-crest-ring'), icon('banner', '#f6d98a', 46)), h('h2.auth-title', t('Play with Friends')),
       h('p.auth-sub', t('Up to 3 players, one character each. The host opens one of their worlds; friends bring their own character and keep what they earn.'))),
-    h('label.auth-field', h('span.auth-label', t('Your name')), h('div.auth-input', name)),
     !chars.length ? needChar : h('div.coop-cols',
       h('div.coop-box', h('h3', t('Host a room')),
         field(t('World'), h('div.coop-world', hostWorld, newWorld)),

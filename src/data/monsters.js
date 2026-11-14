@@ -6,12 +6,13 @@
 //   aoe {shape: area|burst|line|cone, size, range, dmg, el, status, name}  (telegraphed onto the board)
 //   guard {block}  buff {st, n, allies}  heal {v (×MATK)}  summon {id, n}
 
-const T = (t) => ({
-  hp: Math.round(4 + 5 * t + 0.6 * t * t), // 10 16 24 34 44 56 (was 8 13 18 23 28 33)
-  atk: Math.round((2 + 1.4 * t) * 10) / 10, // 3.4 4.8 6.2 7.6 9 10.4 (was 3 4 5 6 7 8)
+const eff = (t) => (t <= 6 ? t : 6 + (t - 6) * 0.45); // stages 7 to 11 count as 6.45 to 8.25
+const T = (real, t = eff(real)) => ({
+  hp: Math.round(4 + 5 * t + 0.6 * t * t), // stages 1-6: 10 16 24 34 44 56 · stages 7-11: 61 67 73 79 86
+  atk: Math.round((2 + 1.4 * t) * 10) / 10, // stages 1-6: 3.4 4.8 6.2 7.6 9 10.4 · stage 11: 13.6
   matk: Math.round((2 + 1.4 * t) * 10) / 10,
   def: Math.floor((t - 1) / 2),
-  level: 1 + (t - 1) * 3,
+  level: 1 + (real - 1) * 3,
   exp: Math.round(20 * Math.pow(1.7, t - 1)),
   gold: Math.round(8 * Math.pow(1.5, t - 1)),
 });
@@ -29,7 +30,7 @@ function M(tier, o) {
     atk: Math.round(b.atk * atkMul * 10) / 10,
     matk: Math.round(b.matk * atkMul * 10) / 10,
     def: b.def + (o.defM >= 1.3 ? 1 : 0),
-    dice: 1 + Math.floor((tier - 1) / 2) + (o.rank === 'mvp' || o.rank === 'mini' ? 1 : 0), // grey dice rolled on every attack
+    dice: Math.min(4, 1 + Math.floor((eff(tier) - 1) / 2) + (o.rank === 'mvp' || o.rank === 'mini' ? 1 : 0)), // grey dice rolled on every attack
     exp: Math.round(b.exp * rankMul * 0.8),
     gold: Math.round(b.gold * rankMul * 0.8),
   };
@@ -138,6 +139,110 @@ export const MONSTERS = {
     every: 3, hatch: ['moss_slime', 'thornwolf'], waitName: 'Stirring', hatchName: 'Hatch', intents: [] }),
 
   // ── Summons (hero-side constructs) ──
+  // ── A fifth kind in each of the first six stages, so their fights repeat less ──
+  glade_poacher: M(1, { name: 'Glade Poacher', look: { body: 'humanoid', armor: '#5a6a3a', armor2: '#3a4a2a', cloth: '#7a5a3a', skin: '#c89a70', hair: '#3a2a1a', helm: 'hood', weapon: 'spear' }, hpM: 0.9, move: 3, spd: 11, weak: ['fire'], ranged: true,
+    intents: [{ k: 'shoot', name: 'Barbed Arrow', range: 4, dmg: 0.9, status: { st: 'bleed', n: 1 }, w: 3 }, { k: 'shoot', name: 'Snare Shot', range: 3, dmg: 0.5, status: { st: 'root', n: 1 }, w: 1 }] }),
+  carrion_vulture: M(2, { name: 'Carrion Vulture', look: { body: 'bat', c1: '#7a5a3a', c2: '#3a2a1a', eye: '#ffd040' }, hpM: 0.8, move: 5, spd: 16, el: 'wind', weak: ['ice'],
+    intents: [{ k: 'strike', name: 'Dive', dmg: 1.1, status: { st: 'bleed', n: 2 }, w: 3 }, { k: 'buff', name: 'Circle Overhead', st: 'haste', n: 2, w: 1 }] }),
+  frost_shaman: M(3, { name: 'Frost Shaman', look: { body: 'humanoid', armor: '#8ab0d0', armor2: '#4a6a90', cloth: '#d0e8ff', skin: '#c0d8f0', hair: '#f0f8ff', helm: 'hood', weapon: 'staff' }, hpM: 0.9, move: 3, spd: 9, el: 'ice', weak: ['fire'], ranged: true,
+    intents: [{ k: 'shoot', name: 'Ice Bolt', range: 4, dmg: 0.9, el: 'ice', status: { st: 'chill', n: 2 }, w: 2 }, { k: 'heal', name: 'Mending Snow', v: 0.6, w: 2 }, { k: 'buff', name: 'Winter Ward', st: 'regen', n: 2, allies: true, w: 1 }] }),
+  necromancer: M(4, { name: 'Necromancer', look: { body: 'humanoid', armor: '#2a2030', armor2: '#16101c', cloth: '#4a2a6a', skin: '#b0a8a0', hair: '#e0e0e0', helm: 'hood', weapon: 'staff', glowEyes: '#a060ff' }, hpM: 0.9, move: 2, spd: 8, el: 'shadow', weak: ['holy'], ranged: true,
+    intents: [{ k: 'shoot', name: 'Grave Bolt', range: 4, dmg: 1.0, el: 'shadow', status: { st: 'weak', n: 1 }, w: 3 }, { k: 'summon', name: 'Raise Dead', id: 'skeleton', n: 1, w: 2 }] }),
+  comet_imp: M(5, { name: 'Comet Imp', look: { body: 'imp', c1: '#e0c060', c2: '#8a6a2a', eye: '#ffffff', wing: '#fff0b0' }, hpM: 0.7, move: 4, spd: 17, el: 'holy', weak: ['shadow'], ranged: true,
+    intents: [{ k: 'shoot', name: 'Starshard', range: 4, dmg: 1.0, el: 'holy', w: 3 }, { k: 'aoe', name: 'Falling Spark', shape: 'area', size: 1, range: 4, dmg: 0.7, el: 'holy', w: 1 }] }),
+  doom_herald: M(6, { name: 'Doom Herald', look: { body: 'humanoid', armor: '#3a1a2a', armor2: '#1a0a12', cloth: '#6a0a2a', skin: '#7a4a5a', hair: '#000000', helm: 'hood', weapon: 'staff', glowEyes: '#ff4040' }, hpM: 0.9, move: 3, spd: 10, el: 'shadow', weak: ['holy'], ranged: true,
+    intents: [{ k: 'shoot', name: 'Doom Bolt', range: 4, dmg: 1.0, el: 'shadow', status: { st: 'vulnerable', n: 2 }, w: 2 }, { k: 'buff', name: 'Dark Litany', st: 'strength', n: 2, allies: true, w: 2 }, { k: 'heal', name: 'Blood Rite', v: 0.6, w: 1 }] }),
+
+  // ── Stage 7: Gloomcap Hollow ──
+  gloom_spore: M(7, { name: 'Gloom Spore', look: { body: 'plant', c1: '#5a3a8a', c2: '#c0b0e0', spots: '#80ffd0' }, hpM: 0.9, move: 2, spd: 6, el: 'poison', weak: ['fire'],
+    intents: [{ k: 'aoe', name: 'Spore Burst', shape: 'burst', size: 1, dmg: 0.7, el: 'poison', status: { st: 'poison', n: 3 }, w: 3 }, { k: 'strike', name: 'Cap Slam', dmg: 1.0, w: 1 }] }),
+  cave_stalker: M(7, { name: 'Cave Stalker', look: { body: 'insect', c1: '#3a4a5a', c2: '#1a2a3a', eye: '#60ffc0' }, hpM: 0.8, move: 5, spd: 17, atkM: 1.1, weak: ['fire', 'holy'],
+    intents: [{ k: 'strike', name: 'Rending Fangs', dmg: 1.1, status: { st: 'bleed', n: 2 }, w: 3 }, { k: 'buff', name: 'Skitter', st: 'haste', n: 2, w: 1 }] }),
+  fungal_brute: M(7, { name: 'Fungal Brute', look: { body: 'golem', c1: '#6a5a8a', c2: '#3a2a5a', accent: '#80ffd0', eye: '#c0ffe0' }, hpM: 1.4, defM: 1.3, move: 2, spd: 6, el: 'earth', weak: ['fire'],
+    intents: [{ k: 'strike', name: 'Mossy Fist', dmg: 1.3, w: 3 }, { k: 'guard', name: 'Bark Shell', block: 6, w: 1 }, { k: 'aoe', name: 'Ground Pound', shape: 'burst', size: 1, dmg: 0.8, el: 'earth', w: 1 }] }),
+  lantern_wisp: M(7, { name: 'Lantern Wisp', look: { body: 'floating', c1: '#80ffd0', c2: '#2a8a7a', glow: '#d0fff0' }, hpM: 0.7, move: 4, spd: 13, el: 'holy', weak: ['shadow'], ranged: true,
+    intents: [{ k: 'shoot', name: 'Lure Light', range: 4, dmg: 0.8, el: 'holy', status: { st: 'vulnerable', n: 2 }, w: 2 }, { k: 'heal', name: 'Glow Mend', v: 0.6, w: 2 }] }),
+  myco_shaman: M(7, { name: 'Myco Shaman', look: { body: 'humanoid', armor: '#4a3a6a', armor2: '#2a1a4a', cloth: '#7a6aa0', skin: '#a0c0b0', hair: '#80ffd0', helm: 'hood', weapon: 'staff' }, hpM: 0.9, move: 3, spd: 9, el: 'poison', weak: ['fire'], ranged: true,
+    intents: [{ k: 'shoot', name: 'Rot Dart', range: 4, dmg: 0.9, el: 'poison', status: { st: 'poison', n: 2 }, w: 2 }, { k: 'summon', name: 'Sow Spores', id: 'gloom_spore', n: 1, w: 1 }, { k: 'buff', name: 'Overgrowth', st: 'regen', n: 3, allies: true, w: 1 }] }),
+  mycelium_titan: M(7, { name: 'Mycelium Titan', rank: 'mini', look: { body: 'treant', c1: '#4a3a6a', c2: '#2a1a4a', accent: '#80ffd0', eye: '#c0ffe0' }, size: 3, scale: 1.8, move: 2, spd: 6, el: 'earth', weak: ['fire'],
+    intents: [{ k: 'strike', name: 'Root Hammer', dmg: 1.5, status: { st: 'root', n: 1 }, w: 3 }, { k: 'aoe', name: 'Choking Cloud', shape: 'area', size: 1, range: 4, dmg: 0.8, el: 'poison', status: { st: 'poison', n: 3 }, w: 2 }, { k: 'heal', name: 'Regrow', v: 0.8, self: true, w: 1 }] }),
+  sporemother: M(7, { name: 'Sporemother Yshara', rank: 'mvp', look: { body: 'plant', c1: '#6a3a9a', c2: '#e0d0ff', spots: '#80ffd0' }, size: 7, scale: 2.6, move: 2, spd: 8, el: 'poison', weak: ['fire'], resist: ['poison', 'earth'],
+    intents: [{ k: 'aoe', name: 'Bloom of Rot', shape: 'area', size: 2, range: 6, dmg: 0.9, el: 'poison', status: { st: 'poison', n: 3 }, w: 3 }, { k: 'summon', name: 'Brood', id: 'gloom_spore', n: 2, w: 1 }, { k: 'aoe', name: 'Lashing Vines', shape: 'cone', size: 3, dmg: 1.1, status: { st: 'root', n: 1 }, w: 2 }, { k: 'strike', name: 'Crush', dmg: 1.4, range: 2, w: 2 }],
+    phase2: [{ k: 'aoe', name: 'Mycelial Quake', shape: 'burst', size: 3, dmg: 1.1, el: 'earth', status: { st: 'weak', n: 2 }, w: 2 }, { k: 'aoe', name: 'Bloom of Rot', shape: 'area', size: 2, range: 6, dmg: 1.1, el: 'poison', status: { st: 'poison', n: 4 }, w: 2 }, { k: 'heal', name: 'Feast on the Fallen', v: 1.0, self: true, w: 1 }, { k: 'summon', name: 'Brood', id: 'cave_stalker', n: 2, w: 1 }],
+    quote: 'Everything that falls here feeds me. You will feed me too.' }),
+
+  // ── Stage 8: Clockwork Bastion ──
+  gear_drone: M(8, { name: 'Gear Drone', look: { body: 'floating', c1: '#c0a060', c2: '#6a4a2a', glow: '#80e0ff' }, hpM: 0.7, move: 4, spd: 15, el: 'wind', weak: ['earth'], ranged: true,
+    intents: [{ k: 'shoot', name: 'Arc Shot', range: 4, dmg: 1.0, el: 'wind', w: 3 }, { k: 'buff', name: 'Target Lock', st: 'strength', n: 2, w: 1 }] }),
+  brass_sentinel: M(8, { name: 'Brass Sentinel', look: { body: 'humanoid', armor: '#c09a50', armor2: '#6a4a20', cloth: '#5a3a2a', skin: '#8a7a6a', hair: '#000000', helm: 'knight', weapon: 'spear', glowEyes: '#80e0ff' }, hpM: 1.2, defM: 1.4, move: 3, spd: 9, weak: ['wind'],
+    intents: [{ k: 'strike', name: 'Piston Thrust', dmg: 1.2, range: 2, w: 3 }, { k: 'aoe', name: 'Pike Line', shape: 'line', size: 3, dmg: 0.9, w: 1 }, { k: 'guard', name: 'Lock Plates', block: 6, w: 1 }] }),
+  steam_hound: M(8, { name: 'Steam Hound', look: { body: 'beast', c1: '#8a6a4a', c2: '#4a3a2a', accent: '#ff8040', eye: '#ffd040' }, move: 5, spd: 14, atkM: 1.1, el: 'fire', weak: ['ice'],
+    intents: [{ k: 'strike', name: 'Scalding Bite', dmg: 1.1, el: 'fire', status: { st: 'burn', n: 2 }, w: 3 }, { k: 'aoe', name: 'Vent Steam', shape: 'cone', size: 2, dmg: 0.7, el: 'fire', status: { st: 'weak', n: 1 }, w: 1 }] }),
+  scrap_golem: M(8, { name: 'Scrap Golem', look: { body: 'golem', c1: '#7a6a5a', c2: '#3a3028', accent: '#c09a50', eye: '#80e0ff' }, hpM: 1.5, move: 2, spd: 5, el: 'earth', weak: ['wind'],
+    intents: [{ k: 'strike', name: 'Wrecking Arm', dmg: 1.4, w: 3 }, { k: 'aoe', name: 'Scrap Toss', shape: 'area', size: 1, range: 3, dmg: 0.8, w: 1 }] }),
+  tinker_adept: M(8, { name: 'Tinker Adept', look: { body: 'humanoid', armor: '#6a5a4a', armor2: '#3a2a1a', cloth: '#a07040', skin: '#c89a70', hair: '#5a3a1a', helm: 'none', weapon: 'staff' }, hpM: 0.9, move: 3, spd: 10, weak: ['fire'], ranged: true,
+    intents: [{ k: 'heal', name: 'Field Repairs', v: 0.7, w: 2 }, { k: 'shoot', name: 'Rivet Gun', range: 4, dmg: 0.9, w: 2 }, { k: 'summon', name: 'Wind Up a Drone', id: 'gear_drone', n: 1, w: 1 }] }),
+  siege_automaton: M(8, { name: 'Siege Automaton', rank: 'mini', look: { body: 'golem', c1: '#a08050', c2: '#4a3820', accent: '#80e0ff', eye: '#ffffff' }, size: 3, scale: 1.8, move: 2, spd: 7, el: 'wind', weak: ['earth'],
+    intents: [{ k: 'strike', name: 'Ram', dmg: 1.5, w: 2 }, { k: 'aoe', name: 'Lightning Cannon', shape: 'line', size: 5, dmg: 1.0, el: 'wind', w: 2 }, { k: 'aoe', name: 'Mortar', shape: 'area', size: 1, range: 5, dmg: 1.0, el: 'fire', status: { st: 'burn', n: 2 }, w: 2 }, { k: 'guard', name: 'Bulkhead', block: 8, w: 1 }] }),
+  iron_regent: M(8, { name: 'The Iron Regent', rank: 'mvp', look: { body: 'humanoid', armor: '#c0a050', armor2: '#5a4420', cloth: '#3a2a4a', skin: '#8a8a9a', hair: '#000000', helm: 'crown', crownColor: '#80e0ff', weapon: 'greatsword', cape: '#2a3a5a', glowEyes: '#80e0ff' }, size: 7, scale: 2.6, move: 3, spd: 11, el: 'wind', weak: ['earth'], resist: ['wind', 'poison'],
+    intents: [{ k: 'strike', name: 'Regent Blade', dmg: 1.5, range: 2, w: 3 }, { k: 'aoe', name: 'Tesla Lance', shape: 'line', size: 5, dmg: 1.1, el: 'wind', w: 2 }, { k: 'summon', name: 'Assemble', id: 'gear_drone', n: 2, w: 1 }, { k: 'aoe', name: 'Grapeshot', shape: 'area', size: 2, range: 6, dmg: 0.9, status: { st: 'bleed', n: 2 }, w: 2 }],
+    phase2: [{ k: 'aoe', name: 'Overload Core', shape: 'burst', size: 3, dmg: 1.2, el: 'wind', status: { st: 'stun', n: 1 }, w: 2 }, { k: 'aoe', name: 'Tesla Lance', shape: 'line', size: 6, dmg: 1.3, el: 'wind', w: 2 }, { k: 'guard', name: 'Emergency Plating', block: 12, w: 1 }, { k: 'summon', name: 'Assemble', id: 'brass_sentinel', n: 1, w: 1 }],
+    quote: 'The makers are gone. The work goes on. You are an error in the work.' }),
+
+  // ── Stage 9: Skysea Archipelago ──
+  storm_gull: M(9, { name: 'Storm Gull', look: { body: 'bat', c1: '#d0e0f0', c2: '#6a8ab0', eye: '#ffe040' }, hpM: 0.7, move: 5, spd: 18, el: 'wind', weak: ['ice'],
+    intents: [{ k: 'strike', name: 'Gale Dive', dmg: 1.1, el: 'wind', w: 3 }, { k: 'shoot', name: 'Feather Dart', range: 3, dmg: 0.8, w: 1 }] }),
+  tide_lurker: M(9, { name: 'Tide Lurker', look: { body: 'beast', c1: '#3a7a9a', c2: '#1a3a5a', accent: '#80f0e0', eye: '#ffffff' }, move: 4, spd: 13, atkM: 1.1, el: 'ice', weak: ['wind'],
+    intents: [{ k: 'strike', name: 'Riptide Bite', dmg: 1.2, el: 'ice', status: { st: 'chill', n: 2 }, w: 3 }, { k: 'aoe', name: 'Undertow', shape: 'cone', size: 2, dmg: 0.8, el: 'ice', status: { st: 'root', n: 1 }, w: 1 }] }),
+  coral_knight: M(9, { name: 'Coral Knight', look: { body: 'humanoid', armor: '#e08a8a', armor2: '#8a3a4a', cloth: '#2a6a7a', skin: '#a0d0d0', hair: '#f0f0ff', helm: 'knight', weapon: 'sword', cape: '#2a5a6a' }, hpM: 1.2, defM: 1.4, move: 3, spd: 9, el: 'ice', weak: ['wind'],
+    intents: [{ k: 'strike', name: 'Reef Edge', dmg: 1.2, status: { st: 'bleed', n: 2 }, w: 3 }, { k: 'guard', name: 'Shell Guard', block: 7, w: 1 }, { k: 'buff', name: 'Tide Oath', st: 'strength', n: 2, allies: true, w: 1 }] }),
+  mist_siren: M(9, { name: 'Mist Siren', look: { body: 'floating', c1: '#b0e0f0', c2: '#4a8ab0', glow: '#f0ffff' }, hpM: 0.8, move: 3, spd: 12, el: 'ice', weak: ['fire'], ranged: true,
+    intents: [{ k: 'shoot', name: 'Drowning Song', range: 5, dmg: 0.9, el: 'ice', status: { st: 'weak', n: 2 }, w: 2 }, { k: 'heal', name: 'Lullaby', v: 0.7, w: 2 }, { k: 'aoe', name: 'Mist Veil', shape: 'area', size: 1, range: 4, dmg: 0.6, el: 'ice', status: { st: 'chill', n: 2 }, w: 1 }] }),
+  reef_crab: M(9, { name: 'Reef Crab', look: { body: 'insect', c1: '#e07050', c2: '#7a2a1a', eye: '#ffffff' }, hpM: 1.3, defM: 1.5, move: 3, spd: 7, weak: ['wind'],
+    intents: [{ k: 'strike', name: 'Pincer', dmg: 1.3, w: 3 }, { k: 'guard', name: 'Hunker', block: 8, w: 2 }] }),
+  kraken_spawn: M(9, { name: 'Kraken Spawn', rank: 'mini', look: { body: 'blob', c1: '#3a5a9a', c2: '#1a2a5a', eye: '#ffe040', tentacles: true }, size: 3, scale: 1.8, move: 2, spd: 8, el: 'ice', weak: ['wind'],
+    intents: [{ k: 'strike', name: 'Tentacle Slam', dmg: 1.5, w: 3 }, { k: 'aoe', name: 'Ink Cloud', shape: 'area', size: 1, range: 4, dmg: 0.8, el: 'shadow', status: { st: 'weak', n: 2 }, w: 2 }, { k: 'aoe', name: 'Whirlpool', shape: 'burst', size: 2, dmg: 0.9, el: 'ice', status: { st: 'root', n: 1 }, w: 2 }] }),
+  leviathan: M(9, { name: 'Leviathan Thalassa', rank: 'mvp', look: { body: 'dragon', c1: '#3a8ab0', c2: '#1a3a6a', accent: '#a0f0ff', eye: '#ffe060', wing: '#60a0d0', hydra: true }, size: 7, scale: 2.7, move: 3, spd: 11, el: 'ice', weak: ['wind'], resist: ['ice', 'fire'],
+    intents: [{ k: 'strike', name: 'Maw of the Deep', dmg: 1.5, range: 2, w: 3 }, { k: 'aoe', name: 'Tidal Breath', shape: 'cone', size: 4, dmg: 1.1, el: 'ice', status: { st: 'chill', n: 2 }, w: 2 }, { k: 'aoe', name: 'Waterspout', shape: 'area', size: 2, range: 6, dmg: 1.0, el: 'wind', w: 2 }, { k: 'summon', name: 'Call the Shoal', id: 'tide_lurker', n: 2, w: 1 }],
+    phase2: [{ k: 'aoe', name: 'Deluge', shape: 'burst', size: 3, dmg: 1.2, el: 'ice', status: { st: 'chill', n: 3 }, w: 2 }, { k: 'aoe', name: 'Tidal Breath', shape: 'cone', size: 4, dmg: 1.3, el: 'ice', status: { st: 'chill', n: 2 }, w: 2 }, { k: 'aoe', name: 'Waterspout', shape: 'area', size: 2, range: 6, dmg: 1.2, el: 'wind', status: { st: 'vulnerable', n: 2 }, w: 2 }, { k: 'heal', name: 'Sink Beneath', v: 0.9, self: true, w: 1 }],
+    quote: 'The sea remembers when it had a floor. It will have yours.' }),
+
+  // ── Stage 10: Ember Wastes ──
+  cinder_imp: M(10, { name: 'Cinder Imp', look: { body: 'imp', c1: '#e0602a', c2: '#6a1a0a', eye: '#fff0a0', wing: '#8a2a0a' }, hpM: 0.7, move: 4, spd: 17, el: 'fire', weak: ['ice'], ranged: true,
+    intents: [{ k: 'shoot', name: 'Cinder Spit', range: 4, dmg: 1.0, el: 'fire', status: { st: 'burn', n: 2 }, w: 3 }, { k: 'aoe', name: 'Fire Dance', shape: 'burst', size: 1, dmg: 0.7, el: 'fire', w: 1 }] }),
+  magma_crawler: M(10, { name: 'Magma Crawler', look: { body: 'insect', c1: '#5a2a1a', c2: '#2a0a0a', eye: '#ffb020' }, hpM: 1.1, move: 4, spd: 12, el: 'fire', weak: ['ice'],
+    intents: [{ k: 'strike', name: 'Searing Mandibles', dmg: 1.2, el: 'fire', status: { st: 'burn', n: 2 }, w: 3 }, { k: 'guard', name: 'Cooling Crust', block: 6, w: 1 }] }),
+  ash_revenant: M(10, { name: 'Ash Revenant', look: { body: 'humanoid', skeleton: true, armor: '#4a4040', armor2: '#2a2020', cloth: '#6a2a1a', skin: '#c0b0a0', helm: 'none', weapon: 'greatsword', glowEyes: '#ff8020' }, hpM: 1.1, move: 3, spd: 10, atkM: 1.2, el: 'fire', weak: ['holy', 'ice'],
+    intents: [{ k: 'strike', name: 'Ashen Cleave', dmg: 1.3, el: 'fire', w: 3 }, { k: 'aoe', name: 'Burning Sweep', shape: 'cone', size: 2, dmg: 0.9, el: 'fire', status: { st: 'burn', n: 2 }, w: 1 }] }),
+  obsidian_golem: M(10, { name: 'Obsidian Golem', look: { body: 'golem', c1: '#2a2030', c2: '#120a16', accent: '#ff5a1a', eye: '#ffd020', lava: true }, hpM: 1.5, defM: 1.4, move: 2, spd: 5, el: 'earth', weak: ['ice'],
+    intents: [{ k: 'strike', name: 'Glass Fist', dmg: 1.4, status: { st: 'bleed', n: 2 }, w: 3 }, { k: 'aoe', name: 'Shard Burst', shape: 'burst', size: 1, dmg: 0.9, el: 'earth', w: 1 }, { k: 'guard', name: 'Harden', block: 8, w: 1 }] }),
+  flame_dancer: M(10, { name: 'Flame Dancer', look: { body: 'floating', c1: '#ffb040', c2: '#c0401a', glow: '#fff0b0', wings: true }, hpM: 0.8, move: 4, spd: 14, el: 'fire', weak: ['ice'], ranged: true,
+    intents: [{ k: 'buff', name: 'War Dance', st: 'strength', n: 2, allies: true, w: 2 }, { k: 'aoe', name: 'Ring of Fire', shape: 'area', size: 1, range: 4, dmg: 0.8, el: 'fire', status: { st: 'burn', n: 2 }, w: 2 }, { k: 'heal', name: 'Kindle', v: 0.6, w: 1 }] }),
+  molten_wyrm: M(10, { name: 'Molten Wyrm', rank: 'mini', look: { body: 'dragon', c1: '#c0401a', c2: '#5a1a0a', accent: '#ffb040', eye: '#ffff80', wing: '#8a2a0a', hydra: true }, size: 3, scale: 1.8, move: 3, spd: 9, el: 'fire', weak: ['ice'],
+    intents: [{ k: 'strike', name: 'Magma Bite', dmg: 1.5, el: 'fire', status: { st: 'burn', n: 2 }, w: 3 }, { k: 'aoe', name: 'Lava Breath', shape: 'cone', size: 3, dmg: 1.0, el: 'fire', status: { st: 'burn', n: 3 }, w: 2 }, { k: 'aoe', name: 'Burrow Burst', shape: 'burst', size: 2, dmg: 0.9, el: 'earth', w: 1 }] }),
+  pyrelord: M(10, { name: 'Pyrelord Ignarok', rank: 'mvp', look: { body: 'golem', c1: '#6a2a1a', c2: '#2a0a06', accent: '#ff7a1a', eye: '#ffe040', horns: true, lava: true }, size: 7, scale: 2.8, move: 2, spd: 9, el: 'fire', weak: ['ice'], resist: ['fire', 'earth'],
+    intents: [{ k: 'strike', name: 'Caldera Fist', dmg: 1.6, range: 2, el: 'fire', status: { st: 'burn', n: 2 }, w: 3 }, { k: 'aoe', name: 'Pyroclasm', shape: 'area', size: 2, range: 6, dmg: 1.0, el: 'fire', status: { st: 'burn', n: 3 }, w: 3 }, { k: 'aoe', name: 'Fissure', shape: 'line', size: 5, dmg: 1.1, el: 'earth', status: { st: 'stun', n: 1 }, w: 1 }, { k: 'summon', name: 'Stoke the Embers', id: 'cinder_imp', n: 2, w: 1 }],
+    phase2: [{ k: 'aoe', name: 'Eruption of Ages', shape: 'burst', size: 3, dmg: 1.3, el: 'fire', status: { st: 'burn', n: 4 }, w: 2 }, { k: 'aoe', name: 'Pyroclasm', shape: 'area', size: 2, range: 6, dmg: 1.2, el: 'fire', status: { st: 'burn', n: 3 }, w: 2 }, { k: 'guard', name: 'Cooling Slag', block: 14, w: 1 }, { k: 'strike', name: 'Mountain Breaker', dmg: 2.2, range: 2, el: 'earth', w: 2 }],
+    quote: 'I was a mountain before your kind had fire. I will be one after.' }),
+
+  // ── Stage 11: The Sundered Throne ──
+  null_shade: M(11, { name: 'Null Shade', look: { body: 'floating', c1: '#5a4a8a', c2: '#1a1030', glow: '#c0a0ff' }, hpM: 0.8, move: 4, spd: 15, el: 'shadow', weak: ['holy'], ranged: true,
+    intents: [{ k: 'shoot', name: 'Unravel', range: 5, dmg: 1.0, el: 'shadow', status: { st: 'vulnerable', n: 2 }, w: 3 }, { k: 'aoe', name: 'Silence', shape: 'area', size: 1, range: 4, dmg: 0.7, el: 'shadow', status: { st: 'weak', n: 2 }, w: 1 }] }),
+  throne_guard: M(11, { name: 'Throne Guard', look: { body: 'humanoid', armor: '#e0d8c0', armor2: '#8a7a50', cloth: '#3a2a6a', skin: '#b0a0c0', hair: '#ffffff', helm: 'knight', weapon: 'greatsword', cape: '#4a2a8a', glowEyes: '#ffe080' }, hpM: 1.3, defM: 1.4, move: 3, spd: 10, atkM: 1.1, el: 'holy', weak: ['shadow'],
+    intents: [{ k: 'strike', name: 'Oathkeeper', dmg: 1.3, el: 'holy', w: 3 }, { k: 'aoe', name: 'Honour Guard', shape: 'cone', size: 2, dmg: 0.9, el: 'holy', w: 1 }, { k: 'guard', name: 'Unbroken Line', block: 8, w: 1 }] }),
+  rift_stalker: M(11, { name: 'Rift Stalker', look: { body: 'beast', c1: '#4a2a7a', c2: '#1a0a3a', accent: '#ff60ff', eye: '#ffffff', horns: true }, move: 5, spd: 17, atkM: 1.2, el: 'shadow', weak: ['holy'],
+    intents: [{ k: 'strike', name: 'Phase Pounce', dmg: 1.2, el: 'shadow', status: { st: 'bleed', n: 3 }, w: 3 }, { k: 'buff', name: 'Blur', st: 'haste', n: 2, w: 1 }] }),
+  star_eater: M(11, { name: 'Star Eater', look: { body: 'blob', c1: '#1a1a3a', c2: '#06061a', eye: '#ffe080', tentacles: true }, hpM: 1.4, move: 2, spd: 7, el: 'shadow', weak: ['holy'], resist: ['shadow'],
+    intents: [{ k: 'strike', name: 'Devour Light', dmg: 1.2, drain: 0.5, w: 2 }, { k: 'aoe', name: 'Event Horizon', shape: 'burst', size: 2, dmg: 0.8, el: 'shadow', status: { st: 'root', n: 1 }, w: 2 }] }),
+  oblivion_seer: M(11, { name: 'Oblivion Seer', look: { body: 'humanoid', armor: '#2a2040', armor2: '#120a24', cloth: '#6a4ab0', skin: '#c0b0e0', hair: '#ffffff', helm: 'hood', weapon: 'staff', glowEyes: '#c0a0ff' }, hpM: 0.9, move: 3, spd: 11, el: 'shadow', weak: ['holy'], ranged: true,
+    intents: [{ k: 'heal', name: 'Rewind', v: 0.7, w: 2 }, { k: 'shoot', name: 'Foretold Doom', range: 5, dmg: 1.0, el: 'shadow', status: { st: 'weak', n: 2 }, w: 2 }, { k: 'summon', name: 'Call a Shade', id: 'null_shade', n: 1, w: 1 }] }),
+  fallen_seraph: M(11, { name: 'Fallen Seraph', rank: 'mini', look: { body: 'humanoid', armor: '#d0c8e0', armor2: '#6a5a8a', cloth: '#2a1a4a', skin: '#e0d8f0', hair: '#ffffff', helm: 'none', weapon: 'spear', wings: '#8a7ab0', glowEyes: '#ffe080' }, size: 3, scale: 1.8, move: 4, spd: 13, el: 'holy', weak: ['shadow'],
+    intents: [{ k: 'strike', name: 'Lance of Dusk', dmg: 1.5, range: 2, el: 'holy', w: 3 }, { k: 'aoe', name: 'Falling Feathers', shape: 'area', size: 1, range: 5, dmg: 1.0, el: 'holy', status: { st: 'vulnerable', n: 2 }, w: 2 }, { k: 'aoe', name: 'Wing Sweep', shape: 'cone', size: 3, dmg: 1.0, el: 'wind', w: 1 }, { k: 'heal', name: 'Last Grace', v: 0.8, self: true, w: 1 }] }),
+  the_unmaker: M(11, { name: 'Aeon the Unmaker', rank: 'mvp', look: { body: 'humanoid', armor: '#e8e0ff', armor2: '#5a4a9a', cloth: '#1a1030', skin: '#d0c8f0', hair: '#ffffff', helm: 'crown', crownColor: '#ffe080', weapon: 'staff', cape: '#2a1a5a', glowEyes: '#ffffff', wings: '#c0b0ff' }, size: 7, scale: 3.0, move: 3, spd: 13, el: 'shadow', weak: [], resist: ['shadow', 'holy', 'poison'],
+    intents: [{ k: 'strike', name: 'Unmake', dmg: 1.6, range: 2, el: 'shadow', w: 3 }, { k: 'aoe', name: 'Falling Sky', shape: 'area', size: 2, range: 7, dmg: 1.1, el: 'holy', status: { st: 'vulnerable', n: 2 }, w: 3 }, { k: 'aoe', name: 'Line of Ending', shape: 'line', size: 6, dmg: 1.2, el: 'shadow', w: 2 }, { k: 'summon', name: 'Echoes', id: 'null_shade', n: 2, w: 1 }],
+    phase2: [{ k: 'aoe', name: 'Zero Hour', shape: 'burst', size: 3, dmg: 1.3, el: 'shadow', status: { st: 'stun', n: 1 }, w: 2 }, { k: 'aoe', name: 'Falling Sky', shape: 'area', size: 2, range: 7, dmg: 1.3, el: 'holy', status: { st: 'vulnerable', n: 2 }, w: 2 }, { k: 'strike', name: 'Erase', dmg: 2.3, range: 2, el: 'shadow', w: 2 }, { k: 'summon', name: 'Echoes', id: 'throne_guard', n: 1, w: 1 }, { k: 'heal', name: 'Turn Back the Hour', v: 0.8, self: true, w: 1 }],
+    quote: 'I made the worlds, and I grew tired of them. Yours is the last page.' }),
+
   turret: { name: 'Arc Turret', construct: true, look: { body: 'turret', c1: '#8a6a4a', c2: '#4a3a2a', accent: '#ffb030' }, hp: 6, atk: 0, def: 0, move: 0, spd: 0, size: 1, scale: 0.9, el: 'fire', weak: [], resist: [] },
   barricade: { name: 'Iron Barricade', construct: true, look: { body: 'barricade', c1: '#7a7a80', c2: '#3a3a40' }, hp: 8, atk: 0, def: 1, move: 0, spd: 0, size: 1, scale: 0.9, el: 'neutral', weak: [], resist: [] },
 };

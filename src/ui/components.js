@@ -5,7 +5,7 @@ import { audio } from '../core/audio.js';
 import { getSheet, drawFrame, iconCanvas, FRAMES } from '../engine/sprites.js';
 import { CARDS, cardStats, describeCard, ELEMENTS, CATEGORIES, RARITY, STATUS_INFO, DICE_NAME, diceLabel } from '../data/cards.js';
 import { ITEM_RARITY, STAT_LABEL } from '../data/items.js';
-import { cardArt } from './cardArt.js';
+import { cardArt, itemArt } from './cardArt.js';
 import { CLASSES, heroLook } from '../data/classes.js';
 import { MONSTERS } from '../data/monsters.js';
 
@@ -46,6 +46,9 @@ export const unitSprite = (u, opts) => spriteCanvas(u.spriteKey, u.look, opts);
 
 export const icon = (name, color = '#fff', size = 20) => h('img.icon', { src: iconCanvas(name, color, 64), width: size, height: size, draggable: 'false', decoding: 'sync' });
 
+// An item's painted picture (equipment by rarity colour, potions and materials by their own colour).
+export const itemPic = (name, color, size = 34) => h('img.icon.pic', { src: itemArt(name, color), width: size, height: size, draggable: 'false', decoding: 'sync' });
+
 // ───── cards ─────
 // A dice chip such as [■■ red ×2]; card text marks dice as ⟦red:2⟧ (see describeCard).
 // A small drawn die (or several), for wherever a roll is written next to text.
@@ -81,7 +84,7 @@ export function itemStats(item) {
 export function itemEl(item, { onClick = null, tag = null } = {}) {
   const r = ITEM_RARITY[item.rarity];
   return h('div.item', { style: { '--rar': r.color }, onclick: onClick, 'data-tip-html': itemTip(item) },
-    h('div.item-icon', icon(item.icon, r.color, 34)),
+    h('div.item-icon', itemPic(item.icon, r.color, 34)),
     h('div.item-info', h('div.item-name', item.name), h('div.item-sub', `${r.name} · ${t('Tier {n}', { n: item.tier })} ${t(item.type)}`)),
     tag ? h('div.item-tag', tag) : null);
 }

@@ -11,7 +11,7 @@ import { grantExp, computeStats } from './game/character.js';
 import { Net } from './net/firebase.js';
 import { CLASSES, CLASS_ORDER } from './data/classes.js';
 import { MONSTERS } from './data/monsters.js';
-import { STAGE_BY_ID } from './data/stages.js';
+import { STAGE_BY_ID, STAGES } from './data/stages.js';
 import { initTooltips, transition, toast, openModal, btn, topModal, banner } from './ui/components.js';
 import { titleScreen, playScreen, charCreateScreen, worldMapScreen, authModal, clearScreens, epilogue } from './ui/screens.js';
 import { ExploreScene, rewardsModal, stageIntro, lootModal } from './ui/exploreUI.js';
@@ -168,8 +168,9 @@ class App {
       if (enc.kind === 'boss') {
         this.sm.leave();
         await this.toWorldMap();
-        if (stageId === 6 && r.first) await epilogue(this);
-        else if (r.first) banner(t('New Realm Unlocked'), STAGE_BY_ID[Math.min(6, stageId + 1)].name, 'victory', 2200);
+        if (stageId === 6 && r.first) await epilogue(this); // the Abyss falls: the story's first ending, and a door behind it
+        if (stageId === STAGES.length && r.first) await epilogue(this, true);
+        else if (r.first) banner(t('New Realm Unlocked'), STAGE_BY_ID[Math.min(STAGES.length, stageId + 1)].name, 'victory', 2200);
         return;
       }
     } else {

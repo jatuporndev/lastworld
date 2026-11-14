@@ -20,7 +20,7 @@ import { MONSTERS } from '../data/monsters.js';
 import { Coop } from '../net/coop.js';
 import { bus } from '../core/util.js';
 import { cardArt } from './cardArt.js';
-import { ui, cardEl, unitSprite, statusChips, bar, btn, icon, toast, banner, openModal, diceChip, die } from './components.js';
+import { itemPic, ui, cardEl, unitSprite, statusChips, bar, btn, icon, toast, banner, openModal, diceChip, die } from './components.js';
 
 // A monster attack reads as its dice plus the fixed bonus: drawn dice on the board, words in a sentence.
 const pw = (i) => t('{n} dice', { n: i.dice || 1 }) + ' +' + i.power;
@@ -583,7 +583,7 @@ export class BattleScene {
     const u = this.hero(); if (!u || !this.inputOn) return;
     const list = Object.entries(this.consOf(u)).map(([id, n]) => { const c = CONSUMABLES[id];
       return h('div.item', { style: { '--rar': c.color }, onclick: async () => { m.close(); if (!this.inputOn || u.itemUsed) return; this.inputOn = false; await this.act({ k: 'item', id }); } },
-        h('div.item-icon', icon(c.icon, c.color, 34)), h('div.item-info', h('div.item-name', c.name), h('div.item-sub', c.desc)), h('div.item-tag', '×' + n)); });
+        h('div.item-icon', itemPic(c.icon, c.color, 34)), h('div.item-info', h('div.item-name', c.name), h('div.item-sub', c.desc)), h('div.item-tag', '×' + n)); });
     const m = openModal(h('div.item-list', ...list), { title: t('Use Item — {name}', { name: u.name }), cls: 'narrow' });
   }
 

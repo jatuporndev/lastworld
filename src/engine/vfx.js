@@ -156,9 +156,25 @@ const BURST = { fire: 'blast', ice: 'frostnova', earth: 'slam', wind: 'hit_wind'
 const BEAM = { holy: 'beam_holy', wind: 'beam_wind' };
 const SUPPORT = { heal: 'heal', block: 'shield', smoke: 'smoke', summon: 'portal', boon: 'hit_arcane', revive: 'revive', buff: 'bless' };
 // drawn round their own middle, so they go on the target's chest; every other picture stands on the floor
-const CHEST = new Set(['hit_fire', 'hit_ice', 'hit_shadow', 'hit_arcane', 'hit_spark', 'hit_crit', 'hit_blunt', 'zap', 'slash', 'slash2', 'flurry', 'claw', 'thrust', 'reap', 'poof']);
-const SINGLE = { blast: 0.5, hit_wind: 0.8, hit_earth: 0.75, hit_holy: 0.75, hit_arcane: 0.7 }; // size on one target
-const HEAVY = new Set(['smash', 'reap']);
+const CHEST = new Set(['shatter', 'overload', 'shieldslam', 'sunder', 'ambush', 'mark', 'hit_fire', 'hit_ice', 'hit_shadow', 'hit_arcane', 'hit_spark', 'hit_crit', 'hit_blunt', 'zap', 'slash', 'slash2', 'flurry', 'claw', 'thrust', 'reap', 'poof']);
+const SINGLE = { sunder: 1.2, blast: 0.5, hit_wind: 0.8, hit_earth: 0.75, hit_holy: 0.75, hit_arcane: 0.7 }; // size on one target
+const HEAVY = new Set(['smash', 'reap', 'shieldslam']);
+// Cards with a look of their own. main / impact / extra replace what the element and icon would have picked;
+// self plays on the caster as the card goes off; n fires that many projectiles.
+const OWN = {
+  m_detonate: { main: 'detonate' }, m_wildfire: { main: 'creep_fire' }, s_contagion: { main: 'creep_poison' },
+  m_shatter: { impact: 'shatter' }, m_overload: { impact: 'overload' },
+  k_shieldslam: { main: 'shieldslam' }, b_sunder: { extra: 'sunder' }, r_worldrender: { extra: 'sunder', self: 'rage' },
+  s_ambush: { main: 'ambush' }, k_laststand: { self: 'rage' },
+  a_mark: { main: 'mark' }, s_expose: { main: 'mark' }, s_deathmark: { main: 'mark' },
+  b_retool: { main: 'clock' }, n_catchbreath: { main: 'clock' }, r_overclock: { main: 'clock', self: 'surge' }, p_vigil: { main: 'recall' }, b_salvage: { main: 'recall' },
+  b_temper: { main: 'rage' }, k_rally: { main: 'rage' }, b_whetstone: { main: 'rage' }, a_focus: { main: 'rage' }, n_battlecry: { main: 'rage' }, b_masterwork: { main: 'rage' },
+  a_windstep: { main: 'haste' }, p_swift: { main: 'haste' }, a_disengage: { main: 'haste' },
+  k_ironwill: { main: 'regen' }, p_renew: { main: 'regen' }, p_lifebloom: { main: 'regen' }, n_breath: { main: 'regen' },
+  m_surge: { main: 'surge' }, s_adrenaline: { main: 'surge' }, b_overcharge: { main: 'surge' },
+  n_insight: { main: 'cards' }, p_prayer: { main: 'cards' }, a_camo: { main: 'smoke' },
+  a_double: { n: 2 }, a_quiver: { n: 3 }, a_headshot: { impact: 'hit_crit' }, a_concuss: { impact: 'hit_blunt' }, a_longshot: { impact: 'hit_wind' },
+};
 
 // What a card looks like, decided from the card alone: its element, icon, how it travels and what it does.
 // `hostile` says whether a "special" card is aimed at an enemy. Returns the mode and every sheet it needs.
@@ -201,7 +217,8 @@ export function fxPlan(card, monster = false, hostile = card.cat === 'attack') {
     if (!card.mp) { P.magic = false; P.charge = null; } // a blow is wound up by the body, not by a spell
     if (el !== 'neutral') P.extra = IMPACT[el];
   }
-  P.sheets = [P.charge, P.main, P.proj, P.impact, P.extra].filter(Boolean);
+  const own = OWN[card.id]; if (own) Object.assign(P, own);
+  P.sheets = [P.charge, P.main, P.proj, P.impact, P.extra, P.self, P.n ? 'hit_spark' : null].filter(Boolean);
   return P;
 }
 // Every sheet a card could play (a "special" may be friendly or hostile), for loading before the fight.
@@ -243,6 +260,7 @@ export async function castVfx(w, d) {
     w.release(u.uid, P.mode === 'support' ? null : aim);
   }
 
+  if (P.self) play(w, P.self, feet, { s: sc, order: 34 });
   if (P.mode === 'support') { supportFx(w, d, P, sc); await tween(200, () => {}); return; }
 
   // beats 2 and 3 · it travels, and it lands
@@ -284,6 +302,7 @@ export async function castVfx(w, d) {
     await tween(120, () => {});
   } else if (P.mode === 'shot') {
     audio.sfx(P.plain ? 'arrow' : el === 'fire' ? 'bolt' : EL_SFX[el] || 'magic');
+    for (let i = 1; i < (P.n || 1); i++) after(i * 110, () => fly(w, P.proj, from, aim, { arc: 0.5 + i * 0.25 }).then(() => land('hit_spark', target, { s: 0.7 }))); // a volley from one bow
     if (P.proj) await fly(w, P.proj, from, aim, { arc: P.plain ? 0.5 : 0.1 }); else await shot(w, from, aim, color, SHOT.knife);
     land(P.impact, target, { s: SINGLE[P.impact] || 1 }); if (P.impact === 'hit_fire') audio.sfx('burn');
     await wait(P.impact);
@@ -308,7 +327,7 @@ function supportFx(w, d, P, sc) {
   const { unit: u, targets, target } = d;
   const spots = targets.length ? targets.map((t) => [w.unitPos(t.uid, 0.9), w.unitPos(t.uid, 0.04), Math.max(1, Math.min(1.8, (t.scale || 1) * 0.8))])
     : [target ? (() => { const g = w.cellPos(target.q, target.r); g.y += 0.04; return [g.clone().add(V(0, 0.8, 0)), g, 1]; })() : [w.unitPos(u.uid, 0.9), w.unitPos(u.uid, 0.04), sc]];
-  for (const [p, g, s] of spots) play(w, P.main, CHEST.has(P.main) ? p : g, { s: s * (P.kind === 'boon' ? 0.6 : 1), fadeIn: P.kind === 'block' || P.kind === 'buff' ? 0.2 : 0, order: 34 });
+  for (const [p, g, s] of spots) play(w, P.main, CHEST.has(P.main) ? p : g, { s: s * (P.main === 'hit_arcane' ? 0.6 : 1), fadeIn: P.kind === 'block' || P.kind === 'buff' ? 0.2 : 0, order: 34 });
   if (P.extra) play(w, P.extra, w.unitPos(u.uid, 0.04), { s: (d.card.size || 1) >= 3 ? 1.5 : 1.15 });
 }
 

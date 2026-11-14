@@ -5,9 +5,10 @@ import { t } from '../core/i18n.js';
 import { createHero, computeStats, canEquip, clampVitals } from './character.js';
 import { CARDS, STARTER_DECKS, RARITY, MAX_CARD_LEVEL, upgradeCost, DECK_MIN, DECK_MAX } from '../data/cards.js';
 import { QUESTS } from '../data/events.js';
+import { STAGES } from '../data/stages.js';
 import { CONSUMABLES, UNIQUES, makeEquipment } from '../data/items.js';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 export const MAX_CHARS = 3;
 export const MAX_WORLDS = 6;
 // G.profile — everything saved for this player: up to 3 characters and up to 6 worlds.
@@ -85,6 +86,8 @@ function fixChar(c) {
 }
 function fixWorld(w) {
   w.unlocked = w.unlocked || 1; w.cleared = w.cleared || {}; w.seenIntro = w.seenIntro || {}; w.nextBuff = w.nextBuff || null;
+  // a world that had cleared its last stage when the game was shorter: the stages added since open up
+  while (w.cleared[w.unlocked] && w.unlocked < STAGES.length) w.unlocked++;
   if (w.run) { w.run.cleared = w.run.cleared || {}; w.run.seen = w.run.seen || {}; w.run.shop = w.run.shop || {}; } else w.run = null;
   return w;
 }
@@ -108,6 +111,13 @@ function rescaleChar(c) {
 // becomes one world plus one character per hero; the first hero keeps the gold, bag and cards.
 export function normalizeProfile(s) {
   if (!s) return emptyProfile();
+  // Version 4 is a fresh start for everyone: before release the game changed too much for old characters to carry over
+  // (cards only from loot, upgrades paid with copies, five more stages, new monster numbers). The old save is kept
+  // once in this browser under "lw_before_reset"; the settings carry over. Marked as new, so it replaces the cloud copy.
+  if ((s.version || 1) < 4) {
+    try { if (typeof localStorage !== 'undefined') localStorage.setItem('lw_before_reset', JSON.stringify(s)); } catch (e) { /* ignore */ }
+    const P = emptyProfile(); P.settings = { ...P.settings, ...(s.settings || {}) }; P.updated = Date.now(); return P;
+  }
   if (!s.chars && !s.worlds && s.party) {
     const P = emptyProfile(); P.settings = { ...P.settings, ...(s.settings || {}) }; P.updated = s.updated || Date.now();
     P.worlds.w1 = fixWorld({ id: 'w1', name: t('My World'), created: s.created || Date.now(), unlocked: s.unlocked, cleared: s.cleared, run: s.run, seenIntro: s.seenIntro, nextBuff: s.nextBuff, lastChar: 'c1' });

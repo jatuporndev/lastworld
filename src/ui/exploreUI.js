@@ -11,7 +11,7 @@ import { CLASSES, heroLook } from '../data/classes.js';
 import { MONSTERS } from '../data/monsters.js';
 import { CARDS } from '../data/cards.js';
 import { CONSUMABLES, MATERIALS } from '../data/items.js';
-import { ui, openModal, btn, icon, toast, cardEl, itemEl, monsterSprite, heroSprite, bar, banner, bagButton, questButton } from './components.js';
+import { itemPic, ui, openModal, btn, icon, toast, cardEl, itemEl, monsterSprite, heroSprite, bar, banner, bagButton, questButton } from './components.js';
 import { openMenu, openQuests } from './panels.js';
 import { Coop } from '../net/coop.js';
 import { bus } from '../core/util.js';
@@ -258,7 +258,7 @@ export class ExploreScene {
         const row = (e) => {
           const buy = h('button.mini.up', { disabled: e.sold || st.gold < e.price, onclick: () => { if (this.sm.buy(c, e)) { audio.sfx('coin'); render(); this.refreshHud(); } } }, e.sold ? t('Sold') : t('{n} g', { n: e.price }));
           if (e.kind === 'equip') { const el = itemEl(e.item); el.appendChild(buy); return el; }
-          if (e.kind === 'cons') { const k = CONSUMABLES[e.id]; return h('div.item', { style: { '--rar': k.color } }, h('div.item-icon', icon(k.icon, k.color, 30)), h('div.item-info', h('div.item-name', k.name), h('div.item-sub', k.desc)), h('div.item-tag', `×${st.inv.cons[e.id] || 0}`), buy); }
+          if (e.kind === 'cons') { const k = CONSUMABLES[e.id]; return h('div.item', { style: { '--rar': k.color } }, h('div.item-icon', itemPic(k.icon, k.color, 30)), h('div.item-info', h('div.item-name', k.name), h('div.item-sub', k.desc)), h('div.item-tag', `×${st.inv.cons[e.id] || 0}`), buy); }
           return h('div.pool-item', cardEl(e.id, 0, { small: true }), h('div.pool-actions', buy));
         };
         body.replaceChildren(h('div.shop-gold', icon('coin', '#ffd24a', 20), t('{n} gold', { n: fmt(st.gold) })),

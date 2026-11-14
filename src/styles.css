@@ -863,6 +863,19 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .choice-view { padding: 0.45em 0.8em; margin: 0.25em 0; background: var(--paper2); border-radius: var(--radius); color: var(--ink-d); text-align: left; }
 /* co-op: a friend has their bag open */
 .bag-tag { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); display: flex; align-items: center; gap: 0.3em; padding: 0.15em 0.6em; background: var(--paper); color: var(--ink-d); border-radius: var(--radius); box-shadow: 0 0.2em 0 rgba(0, 0, 0, 0.3); font-family: var(--f-head); font-size: 0.8em; white-space: nowrap; }
+/* items are small paintings, like the cards: no tint, a frame in the rarity colour */
+.icon.pic, .cell .icon.pic, .modal .item-icon .icon.pic, .wm-detail .item-icon .icon.pic { filter: none; border-radius: 0.3em; box-shadow: 0 0 0 0.1em var(--rar, var(--paper3)), 0 0.15em 0 rgba(0, 0, 0, 0.3); }
+.cell .icon.pic { width: 3.1em; height: 3.1em; } .cell.dim .icon.pic { opacity: 0.4; } .item-icon .icon.pic { width: 100%; height: 100%; } .item-icon { width: 3em; height: 3em; } .cell:has(.pic) .cell-rar { display: none; }
+/* Forge, card upgrades: each row reads "this card + its spare copy → the stronger card" */
+.tab-forge .smith { flex: 0.8; } .tab-forge .upgrade { flex: 1.5; }
+.up-list { display: flex; flex-direction: column; gap: 0.5em; padding-right: 0.3em; }
+.up-row { display: flex; align-items: center; gap: 0.9em; padding: 0.6em 0.7em; background: var(--paper2); border-radius: var(--radius); } .up-row:not(.ok) .up-make { opacity: 0.55; } .up-row.ok { box-shadow: inset 0.3em 0 0 var(--accent2); }
+.up-make { display: flex; align-items: center; gap: 0.35em; flex: none; } .up-row .card.small { font-size: 0.62em; pointer-events: none; }
+.up-sign { font-family: var(--f-head); font-size: 1.5em; color: var(--ink-d); }
+.up-fuel { position: relative; } .up-fuel .card { transform: rotate(-5deg); } .up-fuel.none .card { filter: grayscale(1) brightness(0.5); }
+.up-fuel-tag { position: absolute; left: 50%; bottom: -0.5em; transform: translateX(-50%); padding: 0.1em 0.5em; background: var(--accent); color: #fff; border-radius: 1em; font-family: var(--f-head); font-size: 0.7em; white-space: nowrap; } .up-fuel.none .up-fuel-tag { background: var(--dim-d); }
+.up-side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.3em; } .up-name { font-family: var(--f-head); font-weight: 600; color: var(--ink-d); } .up-name span { color: var(--accent2); }
+.up-cost { display: flex; flex-wrap: wrap; gap: 0.2em 0.9em; font-size: 0.88em; color: var(--ink-d); } .up-cost .lack { color: var(--accent); } .up-note { font-size: 0.85em; color: var(--dim-d); } .up-side .row { gap: 0.4em; justify-content: flex-start; }
 /* ── phones ──
    The game is a wide tabletop, so phones play it in landscape. A short screen gets a larger base
    font than the desktop formula would give (text stays readable) and a compact HUD to make room. */

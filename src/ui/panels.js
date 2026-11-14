@@ -10,7 +10,7 @@ import { CONSUMABLES, MATERIALS, RECIPES, BASES, ITEM_RARITY, makeEquipment } fr
 import { QUESTS } from '../data/events.js';
 import { Net } from '../net/firebase.js';
 import { Coop } from '../net/coop.js';
-import { openModal, cardEl, itemTip, heroSprite, bar, btn, icon, toast, toggleFullscreen, confirmBox, dragPiece } from './components.js';
+import { itemPic, openModal, cardEl, itemTip, heroSprite, bar, btn, icon, toast, toggleFullscreen, confirmBox, dragPiece } from './components.js';
 
 const TABS = [['hero', 'Heroes', 'crown'], ['equip', 'Bag', 'bag'], ['deck', 'Deck', 'book'], ['forge', 'Forge', 'anvil'], ['system', 'System', 'star']];
 let sel = 0; // selected hero index
@@ -93,10 +93,10 @@ function equipTab(render) {
   const use = (id) => { const c = CONSUMABLES[id];
     if (useConsumable(id, hero)) { audio.sfx('heal'); toast(t('{hero} used {item}', { hero: hero.name, item: c.name })); if (!st.inv.cons[id]) picked = null; render(); }
     else { audio.sfx('error'); toast(t(c.use.bomb ? 'Only usable in battle' : 'Cannot use that now'), 'bad'); } };
-  const ghost = (ic, color) => h('div.cell.ghost', icon(ic, color, 40));
+  const ghost = (ic, color) => h('div.cell.ghost', itemPic(ic, color, 40));
   const gearCell = (it, extra = {}) => { const r = ITEM_RARITY[it.rarity];
     const el = h('div.cell.gear' + (canEquip(hero, it) ? '' : '.dim') + on(extra.slot ? 'slot' : 'gear', extra.slot || it.uid), { style: { '--rar': r.color }, 'data-tip-html': itemTip(it), 'data-drop': extra.slot ? 'slot:' + extra.slot : null,
-      onclick: () => pick(extra.slot ? 'slot' : 'gear', extra.slot || it.uid), ondblclick: () => (extra.slot ? takeOff(extra.slot) : wear(it)) }, icon(it.icon, r.color, 40), h('i.cell-rar'));
+      onclick: () => pick(extra.slot ? 'slot' : 'gear', extra.slot || it.uid), ondblclick: () => (extra.slot ? takeOff(extra.slot) : wear(it)) }, itemPic(it.icon, r.color, 40), h('i.cell-rar'));
     dragPiece(el, { ghost: () => ghost(it.icon, r.color), onDrop: (zone) => {
       if (extra.slot) { if (zone === 'bag') takeOff(extra.slot); }
       else if (zone.startsWith('slot:')) wear(it); else if (zone === 'sell') sell(it); } });
@@ -107,9 +107,9 @@ function equipTab(render) {
   const cells = [
     ...items.map((it) => gearCell(it)),
     ...Object.entries(st.inv.cons).map(([id, n]) => { const c = CONSUMABLES[id];
-      return h('div.cell' + on('cons', id), { style: { '--rar': c.color }, 'data-tip': `${c.name} — ${c.desc}`, onclick: () => pick('cons', id), ondblclick: () => use(id) }, icon(c.icon, c.color, 40), h('b.cell-n', n)); }),
+      return h('div.cell' + on('cons', id), { style: { '--rar': c.color }, 'data-tip': `${c.name} — ${c.desc}`, onclick: () => pick('cons', id), ondblclick: () => use(id) }, itemPic(c.icon, c.color, 40), h('b.cell-n', n)); }),
     ...Object.entries(st.inv.mats).map(([id, n]) => { const c = MATERIALS[id];
-      return h('div.cell' + on('mat', id), { style: { '--rar': c.color }, 'data-tip': t('{name} — a material for the Forge', { name: c.name }), onclick: () => pick('mat', id) }, icon('gem', c.color, 40), h('b.cell-n', n)); }),
+      return h('div.cell' + on('mat', id), { style: { '--rar': c.color }, 'data-tip': t('{name} — a material for the Forge', { name: c.name }), onclick: () => pick('mat', id) }, itemPic('gem', c.color, 40), h('b.cell-n', n)); }),
   ];
   const used = cells.length;
   while (cells.length < BAG_MIN || cells.length % 8) cells.push(h('div.cell.empty'));
@@ -151,10 +151,7 @@ function deckTab(render) {
     el.onclick = put;
     dragPiece(el, { ghost: () => cardEl(id, c.lv, { small: true }), onDrop: (zone) => { if (zone === 'deck') put(); } });
     if (free <= 0) el.classList.add('dim');
-    return h('div.pool-item', el,
-      h('div.pool-actions',
-        c.lv < MAX_CARD_LEVEL ? h('button.mini.up', { 'data-tip': t('Upgrade to +{lv}: one spare copy of this card, {gold} gold, {shards} shards', { lv: c.lv + 1, gold: cost.gold, shards: cost.shards }) + (spareCopy(id) ? '' : ' — ' + t('you need a second copy that is not in a deck')), disabled: st.gold < cost.gold || st.shards < cost.shards || !spareCopy(id), onclick: () => { if (tryUpgradeCard(id)) { audio.sfx('levelup'); render(); } } }, `⬆ ▮1 ${cost.gold}g ${cost.shards}◆`) : h('span.maxed', 'MAX'),
-        h('button.mini', { 'data-tip': t('Dismantle one copy for {n} shards', { n: RARITY[card.rarity].shards }), disabled: free <= 0, onclick: () => { if (tryDismantle(id)) { audio.sfx('coin'); render(); } } }, `✂ +${RARITY[card.rarity].shards}◆`))); };
+    return h('div.pool-item', el); };
   return h('div.tab-deck', heroPicker(render),
     h('div.deck-cols',
       h('div.deck-col', h('div.sec-title', t("{name}'s Deck", { name: hero.name }), h('span.points' + (hero.deck.length < DECK_MIN ? '.has' : ''), t('{n} / {max} cards (min {min})', { n: hero.deck.length, max: DECK_MAX, min: DECK_MIN }))), h('div.card-grid.scroll', { 'data-drop': 'deck' }, ...deckIds.map(deckCard))),
@@ -165,13 +162,39 @@ function deckTab(render) {
 function forgeTab(render) {
   const st = G.state; const classes = new Set(myHeroes().map((x) => x.cls));
   const recipes = RECIPES.filter((r) => r.tier <= st.unlocked + 1);
-  return h('div.tab-forge',
-    h('div.deck-col', h('div.sec-title', t('Smithing'), h('span.points', t('Forge equipment from materials'))),
+  const root = h('div.tab-forge',
+    h('div.deck-col.smith', h('div.sec-title', t('Smithing'), h('span.points', t('Forge equipment from materials'))),
       h('div.item-list.scroll', ...recipes.map((r) => { const B = BASES[r.base]; const ok = st.gold >= r.gold && Object.entries(r.mats).every(([m, n]) => (st.inv.mats[m] || 0) >= n);
-        return h('div.item.recipe' + (ok ? '' : '.dim'), { style: { '--rar': ITEM_RARITY[r.rarity].color } }, h('div.item-icon', icon(B.icon, ITEM_RARITY[r.rarity].color, 32)),
+        return h('div.item.recipe' + (ok ? '' : '.dim'), { style: { '--rar': ITEM_RARITY[r.rarity].color } }, h('div.item-icon', itemPic(B.icon, ITEM_RARITY[r.rarity].color, 32)),
           h('div.item-info', h('div.item-name', `${B.names[r.tier - 1]}`), h('div.item-sub', `${ITEM_RARITY[r.rarity].name} · ${t('Tier {n}', { n: r.tier })} ${t(B.type)}`),
             h('div.recipe-cost', ...Object.entries(r.mats).map(([m, n]) => h('span' + ((st.inv.mats[m] || 0) >= n ? '' : '.lack'), `${MATERIALS[m].name} ${st.inv.mats[m] || 0}/${n}`)), h('span' + (st.gold >= r.gold ? '' : '.lack'), t('{n} gold', { n: r.gold })))),
           h('button.mini.up', { disabled: !ok, onclick: () => { Object.entries(r.mats).forEach(([m, n]) => { st.inv.mats[m] -= n; if (st.inv.mats[m] <= 0) delete st.inv.mats[m]; }); st.gold -= r.gold; const it = makeEquipment(r.base, r.tier, r.rarity); addItem(it); progress('craft', 1); audio.sfx('place'); audio.sfx('levelup'); toast(t('Forged {name}!', { name: it.name }), 'good'); render(); } }, t('Forge'))); }))));
+  root.appendChild(upgradeCol(render)); return root;
+}
+
+// Card upgrades: a second copy of the same card is melted into the first. Each row reads left to right:
+// the card as it is, plus the spare copy that will be used up, becomes the stronger card.
+function upgradeCol(render) {
+  const st = G.state; const classes = new Set(myHeroes().map((x) => x.cls));
+  const ids = Object.keys(st.cards).filter((id) => CARDS[id] && (CARDS[id].cls === 'any' || classes.has(CARDS[id].cls)));
+  const info = (id) => { const c = st.cards[id]; const max = c.lv >= MAX_CARD_LEVEL; const cost = upgradeCost(CARDS[id], c.lv); const spare = c.n - usedCopies(id);
+    const why = max ? null : c.n < 2 ? t('You own one copy. Find a second one to upgrade it.') : spare < 1 ? t('Every copy is in a deck. Take one out on the Deck page.') : st.gold < cost.gold ? t('Not enough gold.') : st.shards < cost.shards ? t('Not enough shards.') : null;
+    return { id, c, max, cost, spare, why, ok: !max && !why }; };
+  const rows = ids.map(info).sort((a, b) => b.ok - a.ok || a.max - b.max || (b.c.n >= 2) - (a.c.n >= 2) || CARDS[a.id].cost - CARDS[b.id].cost || a.id.localeCompare(b.id));
+  const row = ({ id, c, max, cost, spare, why, ok }) => {
+    const card = CARDS[id]; const shards = RARITY[card.rarity].shards;
+    const melt = h('button.mini', { 'data-tip': t('Dismantle one spare copy for {n} shards', { n: shards }), disabled: spare < 1, onclick: () => { if (tryDismantle(id)) { audio.sfx('coin'); render(); } } }, t('Dismantle +{n}◆', { n: shards }));
+    if (max) return h('div.up-row.max', cardEl(id, c.lv, { small: true }), h('div.up-side', h('div.up-name', card.name), h('div.up-note', t('Fully upgraded')), melt));
+    const fuel = h('div.up-fuel' + (spare >= 1 && c.n >= 2 ? '' : '.none'), cardEl(id, 0, { small: true }), h('div.up-fuel-tag', spare >= 1 && c.n >= 2 ? t('Spare copy: used up') : t('No spare copy')));
+    return h('div.up-row' + (ok ? '.ok' : ''),
+      h('div.up-make', cardEl(id, c.lv, { small: true }), h('b.up-sign', '+'), fuel, h('b.up-sign', '→'), cardEl(id, c.lv + 1, { small: true })),
+      h('div.up-side', h('div.up-name', card.name, h('span', ` +${c.lv} → +${c.lv + 1}`)),
+        h('div.up-cost', h('span' + (spare >= 1 && c.n >= 2 ? '' : '.lack'), t('1 spare copy (you have {n})', { n: Math.max(0, Math.min(spare, c.n - 1)) })), h('span' + (st.gold >= cost.gold ? '' : '.lack'), t('{n} gold', { n: cost.gold })), h('span' + (st.shards >= cost.shards ? '' : '.lack'), t('{n} shards', { n: cost.shards }))),
+        why ? h('div.up-note', why) : null,
+        h('div.row', h('button.mini.up', { disabled: !ok, onclick: () => { if (tryUpgradeCard(id)) { audio.sfx('levelup'); toast(t('{name} upgraded to +{n}', { name: card.name, n: st.cards[id].lv }), 'good'); render(); } } }, t('Upgrade')), melt)));
+  };
+  return h('div.deck-col.upgrade', h('div.sec-title', t('Card Upgrades'), h('span.points', t('A second copy of the same card is used up to make it stronger'))),
+    h('div.up-list.scroll', ...(rows.length ? rows.map(row) : [h('p.note', t('No cards here.'))])));
 }
 
 // ───── Quests ─────

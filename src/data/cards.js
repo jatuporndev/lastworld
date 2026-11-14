@@ -147,6 +147,11 @@ add([
   { id: 'r_soulharvest', cls: 'any', name: 'Soul Harvest', cat: 'attack', icon: 'skull', rarity: 'legendary', tg: 'self', shape: 'burst', size: 2, cost: 2, mp: 8, cd: 4, el: 'shadow', fx: [{ t: 'dmg', v: 2, s: 'atk', drain: 0.5 }] },
   { id: 'r_starfall', cls: 'any', name: 'Starfall', cat: 'attack', icon: 'meteor', rarity: 'legendary', range: 6, shape: 'area', size: 2, tg: 'any', cost: 3, mp: 10, cd: 4, el: 'holy', fx: [{ t: 'dmg', v: 4, s: 'matk' }, { t: 'status', st: 'stun', n: 1 }] },
   { id: 'r_rift', cls: 'any', name: 'Abyssal Rift', cat: 'special', icon: 'blink', rarity: 'legendary', tg: 'self', shape: 'burst', size: 3, cost: 3, mp: 12, cd: 5, el: 'shadow', fx: [{ t: 'dmg', v: 3, s: 'atk' }, { t: 'pull', v: 2 }, { t: 'status', st: 'vulnerable', n: 2 }] },
+  { id: 'r_sporebloom', cls: 'any', name: 'Spore Bloom', cat: 'attack', icon: 'skull', rarity: 'legendary', tg: 'self', shape: 'burst', size: 2, cost: 2, mp: 6, cd: 4, el: 'poison', fx: [{ t: 'status', st: 'poison', n: 3 }, { t: 'dmg', v: 1, s: 'atk', perStatus: { st: 'poison', v: 1 } }] },
+  { id: 'r_overclock', cls: 'any', name: 'Overclock', cat: 'buff', icon: 'bolt', rarity: 'legendary', tg: 'self', cost: 0, cd: 5, el: 'wind', fx: [{ t: 'energy', v: 2 }, { t: 'cool', v: 2 }, { t: 'draw', v: 1 }] },
+  { id: 'r_tidal', cls: 'any', name: 'Tidal Crash', cat: 'attack', icon: 'snow', rarity: 'legendary', shape: 'line', size: 5, tg: 'any', cost: 2, mp: 8, cd: 4, el: 'ice', fx: [{ t: 'dmg', v: 3, s: 'matk' }, { t: 'push', v: 3 }, { t: 'status', st: 'chill', n: 2 }] },
+  { id: 'r_eruption', cls: 'any', name: 'Eruption', cat: 'attack', icon: 'meteor', rarity: 'legendary', range: 5, shape: 'area', size: 2, tg: 'any', cost: 3, mp: 10, cd: 4, el: 'fire', fx: [{ t: 'status', st: 'burn', n: 3 }, { t: 'dmg', v: 2, s: 'matk', perStatus: { st: 'burn', v: 1 } }] },
+  { id: 'r_worldrender', cls: 'any', name: 'Worldrender', cat: 'attack', icon: 'sword', rarity: 'legendary', cost: 3, mp: 10, cd: 4, el: 'shadow', fx: [{ t: 'breakBlock' }, { t: 'dmg', v: 4, s: 'atk', wounded: 2, drain: 0.3 }] },
 ]);
 
 // ───────── MORE CARDS (found as loot: battles, chests, merchants) ─────────

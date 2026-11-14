@@ -272,3 +272,120 @@ export function cardArt(id) {
   c.restore(); finish(c, w, h);
   url = cv.toDataURL('image/jpeg', 0.86); cache.set(id, url); return url;
 }
+
+// ───── item pictures ─────
+// Equipment, potions and materials are painted the same way as the cards, as a small square: the object in
+// steel, wood or leather, lit by the colour of its rarity (or of the potion). Painted once per look, then reused.
+const S = 600;
+const mix = (hex, to, k) => { const n = parseInt(hex.slice(1), 16), a = [n >> 16, (n >> 8) & 255, n & 255]; return a.map((v, i) => Math.round(v + (to[i] - v) * k)); };
+const css = (a) => `rgb(${a.join(',')})`;
+function palOf(hex) { const m = mix(hex, [0, 0, 0], 0); return { bg: css(mix(hex, [8, 6, 10], 0.93)), deep: css(mix(hex, [10, 8, 14], 0.62)), mid: css(m), hot: css(mix(hex, [255, 255, 255], 0.45)), core: css(mix(hex, [255, 255, 255], 0.86)), rgb: m.join(',') }; }
+const wood = (c, x1, y1, x2, y2) => lin(c, x1, y1, x2, y2, ['#c49a64', '#7a5230', '#3c2616']);
+const leather = (c, x1, y1, x2, y2) => lin(c, x1, y1, x2, y2, ['#c89868', '#8a5a34', '#40281a']);
+const gold = (c, x1, y1, x2, y2) => lin(c, x1, y1, x2, y2, ['#fff3c0', '#e0a834', '#6a4410']);
+const shape = (c, col, draw) => { c.beginPath(); draw(); c.closePath(); c.fillStyle = col; c.fill(); };
+const ITEM = {
+  sword(c, P) {
+    at(c, 300, 310, 0.72, () => {
+      poly(c, [[-30, 110], [30, 110], [24, -200], [0, -262], [-24, -200]], steel(c, -30, 0, 30, 0)); poly(c, [[0, 110], [30, 110], [24, -200], [0, -262]], 'rgba(16,24,52,0.4)'); line(c, -8, 90, -8, -190, 5, 'rgba(255,255,255,0.7)');
+      shape(c, gold(c, 0, 104, 0, 140), () => { c.moveTo(-96, 104); c.lineTo(96, 104); c.lineTo(84, 138); c.lineTo(-84, 138); }); c.fillStyle = leather(c, -16, 0, 16, 0); c.fillRect(-15, 138, 30, 88); ball(c, P, 0, 246, 28);
+    });
+  },
+  dagger(c, P) {
+    at(c, 300, 300, -0.75, () => {
+      shape(c, steel(c, -30, 0, 34, 0), () => { c.moveTo(-26, 60); c.lineTo(30, 60); c.quadraticCurveTo(40, -110, -6, -230); c.quadraticCurveTo(-30, -90, -26, 60); }); line(c, -8, 40, -4, -150, 5, 'rgba(255,255,255,0.7)');
+      shape(c, gold(c, 0, 56, 0, 86), () => { c.moveTo(-70, 56); c.lineTo(70, 56); c.lineTo(56, 86); c.lineTo(-56, 86); }); c.fillStyle = leather(c, -14, 0, 14, 0); c.fillRect(-14, 86, 28, 96); ball(c, P, 0, 200, 24);
+    });
+  },
+  mace(c, P) {
+    at(c, 300, 300, 0.7, () => {
+      c.fillStyle = wood(c, -16, 0, 16, 0); c.fillRect(-15, -40, 30, 290); ball(c, P, 0, 250, 22);
+      for (let i = 0; i < 8; i++) at(c, 0, -130, (i / 8) * TAU, () => poly(c, [[-26, -70], [0, -150], [26, -70]], i % 2 ? '#9aa8c4' : '#eef2ff'));
+      c.fillStyle = steel(c, -80, -210, 80, -50); c.beginPath(); c.arc(0, -130, 92, 0, TAU); c.fill(); disc(c, -30, -160, 20, '#ffffff'); c.strokeStyle = P.mid; c.lineWidth = 12; c.beginPath(); c.arc(0, -130, 60, 0, TAU); c.stroke();
+    });
+  },
+  hammer(c, P) {
+    at(c, 300, 300, 0.7, () => {
+      c.fillStyle = wood(c, -16, 0, 16, 0); c.fillRect(-16, -60, 32, 310); ball(c, P, 0, 250, 22);
+      poly(c, [[-150, -210], [150, -210], [150, -60], [-150, -60]], '#1a2030'); c.fillStyle = steel(c, 0, -200, 0, -70); c.fillRect(-140, -200, 280, 130); c.fillStyle = 'rgba(255,255,255,0.85)'; c.fillRect(-140, -200, 280, 22);
+      c.fillStyle = P.mid; c.fillRect(-36, -206, 72, 142); c.fillStyle = P.hot; c.fillRect(-36, -206, 72, 20);
+    });
+  },
+  staff(c, P, R) {
+    at(c, 300, 300, 0.5, () => {
+      c.fillStyle = wood(c, -12, 0, 12, 0); c.fillRect(-12, -150, 24, 410);
+      for (const sd of [-1, 1]) shape(c, gold(c, 0, -260, 0, -140), () => { c.moveTo(sd * 10, -140); c.quadraticCurveTo(sd * 96, -180, sd * 70, -290); c.quadraticCurveTo(sd * 60, -210, sd * 10, -170); });
+      ball(c, P, 0, -226, 54); disc(c, -18, -246, 12, '#ffffff');
+    });
+    halo(c, P, 410, 100, 220, 0.6); sparks(c, P, R, 410, 100, 14, 120);
+  },
+  bow(c, P) {
+    c.lineCap = 'round'; c.strokeStyle = '#2a180e'; c.lineWidth = 40; c.beginPath(); c.arc(130, 300, 290, -0.98, 0.98); c.stroke();
+    c.strokeStyle = wood(c, 250, 60, 430, 540); c.lineWidth = 28; c.beginPath(); c.arc(130, 300, 290, -0.98, 0.98); c.stroke();
+    const ex = 130 + Math.cos(0.98) * 290, ey = Math.sin(0.98) * 290; line(c, ex, 300 - ey, 200, 300, 4, '#f4ecd8'); line(c, ex, 300 + ey, 200, 300, 4, '#f4ecd8');
+    c.strokeStyle = P.mid; c.lineWidth = 32; c.beginPath(); c.arc(130, 300, 290, -0.12, 0.12); c.stroke();
+    line(c, 200, 300, 520, 300, 9, '#d8c090'); poly(c, [[560, 300], [506, 274], [518, 300], [506, 326]], steel(c, 500, 270, 560, 330)); poly(c, [[200, 300], [168, 276], [226, 290]], P.hot); poly(c, [[200, 300], [168, 324], [226, 310]], P.mid);
+  },
+  armor(c, P) {
+    shape(c, '#141a28', () => { c.moveTo(150, 130); c.lineTo(450, 130); c.lineTo(486, 250); c.lineTo(430, 290); c.lineTo(420, 500); c.lineTo(180, 500); c.lineTo(170, 290); c.lineTo(114, 250); });
+    shape(c, steel(c, 160, 120, 440, 500), () => { c.moveTo(164, 142); c.lineTo(250, 142); c.quadraticCurveTo(300, 200, 350, 142); c.lineTo(436, 142); c.lineTo(470, 244); c.lineTo(418, 280); c.lineTo(408, 488); c.lineTo(192, 488); c.lineTo(182, 280); c.lineTo(130, 244); });
+    poly(c, [[300, 190], [408, 300], [408, 488], [300, 488]], 'rgba(16,24,52,0.3)'); line(c, 300, 196, 300, 480, 8, 'rgba(20,28,52,0.6)');
+    c.fillStyle = P.mid; c.fillRect(192, 400, 216, 26); c.fillStyle = P.hot; c.fillRect(192, 400, 216, 8); ball(c, P, 300, 290, 34);
+    for (const x of [150, 450]) { disc(c, x, 180, 62, '#141a28'); c.fillStyle = steel(c, x - 50, 130, x + 50, 230); c.beginPath(); c.arc(x, 180, 52, 0, TAU); c.fill(); disc(c, x - 16, 162, 12, '#ffffff'); }
+  },
+  vest(c, P) {
+    shape(c, '#20140c', () => { c.moveTo(170, 120); c.lineTo(430, 120); c.lineTo(470, 230); c.lineTo(424, 262); c.lineTo(432, 500); c.lineTo(168, 500); c.lineTo(176, 262); c.lineTo(130, 230); });
+    shape(c, leather(c, 170, 120, 430, 500), () => { c.moveTo(182, 134); c.lineTo(258, 134); c.lineTo(300, 220); c.lineTo(342, 134); c.lineTo(418, 134); c.lineTo(454, 224); c.lineTo(410, 254); c.lineTo(418, 486); c.lineTo(182, 486); c.lineTo(190, 254); c.lineTo(146, 224); });
+    line(c, 300, 224, 300, 480, 7, '#2a180e'); for (let i = 0; i < 5; i++) { line(c, 276, 250 + i * 46, 324, 272 + i * 46, 6, '#f0e0c0'); line(c, 324, 250 + i * 46, 276, 272 + i * 46, 6, '#f0e0c0'); }
+    c.fillStyle = P.mid; c.fillRect(182, 440, 236, 22); poly(c, [[182, 134], [258, 134], [246, 160], [190, 160]], P.hot); poly(c, [[418, 134], [342, 134], [354, 160], [410, 160]], P.mid);
+  },
+  robe(c, P) {
+    shape(c, '#0e0a14', () => { c.moveTo(214, 96); c.lineTo(386, 96); c.lineTo(500, 250); c.lineTo(440, 300); c.lineTo(470, 530); c.lineTo(130, 530); c.lineTo(160, 300); c.lineTo(100, 250); });
+    shape(c, lin(c, 160, 100, 440, 520, [P.hot, P.mid, P.deep]), () => { c.moveTo(222, 110); c.lineTo(378, 110); c.lineTo(482, 246); c.lineTo(424, 290); c.lineTo(454, 516); c.lineTo(146, 516); c.lineTo(176, 290); c.lineTo(118, 246); });
+    shape(c, 'rgba(10,6,16,0.75)', () => { c.moveTo(250, 110); c.lineTo(350, 110); c.lineTo(300, 230); }); c.fillStyle = gold(c, 0, 300, 0, 330); c.fillRect(190, 304, 220, 24);
+    line(c, 300, 328, 286, 500, 9, 'rgba(255,255,255,0.35)'); line(c, 240, 330, 206, 510, 7, 'rgba(0,0,0,0.3)'); line(c, 360, 330, 394, 510, 7, 'rgba(0,0,0,0.3)');
+  },
+  ring(c, P) {
+    c.lineWidth = 62; c.strokeStyle = '#2a1a08'; c.beginPath(); c.arc(300, 350, 140, 0, TAU); c.stroke(); c.lineWidth = 48; c.strokeStyle = gold(c, 160, 210, 440, 490); c.beginPath(); c.arc(300, 350, 140, 0, TAU); c.stroke();
+    c.lineWidth = 8; c.strokeStyle = 'rgba(255,255,255,0.8)'; c.beginPath(); c.arc(300, 350, 152, 3.5, 4.6); c.stroke();
+    poly(c, [[300, 96], [372, 168], [300, 250], [228, 168]], '#2a1a08'); poly(c, [[300, 110], [360, 168], [300, 236], [240, 168]], P.mid); poly(c, [[300, 110], [360, 168], [300, 168]], P.hot); poly(c, [[300, 110], [240, 168], [300, 168]], P.core); halo(c, P, 300, 168, 170, 0.6);
+  },
+  amulet(c, P) {
+    c.lineWidth = 12; c.strokeStyle = gold(c, 120, 60, 480, 300); c.setLineDash([22, 12]); c.beginPath(); c.moveTo(110, 60); c.quadraticCurveTo(300, 380, 490, 60); c.stroke(); c.setLineDash([]);
+    poly(c, [[300, 210], [404, 360], [300, 520], [196, 360]], '#2a1a08'); poly(c, [[300, 228], [388, 360], [300, 500], [212, 360]], gold(c, 212, 228, 388, 500));
+    poly(c, [[300, 268], [360, 360], [300, 456], [240, 360]], P.mid); poly(c, [[300, 268], [360, 360], [300, 360]], P.hot); poly(c, [[300, 268], [240, 360], [300, 360]], P.core); halo(c, P, 300, 360, 200, 0.6);
+  },
+  boots(c, P) {
+    const boot = (ox, oy, s) => at(c, ox, oy, 0, () => {
+      shape(c, '#20140c', () => { c.moveTo(-90, -200); c.lineTo(50, -200); c.lineTo(56, 20); c.quadraticCurveTo(190, 50, 200, 130); c.lineTo(200, 170); c.lineTo(-96, 170); });
+      shape(c, leather(c, -90, -200, 190, 160), () => { c.moveTo(-78, -188); c.lineTo(38, -188); c.lineTo(44, 30); c.quadraticCurveTo(176, 58, 188, 130); c.lineTo(-84, 130); });
+      c.fillStyle = '#1a100a'; c.fillRect(-90, 130, 284, 32); c.fillStyle = P.mid; c.fillRect(-84, -188, 128, 36); c.fillStyle = P.hot; c.fillRect(-84, -188, 128, 12); line(c, -50, -120, -46, 100, 8, 'rgba(255,255,255,0.3)');
+    }, s);
+    boot(210, 300, 0.9); boot(330, 350, 1.05);
+  },
+  potion(c, P) {
+    c.fillStyle = wood(c, 268, 60, 332, 60); c.fillRect(266, 62, 68, 60); c.fillStyle = 'rgba(220,235,255,0.5)'; c.fillRect(256, 116, 88, 100); c.fillStyle = 'rgba(255,255,255,0.7)'; c.fillRect(244, 108, 112, 20);
+    disc(c, 300, 370, 176, 'rgba(210,228,255,0.35)'); c.save(); c.beginPath(); c.arc(300, 370, 160, 0, TAU); c.clip(); c.fillStyle = lin(c, 0, 280, 0, 540, [P.hot, P.mid, P.deep]); c.fillRect(100, 290, 400, 300); c.fillStyle = P.core; c.fillRect(100, 290, 400, 12);
+    for (const [x, y, r] of [[250, 400, 16], [340, 450, 22], [300, 350, 10], [370, 380, 12]]) disc(c, x, y, r, 'rgba(255,255,255,0.35)'); c.restore();
+    c.strokeStyle = 'rgba(255,255,255,0.85)'; c.lineWidth = 12; c.lineCap = 'round'; c.beginPath(); c.arc(300, 370, 140, 3.5, 4.4); c.stroke(); halo(c, P, 300, 400, 230, 0.5);
+  },
+  bomb(c, P, R) {
+    disc(c, 290, 370, 176, '#06070a'); c.fillStyle = lin(c, 150, 220, 430, 520, ['#5a6274', '#1c2030', '#06070a']); c.beginPath(); c.arc(290, 370, 164, 0, TAU); c.fill(); disc(c, 232, 306, 30, 'rgba(255,255,255,0.55)');
+    c.fillStyle = '#3a4050'; c.fillRect(256, 180, 68, 44); c.strokeStyle = '#c8a070'; c.lineWidth = 12; c.lineCap = 'round'; c.beginPath(); c.moveTo(290, 184); c.quadraticCurveTo(330, 100, 420, 110); c.stroke();
+    for (let i = 0; i < 10; i++) at(c, 430, 108, (i / 10) * TAU, () => poly(c, [[-12, 0], [0, -(40 + (i % 2) * 34)], [12, 0]], i % 2 ? P.hot : P.core)); disc(c, 430, 108, 20, P.core); halo(c, P, 430, 108, 200, 0.8); sparks(c, P, R, 430, 108, 16, 110);
+  },
+  gem(c, P) { // a raw material
+    poly(c, [[300, 110], [470, 250], [400, 500], [200, 500], [130, 250]], P.deep); poly(c, [[300, 130], [448, 254], [300, 300]], P.hot); poly(c, [[300, 130], [152, 254], [300, 300]], P.core); poly(c, [[152, 254], [300, 300], [210, 486]], P.mid); poly(c, [[448, 254], [300, 300], [390, 486]], P.mid); poly(c, [[300, 300], [390, 486], [210, 486]], P.hot);
+    line(c, 300, 130, 300, 300, 4, 'rgba(255,255,255,0.6)'); halo(c, P, 300, 300, 260, 0.45);
+  },
+};
+const itemCache = new Map();
+/** The painted picture of an item, as an image URL: `icon` picks the object, `color` its light. */
+export function itemArt(icon, color = '#c8c0b0') {
+  const key = icon + color; let url = itemCache.get(key); if (url) return url;
+  const w = 132; const cv = document.createElement('canvas'); cv.width = w; cv.height = w; const c = cv.getContext('2d', { willReadFrequently: true });
+  const P = palOf(/^#[0-9a-f]{6}$/i.test(color) ? color : '#c8c0b0'); const R = seeded(hash(key));
+  c.save(); c.scale(w / S, w / S); c.fillStyle = P.bg; c.fillRect(0, 0, S, S); glow(c, 300, 300, 420, P.rgb, 0.5);
+  (ITEM[icon] || ITEM.gem)(c, P, R); c.restore(); finish(c, w, w);
+  url = cv.toDataURL('image/jpeg', 0.88); itemCache.set(key, url); return url;
+}

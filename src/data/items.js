@@ -40,9 +40,10 @@ export const STAT_LABEL = { atk: 'ATK', matk: 'MATK', def: 'DEF', hp: 'Max HP', 
 export function makeEquipment(baseId, tier, rarity, rng = Math.random) {
   const base = BASES[baseId];
   const r = ITEM_RARITY[rarity];
-  const tierMul = 1 + (tier - 1) * 0.85;
-  const hpMul = 1 + (tier - 1) * 0.5;
-  const step = Math.floor((tier - 1) / 2); // +1 ATK / MATK / DEF at tiers 3 and 5
+  const tt = tier <= 6 ? tier : 6 + (tier - 6) * 0.45; // stages 7 to 11 keep growing, but slowly
+  const tierMul = 1 + (tt - 1) * 0.85;
+  const hpMul = 1 + (tt - 1) * 0.5;
+  const step = Math.floor((tt - 1) / 2); // +1 ATK / MATK / DEF at tiers 3, 5 and 9
   const stats = {};
   for (const [k, v] of Object.entries(base.stats)) {
     const n = SMALL.includes(k) ? v + (v > 0 ? step : 0) + (rarity === 'legendary' && v > 0 ? 1 : 0) : k === 'hp' ? Math.round(v * hpMul * r.mul) : Math.max(1, Math.round(v * tierMul * r.mul));
@@ -68,6 +69,11 @@ export const UNIQUES = {
   lich_phylactery: { kind: 'equip', base: 'amulet', slot: 'accessory', type: 'amulet', tier: 5, rarity: 'legendary', name: 'Shattered Phylactery', stats: { hp: 8, matk: 2, atk: 2 }, icon: 'amulet', value: 1100, unique: 'Heal 10% of damage dealt.', passive: { lifesteal: 0.1 } },
   dragon_scale: { kind: 'equip', base: 'boots', slot: 'accessory', type: 'boots', tier: 6, rarity: 'legendary', name: 'Aurelion Scale Treads', stats: { spd: 12, eva: 8, def: 2, hp: 8 }, icon: 'boots', value: 1500, unique: '+1 Movement and +1 Action Slot.', passive: { move: 1, energy: 1 } },
   overlord_crown: { kind: 'equip', base: 'ring', slot: 'accessory', type: 'ring', tier: 7, rarity: 'legendary', name: 'Crown of the Last World', stats: { atk: 3, matk: 3, hp: 12, crit: 10 }, icon: 'ring', value: 3000, unique: 'All damage +25%.', passive: { dmgPct: 0.25 } },
+  mother_cap: { kind: 'equip', base: 'amulet', slot: 'accessory', type: 'amulet', tier: 8, rarity: 'legendary', name: "Sporemother's Cap", stats: { hp: 14, def: 2, matk: 2 }, icon: 'amulet', value: 3400, unique: 'Regenerate 2 HP each round. Attacks apply Poison 1.', passive: { regenFlat: 2, onHitStatus: { st: 'poison', n: 1 } } },
+  regent_gear: { kind: 'equip', base: 'ring', slot: 'accessory', type: 'ring', tier: 8, rarity: 'legendary', name: "Regent's Mainspring", stats: { atk: 3, spd: 10, crit: 8 }, icon: 'ring', value: 3800, unique: '+1 Action Slot.', passive: { energy: 1 } },
+  leviathan_pearl: { kind: 'equip', base: 'amulet', slot: 'accessory', type: 'amulet', tier: 9, rarity: 'legendary', name: 'Leviathan Pearl', stats: { matk: 4, mp: 30, hp: 10 }, icon: 'amulet', value: 4200, unique: 'Attacks apply Chill 1. Heal 10% of damage dealt.', passive: { onHitStatus: { st: 'chill', n: 1 }, lifesteal: 0.1 } },
+  pyre_heart: { kind: 'equip', base: 'ring', slot: 'accessory', type: 'ring', tier: 10, rarity: 'legendary', name: 'Heart of the Pyre', stats: { atk: 4, matk: 4, crit: 10 }, icon: 'ring', value: 4800, unique: '+30% damage to bosses. Attacks apply Burn 1.', passive: { bossDmg: 0.3, onHitStatus: { st: 'burn', n: 1 } } },
+  unmaker_sigil: { kind: 'equip', base: 'amulet', slot: 'accessory', type: 'amulet', tier: 11, rarity: 'legendary', name: 'Sigil of Making', stats: { atk: 4, matk: 4, hp: 18, def: 2 }, icon: 'amulet', value: 6000, unique: 'All damage +30%. +1 Movement and +1 Action Slot.', passive: { dmgPct: 0.3, move: 1, energy: 1 } },
 };
 export function makeUnique(id) { return { ...UNIQUES[id], stats: { ...UNIQUES[id].stats }, uid: uid(), uniqueId: id }; }
 
