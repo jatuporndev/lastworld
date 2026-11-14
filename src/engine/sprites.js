@@ -416,6 +416,169 @@ function PAINTERS_INIT() {
       if (p.glow) glowCircle(ctx, 0, -60, 50 * p.glow, L.accent, 0.4);
     },
 
+    // ── creatures of the sea (stage 9). They stand half under water, so what matters is drawn high. ──
+    // A sea serpent: coils breaking the surface, a thick neck rising in an S, a finned head with a long jaw.
+    serpent(ctx, L, view, p, f, anim) {
+      ctx.translate(p.dx * 0.5, 0); const sway = Math.sin((f / 4) * Math.PI * 2) * 3, lunge = anim === 'attack' ? [0, -7, 15, 6][f] : 0, side = view === 'side';
+      const fin = L.wing || shade(L.c1, 0.3), belly = L.accent || shade(L.c1, 0.4);
+      [[-36, 15, 1], [32, 12, -1]].forEach(([x, r, s]) => { // coils behind, each with a row of fins
+        for (let k = -1; k <= 1; k++) { ctx.beginPath(); ctx.moveTo(x + k * 9 - 4, -r * 0.8); ctx.lineTo(x + k * 9 + s * 2, -r - 9 + Math.abs(k) * 4); ctx.lineTo(x + k * 9 + 5, -r * 0.8); path(ctx, fin, OUT, 2); }
+        ctx.beginPath(); ctx.arc(x, 2, r + s * sway * 0.3, Math.PI, 0); path(ctx, rgrad(ctx, x - 4, -r, r * 1.6, shade(L.c1, 0.25), L.c2), OUT, 3);
+      });
+      const hx = (side ? 20 : 0) + sway + lunge, hy = -86 + p.bob - Math.abs(lunge) * 0.5;
+      const neck = (w, col, off = 0) => { ctx.beginPath(); ctx.moveTo(-4 + off, 6); ctx.bezierCurveTo(-30 + off, -30, 26 + off, -52, hx + off * 0.5, hy + 8); ctx.lineCap = 'round'; path(ctx, null, col, w); };
+      for (let k = 0; k < 4; k++) { const t = 0.25 + k * 0.17, bx = -4 * (1 - t) ** 3 + 3 * -30 * t * (1 - t) ** 2 + 3 * 26 * t * t * (1 - t) + hx * t ** 3, by = 6 * (1 - t) ** 3 + 3 * -30 * t * (1 - t) ** 2 + 3 * -52 * t * t * (1 - t) + (hy + 8) * t ** 3; // fins down the back of the neck
+        ctx.beginPath(); ctx.moveTo(bx - 20, by + 4); ctx.lineTo(bx - 30, by - 12); ctx.lineTo(bx - 12, by - 6); path(ctx, fin, OUT, 2); }
+      neck(31, OUT); neck(26, L.c2); neck(20, L.c1, -2); neck(7, belly, 6);
+      ctx.save(); ctx.translate(hx, hy); ctx.rotate(side ? 0.25 + lunge * 0.012 : 0);
+      const jaw = anim === 'attack' && f >= 1 ? 0.5 : 0.12;
+      if (side) {
+        ctx.beginPath(); ctx.moveTo(-16, -2); ctx.lineTo(-34, -22); ctx.lineTo(-22, -4); ctx.lineTo(-36, -6); ctx.lineTo(-18, 6); path(ctx, fin, OUT, 2); // frill behind the head
+        ctx.save(); ctx.rotate(jaw); ctx.beginPath(); ctx.moveTo(-10, 4); ctx.quadraticCurveTo(14, 16, 36, 8); ctx.lineTo(8, 2); ctx.closePath(); path(ctx, L.c2, OUT, 2.5); ctx.restore(); // lower jaw
+        ctx.beginPath(); ctx.moveTo(-18, 4); ctx.quadraticCurveTo(-20, -18, 2, -18); ctx.quadraticCurveTo(26, -16, 40, -2); ctx.quadraticCurveTo(24, 8, -18, 4); path(ctx, rgrad(ctx, 0, -10, 34, shade(L.c1, 0.35), L.c2), OUT, 2.5);
+        for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.moveTo(12 + k * 6, 3); ctx.lineTo(15 + k * 6, 9); ctx.lineTo(18 + k * 6, 2.5); path(ctx, '#fff', null); }
+        ellipse(ctx, 8, -8, 4.5, 5.5, L.eye, OUT, 1.5); ellipse(ctx, 9, -8, 1.6, 4, '#101020', null); glowCircle(ctx, 8, -8, 9, L.eye, 0.6);
+      } else {
+        [-1, 1].forEach((s) => { ctx.beginPath(); ctx.moveTo(s * 14, -6); ctx.lineTo(s * 34, -22); ctx.lineTo(s * 24, -4); ctx.lineTo(s * 34, 6); ctx.lineTo(s * 14, 8); path(ctx, fin, OUT, 2); });
+        ctx.beginPath(); ctx.moveTo(-18, -8); ctx.quadraticCurveTo(-16, -24, 0, -24); ctx.quadraticCurveTo(16, -24, 18, -8); ctx.quadraticCurveTo(14, 14, 0, 18); ctx.quadraticCurveTo(-14, 14, -18, -8); path(ctx, rgrad(ctx, -4, -12, 30, shade(L.c1, 0.35), L.c2), OUT, 2.5);
+        if (view !== 'back') { [-1, 1].forEach((s) => { ellipse(ctx, s * 9, -8, 4.5, 5.5, L.eye, OUT, 1.5); ellipse(ctx, s * 9, -8, 1.6, 4, '#101020', null); glowCircle(ctx, s * 9, -8, 9, L.eye, 0.6); ellipse(ctx, s * 4, 8, 1.4, 2, '#101020', null); });
+          if (jaw > 0.3) { ctx.beginPath(); ctx.moveTo(-9, 10); ctx.quadraticCurveTo(0, 24, 9, 10); path(ctx, '#3a0a14', OUT, 2); } }
+        else for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.moveTo(-5, -20 + k * 11); ctx.lineTo(0, -32 + k * 11); ctx.lineTo(5, -20 + k * 11); path(ctx, fin, OUT, 2); }
+      }
+      ctx.restore(); if (p.glow) glowCircle(ctx, hx, hy, 34 * p.glow, belly, 0.5);
+    },
+    // A kraken's young: a tall mantle with two great eyes, and arms that come up out of the water all round it.
+    squid(ctx, L, view, p, f, anim) {
+      ctx.translate(p.dx, 0); const t = (f / 4) * Math.PI * 2, reach = anim === 'attack' ? [0, -0.3, 0.8, 0.3][f] : 0;
+      const arm = (x, len, lean, ph) => { const tipx = x + lean * len + Math.sin(t + ph) * 5, tipy = -len; const c = () => { ctx.beginPath(); ctx.moveTo(x, 4); ctx.quadraticCurveTo(x - lean * 12, -len * 0.5, tipx, tipy); ctx.lineCap = 'round'; }; c(); path(ctx, null, OUT, 9); c(); path(ctx, null, L.c1, 5.5); for (let k = 1; k < 4; k++) ellipse(ctx, x + (tipx - x) * (k / 4) + 2, 4 + (tipy - 4) * (k / 4), 1.6, 1.6, shade(L.c1, 0.5), null); };
+      arm(-36, 34 + reach * 14, -0.25 - reach * 0.4, 0); arm(36, 30 + reach * 14, 0.25 + reach * 0.4, 2); arm(-22, 22, -0.1, 1); arm(22, 24, 0.1, 3);
+      const sq = p.squash, w = 22 / sq, hh = 60 * sq;
+      ctx.beginPath(); ctx.moveTo(-w, 0); ctx.quadraticCurveTo(-w - 8, -hh * 0.55, -w * 0.5, -hh * 0.9); ctx.quadraticCurveTo(0, -hh * 1.15, w * 0.5, -hh * 0.9); ctx.quadraticCurveTo(w + 8, -hh * 0.55, w, 0); ctx.closePath(); path(ctx, rgrad(ctx, -6, -hh * 0.7, w * 2, shade(L.c1, 0.4), L.c2));
+      for (let k = 0; k < 5; k++) ellipse(ctx, (k - 2) * 7 + (k % 2) * 2, -hh * (0.72 + (k % 3) * 0.07), 2.4, 3, shade(L.c2, -0.15), null); // spots on the mantle
+      ctx.globalAlpha = 0.55; ellipse(ctx, -9, -hh * 0.82, 5, 9, '#ffffff', null, 0, -0.3); ctx.globalAlpha = 1;
+      [-1, 1].forEach((s) => { ctx.beginPath(); ctx.moveTo(s * w * 0.7, -hh * 0.72); ctx.lineTo(s * (w + 16), -hh * 0.6); ctx.lineTo(s * w * 0.9, -hh * 0.45); path(ctx, shade(L.c1, 0.15), OUT, 2); }); // fins on the mantle
+      if (view !== 'back') { const ex = view === 'side' ? [6, 20] : [-11, 11]; ex.forEach((x) => { ellipse(ctx, x, -hh * 0.3, 7, 8.5, '#fff8d8', OUT, 2); ellipse(ctx, x + 1, -hh * 0.3, 3.2, 5.5, L.eye === '#ffe040' ? '#101020' : '#101020', null); glowCircle(ctx, x, -hh * 0.3, 11, L.eye, 0.5); }); }
+      if (p.glow) glowCircle(ctx, 0, -hh * 0.6, 34 * p.glow, L.c1, 0.5);
+    },
+    // A hunting fish, seen leaping: jaws first, a tall back fin, the tail still in the water.
+    fish(ctx, L, view, p, f, anim) {
+      const leap = anim === 'attack' ? [0, -6, -14, -6][f] : Math.sin((f / 4) * Math.PI * 2) * 2; ctx.translate(p.dx, leap + p.bob * 0.4);
+      const body = grad(ctx, -56, 0, shade(L.c1, 0.3), L.c2), belly = L.accent || '#e8f6f4', bite = anim === 'attack' && f >= 1;
+      if (view === 'side') {
+        ctx.save(); ctx.rotate(-0.5 + p.lean);
+        ctx.beginPath(); ctx.moveTo(-34, -4); ctx.lineTo(-52, -18); ctx.lineTo(-46, -2); ctx.lineTo(-52, 12); path(ctx, shade(L.c1, 0.1), OUT, 2.5); // tail
+        ctx.beginPath(); ctx.moveTo(-10, -18); ctx.lineTo(-2, -40); ctx.lineTo(10, -17); path(ctx, shade(L.c2, -0.1), OUT, 2.5); // back fin
+        ctx.beginPath(); ctx.moveTo(-36, -2); ctx.quadraticCurveTo(-8, -26, 30, -10); ctx.lineTo(34, bite ? -2 : -6); ctx.quadraticCurveTo(0, 16, -36, -2); path(ctx, body);
+        ctx.beginPath(); ctx.moveTo(-28, 2); ctx.quadraticCurveTo(2, 14, 28, bite ? 8 : 0); ctx.quadraticCurveTo(0, 8, -28, 2); path(ctx, belly, null);
+        if (bite) { ctx.beginPath(); ctx.moveTo(14, -4); ctx.lineTo(36, -2); ctx.lineTo(30, 10); ctx.lineTo(12, 4); path(ctx, '#3a0a14', OUT, 2); }
+        for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.moveTo(16 + k * 5, -5); ctx.lineTo(18.5 + k * 5, bite ? 1 : -1); ctx.lineTo(21 + k * 5, -5); path(ctx, '#fff', null); }
+        ellipse(ctx, 16, -11, 3.6, 3.6, L.eye, OUT, 1.5); ellipse(ctx, 17, -11, 1.4, 1.4, '#101020', null);
+        ctx.beginPath(); ctx.moveTo(-4, 4); ctx.lineTo(4, 16); ctx.lineTo(8, 3); path(ctx, shade(L.c1, 0.1), OUT, 2); ctx.restore();
+      } else {
+        ctx.beginPath(); ctx.moveTo(-5, -44); ctx.lineTo(0, -66); ctx.lineTo(6, -44); path(ctx, shade(L.c2, -0.1), OUT, 2.5);
+        [-1, 1].forEach((s) => { ctx.beginPath(); ctx.moveTo(s * 14, -22); ctx.lineTo(s * 32, -14); ctx.lineTo(s * 16, -8); path(ctx, shade(L.c1, 0.1), OUT, 2); });
+        ctx.beginPath(); ctx.moveTo(-14, 2); ctx.quadraticCurveTo(-22, -30, 0, -50); ctx.quadraticCurveTo(22, -30, 14, 2); ctx.closePath(); path(ctx, body);
+        if (view !== 'back') { ctx.beginPath(); ctx.moveTo(-9, 0); ctx.quadraticCurveTo(0, -22, 9, 0); path(ctx, belly, null);
+          ctx.beginPath(); ctx.moveTo(-11, -20); ctx.quadraticCurveTo(0, bite ? -4 : -14, 11, -20); ctx.quadraticCurveTo(0, -26, -11, -20); path(ctx, '#3a0a14', OUT, 2); for (let k = -2; k <= 2; k++) { ctx.beginPath(); ctx.moveTo(k * 4 - 2, -22); ctx.lineTo(k * 4, -17); ctx.lineTo(k * 4 + 2, -22); path(ctx, '#fff', null); }
+          [-1, 1].forEach((s) => { ellipse(ctx, s * 9, -32, 3.6, 3.6, L.eye, OUT, 1.5); ellipse(ctx, s * 9, -32, 1.4, 1.4, '#101020', null); }); }
+      }
+    },
+    // A reef crab: a wide shell low in the water, eyes on stalks, and two heavy claws held up.
+    crab(ctx, L, view, p, f, anim) {
+      ctx.translate(p.dx, 0); const snap = anim === 'attack' ? [0, -0.5, 0.7, 0.3][f] : Math.sin((f / 4) * Math.PI * 2) * 0.08, side = view === 'side';
+      for (let i = 0; i < 3; i++) [-1, 1].forEach((s) => { const x = s * (16 + i * 7); ctx.beginPath(); ctx.moveTo(s * 12, -14); ctx.lineTo(x + s * 6, -22 + i * 2 + p.leg * 3 * s); ctx.lineTo(x + s * 12, 0); path(ctx, null, OUT, 5); ctx.beginPath(); ctx.moveTo(s * 12, -14); ctx.lineTo(x + s * 6, -22 + i * 2 + p.leg * 3 * s); ctx.lineTo(x + s * 12, 0); path(ctx, null, L.c2, 2.6); });
+      const claw = (s) => { ctx.save(); ctx.translate(s * 22, -24); ctx.rotate(s * (-0.5 - snap)); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(s * 6, -18); path(ctx, null, OUT, 9); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(s * 6, -18); path(ctx, null, L.c2, 5.5);
+        ctx.translate(s * 7, -22); const open = 0.25 + Math.max(0, -snap) * 0.8; ctx.save(); ctx.rotate(-s * open); ctx.beginPath(); ctx.moveTo(-s * 6, 4); ctx.quadraticCurveTo(-s * 14, -14, s * 2, -24); ctx.quadraticCurveTo(s * 2, -8, s * 4, 4); ctx.closePath(); path(ctx, rgrad(ctx, 0, -10, 18, shade(L.c1, 0.35), L.c2)); ctx.restore();
+        ctx.save(); ctx.rotate(s * open); ctx.beginPath(); ctx.moveTo(s * 2, 4); ctx.quadraticCurveTo(s * 14, -8, s * 8, -20); ctx.quadraticCurveTo(s * 4, -8, -s * 2, 4); ctx.closePath(); path(ctx, shade(L.c1, 0.15)); ctx.restore(); ctx.restore(); };
+      if (!side) claw(-1); claw(1);
+      ellipse(ctx, 0, -18, side ? 22 : 27, 15, rgrad(ctx, -6, -24, 30, shade(L.c1, 0.35), L.c2)); // the shell
+      for (let k = -1; k <= 1; k++) ellipse(ctx, k * 10, -24, 3, 2, shade(L.c2, -0.15), null);
+      ctx.globalAlpha = 0.5; ellipse(ctx, -9, -26, 8, 3, '#ffffff', null, 0, -0.2); ctx.globalAlpha = 1;
+      if (view !== 'back') (side ? [10, 18] : [-8, 8]).forEach((x) => { ctx.beginPath(); ctx.moveTo(x, -30); ctx.lineTo(x, -40); path(ctx, null, OUT, 4); ctx.beginPath(); ctx.moveTo(x, -30); ctx.lineTo(x, -40); path(ctx, null, L.c1, 2); ellipse(ctx, x, -42, 3.6, 3.6, L.eye, OUT, 1.5); ellipse(ctx, x + 0.6, -42, 1.4, 1.4, '#101020', null); });
+    },
+
+    // ── bodies for the later stages, so each realm has shapes of its own ──
+    // A walking mushroom: a stalk with a face under a wide spotted cap. caps: 3 makes a cluster; vines adds tendrils.
+    shroom(ctx, L, view, p, f, anim) {
+      ctx.translate(p.dx, 0); const sq = p.squash, t = (f / 4) * Math.PI * 2, nod = anim === 'attack' ? [0, -0.12, 0.3, 0.1][f] : Math.sin(t) * 0.03;
+      if (L.vines) for (let i = 0; i < 4; i++) { const x = -42 + i * 28, c = () => { ctx.beginPath(); ctx.moveTo(x * 0.4, -4); ctx.quadraticCurveTo(x, -34 + Math.sin(t + i) * 6, x + Math.sin(t * 1.3 + i) * 8, -8 - (i % 2) * 26); ctx.lineCap = 'round'; }; c(); path(ctx, null, OUT, 8); c(); path(ctx, null, shade(L.c1, -0.25), 4.5); }
+      const one = (x, base, w, hh, lean, face) => { ctx.save(); ctx.translate(x, 0); ctx.rotate(lean);
+        ctx.beginPath(); ctx.moveTo(-w * 0.34, 0); ctx.quadraticCurveTo(-w * 0.2, base * 0.6, -w * 0.26, base); ctx.lineTo(w * 0.26, base); ctx.quadraticCurveTo(w * 0.2, base * 0.6, w * 0.34, 0); ctx.closePath(); path(ctx, grad(ctx, base, 0, shade(L.c2, 0.2), shade(L.c2, -0.2)));
+        if (face && view !== 'back') { const ex = view === 'side' ? [3, 11] : [-6, 6]; ex.forEach((e) => { ellipse(ctx, e, base * 0.5, 3, 4, '#101020', null); ellipse(ctx, e + 0.8, base * 0.5 - 1.2, 1, 1.2, '#fff', null); }); ctx.beginPath(); ctx.arc(view === 'side' ? 7 : 0, base * 0.28, 4, 0.15, Math.PI - 0.15); path(ctx, null, '#101020', 2); }
+        ctx.beginPath(); ctx.moveTo(-w, base + 5); ctx.quadraticCurveTo(-w * 1.08, base - hh * 1.3, 0, base - hh * 1.5); ctx.quadraticCurveTo(w * 1.08, base - hh * 1.3, w, base + 5); ctx.quadraticCurveTo(0, base - 5, -w, base + 5); path(ctx, rgrad(ctx, -w * 0.3, base - hh, w * 1.5, shade(L.c1, 0.4), shade(L.c1, -0.3)));
+        [[-0.5, 0.5, 0.2], [0.35, 0.8, 0.16], [0.05, 1.1, 0.13], [0.62, 0.35, 0.1], [-0.72, 0.15, 0.09]].forEach(([sx, sy, r]) => { ellipse(ctx, sx * w, base - hh * sy, r * w, r * w * 0.8, L.spots, null); }); glowCircle(ctx, 0, base - hh * 0.7, w * 0.9, L.spots, 0.25 + (p.glow || 0) * 0.5);
+        ctx.restore(); };
+      if ((L.caps || 1) >= 3) { one(-30, -22 * sq, 15, 13, -0.22 + nod * 0.5, false); one(30, -26 * sq, 17, 14, 0.2 - nod * 0.5, false); }
+      one(0, -32 * sq, 27 / sq, 22 * sq, nod, true);
+    },
+    // A cave spider: eight legs arched high, a fat marked abdomen, a cluster of eyes over two fangs.
+    spider(ctx, L, view, p, f, anim) {
+      ctx.translate(p.dx, p.bob * 0.4); const t = (f / 4) * Math.PI * 2, bite = anim === 'attack' ? [0, -3, 7, 2][f] : 0;
+      for (let i = 0; i < 4; i++) [-1, 1].forEach((s) => { const kx = s * (24 + i * 6), ky = -44 + i * 7 + Math.sin(t + i * 1.5 + (s > 0 ? 1.6 : 0)) * (anim === 'walk' ? 5 : 1.5), fx = s * (36 + i * 5), c = () => { ctx.beginPath(); ctx.moveTo(s * 8, -18); ctx.lineTo(kx, ky); ctx.lineTo(fx, 0); ctx.lineJoin = 'round'; ctx.lineCap = 'round'; }; c(); path(ctx, null, OUT, 5.5); c(); path(ctx, null, L.c2, 3); });
+      ellipse(ctx, 0, -36, 22, 19, rgrad(ctx, -6, -44, 28, shade(L.c1, 0.35), L.c2));
+      ctx.beginPath(); ctx.moveTo(-6, -46); ctx.lineTo(6, -46); ctx.lineTo(0, -38); ctx.lineTo(6, -30); ctx.lineTo(-6, -30); ctx.lineTo(0, -38); ctx.closePath(); path(ctx, L.eye, null);
+      ellipse(ctx, 0, -14 + bite * 0.4, 14, 12, rgrad(ctx, -3, -18, 18, shade(L.c1, 0.25), L.c2));
+      if (view !== 'back') { const y = -16 + bite * 0.4; [[-5, 0, 3.2], [5, 0, 3.2], [-11, -3, 2], [11, -3, 2], [-3, -6, 1.6], [3, -6, 1.6]].forEach(([x, dy, r]) => { ellipse(ctx, x, y + dy, r, r, L.eye, null); ellipse(ctx, x + 0.5, y + dy - 0.5, r * 0.35, r * 0.35, '#fff', null); }); glowCircle(ctx, 0, y, 14, L.eye, 0.35);
+        [-1, 1].forEach((s) => { ctx.beginPath(); ctx.moveTo(s * 3, -6 + bite * 0.4); ctx.lineTo(s * 6, 3 + bite); ctx.lineTo(s * 8, -6 + bite * 0.4); path(ctx, '#f4ecd8', OUT, 1.5); }); }
+    },
+    // A clockwork drone: a toothed wheel with a lens for an eye, held up by one rotor.
+    drone(ctx, L, view, p, f) {
+      ctx.translate(p.dx, -36 + Math.sin((f / 4) * Math.PI * 2) * 3); const lens = L.glow || '#80e0ff';
+      ctx.fillStyle = OUT; ctx.fillRect(-2, -32, 4, 14); ellipse(ctx, 0, -33, 8 + 22 * Math.abs(Math.cos(f * 1.3)), 3.5, shade(L.c1, 0.3), OUT, 2);
+      for (let i = 0; i < 8; i++) { ctx.save(); ctx.rotate((i / 8) * Math.PI * 2 + f * 0.2); ctx.beginPath(); ctx.rect(-4.5, -24, 9, 9); path(ctx, L.c2, OUT, 2); ctx.restore(); }
+      ellipse(ctx, 0, 0, 18, 18, rgrad(ctx, -5, -6, 24, shade(L.c1, 0.4), L.c2)); ellipse(ctx, 0, 0, 12, 12, shade(L.c2, -0.2), OUT, 2);
+      [-1, 1].forEach((s) => { const c = () => { ctx.beginPath(); ctx.moveTo(s * 14, 10); ctx.lineTo(s * 24, 18); ctx.lineTo(s * 19, 26 + p.arm * 2); }; c(); path(ctx, null, OUT, 5); c(); path(ctx, null, L.c1, 2.5); });
+      if (view !== 'back') { const ex = view === 'side' ? 5 : 0; ellipse(ctx, ex, 0, 7.5, 7.5, '#101822', OUT, 2); ellipse(ctx, ex, 0, 4.5, 4.5, lens, null); ellipse(ctx, ex - 1.5, -1.5, 1.5, 1.5, '#fff', null); glowCircle(ctx, ex, 0, 12, lens, 0.6 + (p.glow || 0) * 0.4); }
+      else { ctx.beginPath(); ctx.moveTo(-6, -4); ctx.lineTo(6, -4); ctx.moveTo(-6, 2); ctx.lineTo(6, 2); path(ctx, null, OUT, 2); }
+    },
+    // A siege engine on treads: a riveted hull, a domed turret, one long gun that kicks back when it fires.
+    tank(ctx, L, view, p, f, anim) {
+      ctx.translate(p.dx * 0.4, 0); const kick = anim === 'attack' ? [0, 2, -8, -3][f] : 0, lens = L.accent || '#80e0ff', side = view === 'side';
+      rrect(ctx, -36, -16, 72, 16, 8, '#1c1a1a'); for (let i = 0; i < 5; i++) ellipse(ctx, -28 + i * 14, -8, 5.5, 5.5, shade(L.c2, 0.15), OUT, 1.5); // treads
+      ctx.beginPath(); ctx.moveTo(-32, -16); ctx.lineTo(-26, -40); ctx.lineTo(26, -40); ctx.lineTo(32, -16); ctx.closePath(); path(ctx, grad(ctx, -40, -16, shade(L.c1, 0.3), L.c2));
+      for (let i = 0; i < 5; i++) ellipse(ctx, -22 + i * 11, -20, 1.6, 1.6, shade(L.c2, -0.3), null);
+      ctx.fillStyle = OUT; ctx.fillRect(-24, -62, 6, 22); ctx.fillStyle = shade(L.c2, 0.1); ctx.fillRect(-23, -61, 4, 20); if (f % 2) { ctx.globalAlpha = 0.5; ellipse(ctx, -21, -68, 6, 5, '#c8c8c8', null); ctx.globalAlpha = 1; } // smokestack
+      if (side) { ctx.fillStyle = OUT; ctx.fillRect(6 + kick, -58, 44, 11); ctx.fillStyle = shade(L.c1, 0.1); ctx.fillRect(8 + kick, -56, 40, 7); ctx.fillStyle = OUT; ctx.fillRect(44 + kick, -60, 8, 15); if (anim === 'attack' && f === 2) glowCircle(ctx, 56, -52, 18, '#ffd080', 1); }
+      ctx.beginPath(); ctx.arc(0, -40, 20, Math.PI, 0); ctx.closePath(); path(ctx, rgrad(ctx, -6, -52, 26, shade(L.c1, 0.45), L.c2));
+      if (!side) { ellipse(ctx, 0, -48 - kick * 0.3, 8, 8, '#101010', OUT, 2.5); ellipse(ctx, 0, -48 - kick * 0.3, 4, 4, '#2a2a2a', null); if (anim === 'attack' && f === 2) glowCircle(ctx, 0, -48, 20, '#ffd080', 1); }
+      if (view !== 'back') { const ex = side ? 10 : 0; ctx.fillStyle = OUT; ctx.fillRect(ex - 12, -33, 24, 8); ctx.fillStyle = lens; ctx.fillRect(ex - 10, -31, 20, 4); glowCircle(ctx, ex, -29, 12, lens, 0.5 + (p.glow || 0) * 0.5); }
+    },
+    // A thing made of fire: a tall flame with a white-hot heart, two eyes, and arms it throws out to strike.
+    flame(ctx, L, view, p, f, anim) {
+      const t = (f / 4) * Math.PI * 2, lash = anim === 'attack' ? [0, -0.3, 0.9, 0.3][f] : 0; ctx.translate(p.dx, -10 + Math.sin(t) * 2);
+      const tongue = (x, w, hh, col, ph) => { ctx.beginPath(); ctx.moveTo(x - w, 6); ctx.bezierCurveTo(x - w * 1.5, -hh * 0.5, x - w * 0.2 + Math.sin(t + ph) * 5, -hh * 0.7, x + Math.sin(t * 1.3 + ph) * 6, -hh); ctx.bezierCurveTo(x + w * 0.3, -hh * 0.6, x + w * 1.5, -hh * 0.4, x + w, 6); ctx.closePath(); path(ctx, col, null); };
+      glowCircle(ctx, 0, -30, 46, L.c1, 0.5 + (p.glow || 0) * 0.4);
+      [-1, 1].forEach((s) => { ctx.save(); ctx.translate(s * 14, -26); ctx.rotate(s * (0.9 + lash * 0.8)); tongue(0, 6, 26 + lash * 14, L.c2, s); ctx.restore(); }); // arms
+      tongue(0, 24, 74, L.c2, 0); tongue(-2, 18, 58, L.c1, 1); tongue(0, 11, 38, L.glow || '#fff0b0', 2);
+      if (view !== 'back') { const ex = view === 'side' ? [2, 12] : [-7, 7]; ex.forEach((x) => { ellipse(ctx, x, -24, 3.6, 5.5, '#2a0a04', null); ellipse(ctx, x + 0.8, -26, 1.2, 1.6, '#fff', null); }); ctx.beginPath(); ctx.arc(view === 'side' ? 7 : 0, -14, 6, 0.1, Math.PI - 0.1); path(ctx, anim === 'attack' ? '#2a0a04' : null, '#2a0a04', 2); }
+      for (let i = 0; i < 4; i++) { const ph = (f / 4 + i * 0.27) % 1; ellipse(ctx, -18 + i * 12 + Math.sin(i * 3) * 4, -40 - ph * 44, 2.2 * (1 - ph), 2.2 * (1 - ph), L.glow || '#fff0b0', null); } // sparks rising off it
+    },
+    // A watching eye adrift in the dark, trailing tendrils.
+    eye(ctx, L, view, p, f, anim) {
+      const t = (f / 4) * Math.PI * 2; ctx.translate(p.dx, -40 + Math.sin(t) * 3); const open = anim === 'hurt' ? 0.35 : anim === 'attack' ? 1.15 : 1;
+      for (let i = 0; i < 5; i++) { const x = -20 + i * 10, c = () => { ctx.beginPath(); ctx.moveTo(x, 12); ctx.quadraticCurveTo(x + Math.sin(t + i) * 9, 28, x + Math.sin(t * 1.4 + i) * 10, 40 - (i % 2) * 8); ctx.lineCap = 'round'; }; c(); path(ctx, null, OUT, 6.5); c(); path(ctx, null, L.c1, 3.5); }
+      ellipse(ctx, 0, 0, 27, 24, rgrad(ctx, -8, -8, 34, shade(L.c1, 0.3), L.c2)); glowCircle(ctx, 0, 0, 40, L.eye, 0.25 + (p.glow || 0) * 0.5);
+      if (view === 'back') { for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc(0, 0, 8 + i * 5, 0.3 + i, 2.2 + i); path(ctx, null, shade(L.c2, 0.2), 1.5); } return; }
+      const ex = view === 'side' ? 9 : 0; ctx.save(); ctx.beginPath(); ctx.ellipse(ex, 0, view === 'side' ? 13 : 19, 14 * open, 0, 0, Math.PI * 2); ctx.clip();
+      ctx.fillStyle = '#fbf6e4'; ctx.fillRect(-30, -30, 60, 60); ellipse(ctx, ex + (view === 'side' ? 3 : 0), 0, 10, 10, L.eye, null); ctx.beginPath(); ctx.ellipse(ex + (view === 'side' ? 4 : 0), 0, anim === 'attack' ? 1.8 : 3.4, 8, 0, 0, Math.PI * 2); ctx.fillStyle = '#0a0612'; ctx.fill(); ellipse(ctx, ex - 4, -4, 2.4, 2.4, '#fff', null); ctx.restore();
+      ctx.beginPath(); ctx.ellipse(ex, 0, view === 'side' ? 13 : 19, 14 * open, 0, 0, Math.PI * 2); path(ctx, null, OUT, 2.5);
+      for (let i = 0; i < 5; i++) { const a = -2.6 + i * 0.5; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 22, Math.sin(a) * 19); ctx.lineTo(Math.cos(a) * 32, Math.sin(a) * 28); path(ctx, null, OUT, 2.5); } // lashes
+    },
+    // A carrion bird on the wing: a hunched body, a bare hooked neck, wings that beat wide.
+    bird(ctx, L, view, p, f, anim) {
+      const flap = Math.sin((f / 4) * Math.PI * 2), dive = anim === 'attack' ? [0, -6, 12, 4][f] : 0; ctx.translate(p.dx + dive * 0.4, -46 + flap * 3 + Math.abs(dive) * 0.5);
+      const wing = (s) => { ctx.save(); ctx.translate(s * 9, -6); ctx.rotate(s * (-0.35 - flap * 0.5)); ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(s * 26, -22, s * 50, -8); ctx.lineTo(s * 44, 2); ctx.lineTo(s * 38, -2); ctx.lineTo(s * 32, 8); ctx.lineTo(s * 26, 2); ctx.lineTo(s * 20, 12); ctx.lineTo(s * 12, 5); ctx.lineTo(0, 12); ctx.closePath(); path(ctx, grad(ctx, -22, 12, shade(L.c1, 0.2), L.c2)); ctx.restore(); };
+      if (view === 'side') wing(-1); else { wing(-1); wing(1); }
+      ctx.beginPath(); ctx.moveTo(-4, 14); ctx.lineTo(-10, 30); ctx.lineTo(0, 24); ctx.lineTo(10, 30); ctx.lineTo(4, 14); path(ctx, L.c2); // tail
+      ellipse(ctx, 0, 4, 13, 17, rgrad(ctx, -4, -4, 20, shade(L.c1, 0.3), L.c2));
+      ellipse(ctx, 0, -9, 13, 6, '#f0e8d8', OUT, 2); // ruff
+      const hx = view === 'side' ? 12 : 0, hy = -22 + dive * 0.3; const c = () => { ctx.beginPath(); ctx.moveTo(0, -10); ctx.quadraticCurveTo(hx * 0.3 - 6, -18, hx, hy); ctx.lineCap = 'round'; }; c(); path(ctx, null, OUT, 9); c(); path(ctx, null, L.skin || '#d8a090', 5.5);
+      ellipse(ctx, hx, hy, 7.5, 7, L.skin || '#d8a090');
+      if (view !== 'back') { if (view === 'side') { ctx.beginPath(); ctx.moveTo(hx + 5, hy - 3); ctx.quadraticCurveTo(hx + 18, hy - 2, hx + 15, hy + 9); ctx.lineTo(hx + 5, hy + 3); ctx.closePath(); path(ctx, '#e0b040', OUT, 2); ellipse(ctx, hx + 2, hy - 2, 2.2, 2.2, L.eye, OUT, 1); }
+        else { ctx.beginPath(); ctx.moveTo(-4, hy); ctx.lineTo(0, hy + 12); ctx.lineTo(4, hy); ctx.closePath(); path(ctx, '#e0b040', OUT, 2); [-1, 1].forEach((s) => ellipse(ctx, s * 4, hy - 2, 2.2, 2.2, L.eye, OUT, 1)); } }
+      if (view === 'side') wing(1);
+    },
+
     turret(ctx, L, view, p, f, anim) {
       [-1, 0, 1].forEach((s) => { ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(s * 18, 0); path(ctx, null, OUT, 6); ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(s * 18, 0); path(ctx, null, L.c2, 3); });
       rrect(ctx, -14, -38, 28, 20, 5, grad(ctx, -38, -18, shade(L.c1, 0.3), L.c2));

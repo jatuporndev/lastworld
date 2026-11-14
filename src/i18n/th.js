@@ -1013,4 +1013,9 @@ export const TH = {
   ' A second wave follows next round.': ' มีคลื่นที่สองตามมารอบหน้า',
   'cross': 'กากบาท',
   'checker': 'ลายสลับ',
+  'Open Sea': 'ทะเลเปิด',
+  'Deep water. Boats cross it freely.': 'น้ำลึก เรือแล่นผ่านได้อิสระ',
+  'Islet': 'เกาะเล็ก',
+  'A scrap of beach. Impassable. Blocks line of sight.': 'หาดทรายผืนเล็ก ผ่านไม่ได้ บังแนวสายตา',
+  'When the world broke, this sea stayed where it was and the ground fell away beneath it. There is no shore left to walk on: the party takes to small boats, and whatever lives here comes up out of the water to meet them.': 'เมื่อโลกแตก ทะเลนี้ยังอยู่ที่เดิมแต่พื้นดินข้างใต้ร่วงหายไป ไม่เหลือฝั่งให้เดิน ปาร์ตี้ต้องลงเรือลำเล็ก และทุกสิ่งที่อาศัยอยู่ที่นี่จะโผล่ขึ้นจากน้ำมาหา',
 };

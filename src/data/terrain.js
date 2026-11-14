@@ -28,6 +28,8 @@ export const TERRAIN = {
   lava:     { name: 'Lava', top: 0xff5a1a, side: 0x5a1a0a, h: 0.18, cost: 2, onEnd: { dmg: 2, el: 'fire', status: 'burn', n: 1 }, emissive: 0xff3300, liquid: true, desc: 'Costs 2. Ending a turn here deals 2 Fire damage and Burn.' },
   rift:     { name: 'Abyssal Rift', top: 0x4a1066, side: 0x1a0626, h: 0.22, cost: 1, prop: 'portal', onEnd: { dmg: 1, el: 'shadow', mp: -3 }, emissive: 0x8a20c0, desc: 'Ending a turn here deals 1 Shadow damage and drains 3 MP.' },
   spire:    { name: 'Demon Spire', top: 0x3a2a3e, side: 0x1a1220, h: 0.5, cost: Infinity, blocksLos: true, prop: 'spire', desc: 'Impassable. Blocks line of sight.' },
+  sea:      { name: 'Open Sea', top: 0x2f6f9a, side: 0x1f3b55, h: 0.15, cost: 1, liquid: true, calm: true, desc: 'Deep water. Boats cross it freely.' },
+  islet:    { name: 'Islet', top: 0xd9b26f, side: 0x9c7442, h: 0.42, cost: Infinity, blocksLos: true, prop: 'palm', desc: 'A scrap of beach. Impassable. Blocks line of sight.' },
   // ── stage-specific pieces ──
   // Greenveil Forest
   bridge:     { name: 'Wooden Bridge', top: 0x9a7444, side: 0x5a3c1e, h: 0.34, cost: 1, thin: true, under: 'water', prop: 'bridge', desc: 'A narrow crossing over the river.' },

@@ -25,6 +25,15 @@ function glowTexture() {
   g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
+// The pieces every boat is built from (made once): a hull with a pointed bow toward +x, its pale rim, the dark well, a seat.
+function boatParts() {
+  const outline = (k) => { const s = new THREE.Shape(); s.moveTo(-0.95 * k, 0); s.quadraticCurveTo(-0.5 * k, 0.5 * k, 0.3 * k, 0.46 * k); s.quadraticCurveTo(0.85 * k, 0.3 * k, 1.15 * k, 0); s.quadraticCurveTo(0.85 * k, -0.3 * k, 0.3 * k, -0.46 * k); s.quadraticCurveTo(-0.5 * k, -0.5 * k, -0.95 * k, 0); return s; };
+  return {
+    hull: new THREE.ExtrudeGeometry(outline(0.9), { depth: 0.3, bevelEnabled: false }), rim: new THREE.ExtrudeGeometry(outline(0.94), { depth: 0.07, bevelEnabled: false }),
+    deck: new THREE.ShapeGeometry(outline(0.74)).translate(0, 0, 0.065), seat: new THREE.BoxGeometry(0.12, 0.06, 0.62), ring: new THREE.RingGeometry(0.78, 1, 28),
+    wood: new THREE.MeshLambertMaterial({ color: 0x7a4e2c }), pale: new THREE.MeshLambertMaterial({ color: 0xc89a62 }), dark: new THREE.MeshLambertMaterial({ color: 0x3e2616 }),
+  };
+}
 const flatMat = (color, opacity) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, toneMapped: false, fog: false });
 
 export class World {
@@ -104,6 +113,7 @@ export class World {
   setEnvironment(stage) {
     const th = THEMES[stage?.id] || THEMES[0];
     this.theme = th; this.kit.theme = th;
+    this.afloat = !!stage?.afloat; // a stage of open water: see floatUnit()
     const root = document.getElementById('game');
     const sky = new THREE.Color(stage?.sky ?? 0x2d2a5c), fogCss = new THREE.Color(th.fog[0]);
     root.style.setProperty('--sky', '#' + sky.getHexString()); root.style.setProperty('--fog', '#' + fogCss.getHexString());
@@ -165,7 +175,7 @@ export class World {
     };
     for (const tile of this.tiles.values()) {
       const still = tile.group.visible && tile.group.position.y === 0;
-      const liquid = !!terrainOf(tile.t).liquid;
+      const liquid = !!terrainOf(tile.t).liquid && !terrainOf(tile.t).calm; // (a whole sea of separate rippling tiles is too much to draw: calm water is baked like ground)
       const visit = (o, skip) => {
         skip = skip || live.has(o);
         if (o.isMesh && !o.isInstancedMesh && !o.children.length) {
@@ -203,7 +213,7 @@ export class World {
     const [topStyle] = styleOf(t);
     let top;
     if (topStyle === 'water') {
-      top = new THREE.MeshStandardMaterial({ color: 0x3a86b4, map: waterTexture(), roughness: 0.08, metalness: 0.3, transparent: true, opacity: 0.92, emissive: 0x0a3050, emissiveIntensity: 0.3 });
+      top = new THREE.MeshStandardMaterial({ color: 0x3a86b4, map: waterTexture(), roughness: 0.08, metalness: 0.3, transparent: !T.calm, opacity: T.calm ? 1 : 0.92, emissive: 0x0a3050, emissiveIntensity: 0.3 }); // (calm sea is opaque so the whole board can be drawn as one piece)
     } else {
       const map = topTexture(t, T, variant);
       top = new THREE.MeshStandardMaterial({ map, roughness: T.glossy ? 0.22 : topStyle === 'obsidian' ? 0.4 : topStyle === 'marble' || topStyle === 'glyph' ? 0.5 : 0.92, metalness: T.glossy ? 0.15 : 0 });
@@ -256,7 +266,7 @@ export class World {
       deco.position.set(p.x, topY, p.z); group.add(deco);
       deco.traverse((o) => { const u = o.userData; if (u.pulse || u.flame || u.float != null) this.liveProps.push({ o, kind: u.flame ? 'flame' : u.pulse ? 'pulse' : 'float', phase: hash * 6.28 + this.liveProps.length, y: o.position.y, sx: o.scale.x, sy: o.scale.y, sz: o.scale.z }); });
     }
-    if (T.liquid) this.animated.push({ parts: [mesh, lip], base: [mesh.position.y, lip.position.y], phase: q * 0.7 + r * 1.3, liquid: true });
+    if (T.liquid && !T.calm) this.animated.push({ parts: [mesh, lip], base: [mesh.position.y, lip.position.y], phase: q * 0.7 + r * 1.3, liquid: true });
     if (T.emissive && !this.animated.some((a) => a.mat === M.top)) this.animated.push({ mat: M.top, baseI: M.top.emissiveIntensity, phase: hash * 6, emissive: true });
     group.visible = visible;
     this.boardGroup.add(group);
@@ -279,7 +289,7 @@ export class World {
         const back = new THREE.Mesh(this.fallGeo, this.mat(lava ? 0xc03a10 : 0x2f7ab0, lava ? { emissive: 0xff4a10, emissiveIntensity: 1.2 } : { roughness: 0.2 }));
         back.position.set(p.x + (dx / len) * 0.858, tile.top - 1.2 - 0.02, p.z + (dz / len) * 0.858); back.rotation.y = fall.rotation.y;
         tile.group.add(back, fall);
-        this.falls.push({ tile, pos: new THREE.Vector3(p.x + (dx / len) * 1.0, BASE_Y + 0.1, p.z + (dz / len) * 1.0), lava, acc: Math.random() * 200 });
+        if (!T.calm) this.falls.push({ tile, pos: new THREE.Vector3(p.x + (dx / len) * 1.0, BASE_Y + 0.1, p.z + (dz / len) * 1.0), lava, acc: Math.random() * 200 });
       }
     }
     this.scheduleBake();
@@ -341,8 +351,27 @@ export class World {
     this.unitGroup.add(group);
     const U = { uid: u.uid, group, sprite, shadow, tex, mat, anim: 'idle', frame: Math.floor(Math.random() * 4), t: Math.random() * 200, dir: u.facing ?? 0, once: null, size, scale: u.scale || 1 };
     this.units.set(u.uid, U); this.applyFrame(U);
+    if (this.afloat) this.floatUnit(U, u);
     return U;
   }
+  // On open water: the heroes' side (heroes, turrets, barricades, the party token) sits in a small boat that turns the
+  // way it faces and rocks on the swell; monsters stand half under the surface inside a spreading ripple. Fliers stay dry.
+  floatUnit(U, u) {
+    const hero = u.side === 'hero' || String(u.uid).startsWith('party'); const body = u.look?.body || u.def?.look?.body;
+    U.shadow.visible = false; U.bob = Math.random() * 6;
+    if (hero) {
+      const G = (this.boatParts ||= boatParts());
+      const boat = new THREE.Group(); boat.add(new THREE.Mesh(G.hull, G.wood), new THREE.Mesh(G.rim, G.pale), new THREE.Mesh(G.deck, G.dark), new THREE.Mesh(G.seat, G.pale));
+      boat.children[0].rotation.x = boat.children[1].rotation.x = boat.children[2].rotation.x = -Math.PI / 2; boat.children[0].position.y = -0.1; boat.children[1].position.y = 0.2; boat.children[2].position.y = 0.21; boat.children[3].position.set(0.05, 0.25, 0);
+      const wake = new THREE.Mesh(G.ring, flatMat(0xdff4ff, 0.3)); wake.rotation.x = -Math.PI / 2; wake.scale.set(1.5, 0.85, 1); wake.position.y = -0.08; wake.renderOrder = 4;
+      boat.scale.setScalar(1.15 * U.scale); U.group.add(wake, boat); U.boat = boat; U.sprite.position.y = 0.34 * U.scale; boat.rotation.y = this.headingOf(U.dir);
+    } else if (!['floating', 'bat', 'imp', 'bird', 'drone', 'eye', 'flame'].includes(body)) {
+      // deep enough to be in the water, not so deep that a small one disappears
+      const sink = (u.size >= 7 ? 0.5 : u.size > 1 ? 0.38 : 0.2) * U.scale; U.sprite.position.y = -sink; const big = u.size > 1 ? 1.5 : 1;
+      U.ripples = [0, 1].map((i) => { const m = new THREE.Mesh((this.boatParts ||= boatParts()).ring, flatMat(0xdff4ff, 0.4)); m.rotation.x = -Math.PI / 2; m.position.y = 0.03; m.renderOrder = 4; m.userData.r = 0.5 * U.scale * big; m.userData.ph = i * 0.5; U.group.add(m); return m; });
+    }
+  }
+  headingOf(dir) { const v = Hex.toWorld(Hex.DIRS[((dir % 6) + 6) % 6][0], Hex.DIRS[((dir % 6) + 6) % 6][1]); return Math.atan2(-v.z, v.x); }
   removeUnit(uid) { const U = this.units.get(uid); if (!U) return; this.unitGroup.remove(U.group); U.tex.dispose(); U.mat.dispose(); this.units.delete(uid); if (this.turnUid === uid) this.setTurnRing(null); }
   unitPos(uid, up = 0) { const U = this.units.get(uid); if (!U) return new THREE.Vector3(); return U.group.position.clone().add(new THREE.Vector3(0, up * U.scale, 0)); }
   placeUnit(uid, cells) { const U = this.units.get(uid); if (U) U.group.position.copy(this.footPos(cells)); }
@@ -608,6 +637,10 @@ export class World {
     if (!this.perfChecked) { this.perfN = (this.perfN || 0) + 1; this.perfT = (this.perfT || 0) + dt; if (this.perfN >= 150) { this.perfChecked = true; if (this.perfT / this.perfN > 36) { this.sun.castShadow = false; this.renderer.setPixelRatio(1); this.resize(); } } }
     updateTweens(dt);
     for (const U of this.units.values()) {
+      if (U.boat) { // rock on the swell, and come round to the way the rider faces
+        const want = this.headingOf(U.dir); let d = want - U.boat.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); U.boat.rotation.y += d * Math.min(1, dt / 160);
+        U.boat.rotation.z = Math.sin(T * 2 + U.bob) * 0.05; U.boat.position.y = Math.sin(T * 1.6 + U.bob) * 0.03; U.sprite.position.y = 0.34 * U.scale + U.boat.position.y;
+      } else if (U.ripples) for (const m of U.ripples) { const k = (T * 0.45 + m.userData.ph) % 1; const s = m.userData.r * (0.8 + k * 1.1); m.scale.set(s, s, 1); m.material.opacity = 0.45 * (1 - k); }
       U.t += dt; const fd = 1000 / ANIM_FPS[U.anim];
       if (U.t >= fd) {
         U.t -= fd; U.frame++;

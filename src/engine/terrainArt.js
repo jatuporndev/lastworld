@@ -13,7 +13,7 @@ const rgba = (n, a) => `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a
 
 // terrain id → [top style, side style]
 const STYLE = {
-  grass: ['grass', 'earth'], forest: ['leaf', 'earth'], rock: ['stone', 'earth'], water: ['water', 'earth'], swamp: ['mud', 'earth'], bloom: ['flowers', 'earth'],
+  grass: ['grass', 'earth'], forest: ['leaf', 'earth'], rock: ['stone', 'earth'], water: ['water', 'earth'], sea: ['water', 'earth'], islet: ['sand', 'sandstone'], swamp: ['mud', 'earth'], bloom: ['flowers', 'earth'],
   sand: ['sand', 'sandstone'], dune: ['dune', 'sandstone'], cactus: ['sand', 'sandstone'], quicksand: ['swirl', 'sandstone'],
   snow: ['snow', 'frost'], ice: ['ice', 'frost'], pine: ['snow', 'frost'], mountain: ['stone', 'frost'],
   crypt: ['flag', 'brick'], grave: ['gravedirt', 'brick'], pillar: ['flag', 'brick'], cursed: ['cursed', 'brick'], void: ['void', 'void'],
