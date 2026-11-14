@@ -855,6 +855,14 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 #ui:has(.modal-wrap) .b-bottom { z-index: 10; }
 .pile-card { position: relative; } .pile-tag { position: absolute; left: 50%; top: -0.55em; transform: translateX(-50%); z-index: 6; white-space: nowrap; padding: 0.1em 0.6em; border-radius: 1em; background: var(--coin); color: var(--ink-d); font-family: var(--f-head); font-weight: 600; font-size: 0.78em; box-shadow: 0 0.15em 0 rgba(0, 0, 0, 0.28); }
 
+/* Outside your own turn the hand stays up to be read (a friend's while they act, your own while a monster moves); nothing in it can be played. */
+.battle-hud.watch .b-bottom { transform: none; opacity: 1; } .battle-hud.watch .hand .card, .battle-hud.watch .cool-card, .battle-hud.watch .pile, .battle-hud.watch .slot.filled { pointer-events: auto; }
+.battle-hud.watch .hand .card { cursor: default; } .battle-hud.watch .b-buttons { opacity: 0.4; }
+.hand .card.peeked { transform: translateY(-1.2em) scale(1.22); z-index: 50 !important; }
+.hand-whose { height: 0; line-height: 1.3; position: relative; z-index: 80; top: -1.9em; white-space: nowrap; font-family: var(--f-head); font-size: 0.85em; color: var(--coin); text-shadow: var(--tshadow); text-align: center; pointer-events: none; }
+.choice-view { padding: 0.45em 0.8em; margin: 0.25em 0; background: var(--paper2); border-radius: var(--radius); color: var(--ink-d); text-align: left; }
+/* co-op: a friend has their bag open */
+.bag-tag { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); display: flex; align-items: center; gap: 0.3em; padding: 0.15em 0.6em; background: var(--paper); color: var(--ink-d); border-radius: var(--radius); box-shadow: 0 0.2em 0 rgba(0, 0, 0, 0.3); font-family: var(--f-head); font-size: 0.8em; white-space: nowrap; }
 /* ── phones ──
    The game is a wide tabletop, so phones play it in landscape. A short screen gets a larger base
    font than the desktop formula would give (text stays readable) and a compact HUD to make room. */
@@ -901,7 +909,7 @@ html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent
   .b-buttons .btn { padding: 0.3em 0.5em; font-size: 0.95em; } .b-buttons .exec, .b-buttons .end { font-size: 1em; padding: 0.35em 1.2em 0.35em 0.9em; }
   .slots-wrap { margin-bottom: 1.3em; } .slots-label { display: none; } .slot { --sw: 6.4em; height: 2.9em; font-size: 0.86em; flex-direction: row; gap: 0.3em; }
   .hand { height: 8.6em; padding: 0 0.5em; } .hand .card { --w: 7.6em; margin: 0 -0.35em; transform: translateY(calc(1.6em + var(--lift, 0px))) rotate(var(--rot, 0deg)); }
-  .hand .card:hover, .hand .card.selected { transform: translateY(-3.4em) scale(1.3); }
+  .hand .card:hover, .hand .card.selected, .hand .card.peeked { transform: translateY(-3.4em) scale(1.3); }
   .dice-tray { top: 36%; gap: 0.3em; } .die { width: 3em; height: 3em; } .ds-total { font-size: 1.6em; }
   /* the bag on a short screen: no portrait, so the slots and the picked item's actions fit without scrolling */
   .bag-doll .hero-stage { display: none; } .bag-doll { padding: 0 0 0.5em; } .tab-equip .eq-col { flex-basis: 17em; } .bag-detail { padding: 0.5em 0.7em; font-size: 0.92em; } .bag-detail .btn { padding: 0.7em 1em; }

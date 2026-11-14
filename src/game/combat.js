@@ -540,6 +540,9 @@ export class Battle {
       const tgts = f.self ? [u] : victims;
       switch (f.t) {
         case 'dmg': {
+          let spent = 0;
+          if (f.spendBlock && u.block > 0) { spent += u.block; u.block = 0; await this.emit('heal', { tgt: u, amount: 0 }); }
+          if (f.spendMp) { const n = Math.floor(u.mp / f.spendMp); spent += n; u.mp -= n * f.spendMp; }
           for (const v of tgts) {
             for (let i = 0; i < (f.hits || 1); i++) {
               if (!v.alive) break;
@@ -548,6 +551,14 @@ export class Battle {
               if (comboCat && firstDmg && card.combo.bonus.dmg) raw += card.combo.bonus.dmg;
               const diceFirst = dice && !diceHit.has(v); // dice bonus lands once per target, on its first hit
               if (diceFirst) { diceHit.add(v); raw += dice.dmgBonus; }
+              // conditional bonuses: each rewards a way of playing, not a bigger number
+              if (f.ifStatus && f.ifStatus.sts.some((st) => v.status[st])) raw += f.ifStatus.v;
+              if (f.perStatus && v.status[f.perStatus.st]) { raw += v.status[f.perStatus.st].n * f.perStatus.v; if (f.perStatus.consume) delete v.status[f.perStatus.st]; }
+              if (f.perHand && u.cards) raw += u.cards.hand.length * f.perHand;
+              if (f.wounded) raw += Math.floor((1 - u.hp / u.maxHp) * 4) * f.wounded;
+              if (f.far && this.dist(u, v) >= f.far.d) raw += f.far.v;
+              if (f.alone && !this.alliesOf(v).some((x) => x !== v && x.alive && this.dist(x, v) <= 1)) raw += f.alone;
+              if (spent) { raw += spent; spent = 0; } // Block or MP paid into the blow: once, on the first hit
               if (f.execute && v.hp / v.maxHp <= f.execute) raw *= 2;
               const res = await this.hit(u, v, { raw, el: card.el, critBonus: f.crit || 0, forceCrit: diceFirst && dice.crit, drain: f.drain, aoe: card.shape !== 'single', tags: comboCat && firstDmg ? ['Combo!'] : [] });
               if (res.evaded) evaded.add(v);
@@ -567,6 +578,13 @@ export class Battle {
         case 'selfdmg': await this.applyDamage(null, u, f.v, { el: 'neutral', dot: true, tags: [] }); break;
         case 'summon': await this.summon(u, f.id, target); break;
         case 'revive': await this.revive(u, f.pct); break;
+        // the target's burns, poisons or wounds jump to every enemy next to it
+        case 'spread': for (const v of tgts) for (const st of f.sts) { const sv = v.status[st]; if (!sv) continue; for (const o of this.alliesOf(v)) if (o !== v && o.alive && this.dist(o, v) <= 1) await this.addStatus(u, o, st, sv.n); } break;
+        case 'breakBlock': for (const v of tgts) if (v.alive && v.block > 0) { v.block = 0; await this.emit('text', { unit: v, text: t('Guard broken'), color: '#9fc8ff' }); await this.emit('heal', { tgt: v, amount: 0 }); } break;
+        // cards on cooldown come back sooner
+        case 'cool': if (u.cards) { for (const e of u.cards.cooldown) e.left -= f.v; u.cards.cooldown = u.cards.cooldown.filter((e) => { if (e.left > 0) return true; u.cards.discard.push(e.inst); return false; }); await this.emit('text', { unit: u, text: t('Cooldowns -{n}', { n: f.v }), color: '#ffd76a' }); await this.emit('draw', { unit: u, drawn: [] }); } break;
+        // a card comes back from the discard pile
+        case 'recall': if (u.cards) { const d = []; for (let i = 0; i < f.v && u.cards.discard.length && u.cards.hand.length < 7; i++) { const c = u.cards.discard.splice(Math.floor(this.rng.float() * u.cards.discard.length), 1)[0]; u.cards.hand.push(c); d.push(c); } await this.emit('draw', { unit: u, drawn: d }); } break;
         default: break;
       }
     }

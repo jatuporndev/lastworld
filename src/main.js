@@ -175,7 +175,7 @@ class App {
     } else {
       const d = this.sm.onDefeat();
       this.syncHeroNow();
-      await new Promise((res) => { const m = openModal(h('div.confirm', h('p', t('Your party was defeated and carried back to the entrance of {stage}. You lost {gold} gold. The heroes recover to half strength — cleared encounters stay cleared.', { stage: stage.name, gold: d.lost })), h('div.row.center', btn(t('Rise Again'), () => { m.close(); res(); }, { cls: 'primary' }))), { title: t('Defeat'), closable: false, cls: 'narrow' }); });
+      await new Promise((res) => { const m = openModal(h('div.confirm', h('p', t('Your party was defeated and carried back to the entrance of {stage}. You lost {gold} gold and {exp} EXP. The heroes recover to half strength — cleared encounters stay cleared.', { stage: stage.name, gold: d.lost, exp: d.exp })), h('div.row.center', btn(t('Rise Again'), () => { m.close(); res(); }, { cls: 'primary' }))), { title: t('Defeat'), closable: false, cls: 'narrow' }); });
       await this.saveNow({ gap: 3 * 60000 });
       if (guest) return;
     }
@@ -206,6 +206,7 @@ class App {
     bus.on('coop:closed', (why) => this.onRoomClosed(why));
     bus.on('coop:msg', (m) => {
       if (m.t === 'b') { (Coop.bbuf ||= []).push(m); return; } // battle commands go to the battle scene
+      if (m.t === 'bag') { this.scene?.showBag?.(m.from, !!m.on); return; } // any player: "I have my bag open"
       if (Coop.isGuest && m.from === Coop.hostId) this.guestQ = this.guestQ.then(() => this.guestHandle(m)).catch((e) => console.error('[co-op]', e));
     });
   }
@@ -291,7 +292,7 @@ class App {
         sc.clearNode(c); audio.sfx('chest'); lootModal(m.kind === 'treasure' ? 'Treasure Cache' : 'Resources Gathered', r, { view: true });
         break;
       }
-      case 'rest': { const c = cellOf(m.cell); this.healMine(0.6, 0.6, true); if (sc && c) { this.sm.markCleared(c); sc.clearNode(c); } audio.sfx('heal'); toast(t('The party is rested'), 'good'); break; }
+      case 'rest': { this.closeGuestModals(); const c = cellOf(m.cell); this.healMine(0.6, 0.6, true); if (sc && c) { this.sm.markCleared(c); sc.clearNode(c); } audio.sfx('heal'); toast(t('The party is rested'), 'good'); break; }
       case 'event': {
         const o = m.out || {};
         if (o.healPct) this.healMine(o.healPct, 0, false);
@@ -305,10 +306,11 @@ class App {
         });
         touch();
         const c = cellOf(m.cell); if (sc && c) { this.sm.markCleared(c); sc.clearNode(c); }
-        sc?.eventView?.(m);
+        this.closeGuestModals(); sc?.eventView?.(m);
         break;
       }
-      case 'note': if (m.close) this.closeGuestModals(); toast(t(m.text, m.vars || {})); break;
+      case 'note': if (m.close) this.closeGuestModals(); if (m.text) toast(t(m.text, m.vars || {})); break;
+      case 'view': this.closeGuestModals(); sc?.hostView?.(m); break;
       case 'enc': this.closeGuestModals(); sc?.encounterPrompt(m.enc, { name: m.name }, true); break;
       case 'battle': {
         this.closeGuestModals();

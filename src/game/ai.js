@@ -102,9 +102,16 @@ export async function monsterAct(b, u) {
     }
     case 'aoe': {
       if (it.shape === 'area') {
-        const cells = it.cells || Hex.spiral(tgt, it.size).filter((h) => b.cell(h));
+        let cells = it.cells || Hex.spiral(tgt, it.size).filter((h) => b.cell(h));
         if (tgt && b.dist(u, tgt) > 2) await approach(b, u, tgt, 2, Math.min(budget, 1));
         if (!u.alive) return;
+        // the marked area slides toward whoever it was aimed at: 2 hexes for an MVP, 1 for a mini boss
+        const drift = u.def.rank === 'mvp' ? 2 : u.def.rank === 'mini' ? 1 : 0;
+        if (drift && it.center && tgt) {
+          let c = it.center;
+          for (let i = 0; i < drift && Hex.distance(c, tgt) > 0; i++) { const n = Hex.neighbors(c).filter((h) => b.cell(h)).sort((x, y) => Hex.distance(x, tgt) - Hex.distance(y, tgt) || x.q - y.q || x.r - y.r)[0]; if (!n || Hex.distance(n, tgt) >= Hex.distance(c, tgt)) break; c = { q: n.q, r: n.r }; }
+          if (!Hex.hexEq(c, it.center)) { it.center = c; it.cells = cells = Hex.spiral(c, it.size).filter((h) => b.cell(h)); await b.emit('text', { unit: u, text: 'Takes aim…', color: '#ffd76a' }); }
+        }
         u.facing = Hex.directionTo(u, it.center || tgt);
         await b.monsterAoe(u, it, cells, it.center || { q: tgt.q, r: tgt.r });
       } else {

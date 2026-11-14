@@ -45,7 +45,7 @@ export class ExploreScene {
     audio.music('explore');
   }
 
-  dispose() { this.nameTags?.forEach((a) => this.world.detach(a)); this._offPing?.(); for (const p of this.pings.values()) { this.world.detach(p.anchor); this.world.clearLayer(p.layer); clearTimeout(p.timer); } this.pings.clear(); this.unbind(); this.hud?.remove(); this.world.clearLayers(); this.world.setHover(null); }
+  dispose() { this.bagTags?.forEach((a) => this.world.detach(a)); this.nameTags?.forEach((a) => this.world.detach(a)); this._offPing?.(); for (const p of this.pings.values()) { this.world.detach(p.anchor); this.world.clearLayer(p.layer); clearTimeout(p.timer); } this.pings.clear(); this.unbind(); this.hud?.remove(); this.world.clearLayers(); this.world.setHover(null); }
 
   buildHud() {
     this.hud?.remove();
@@ -178,8 +178,8 @@ export class ExploreScene {
       }
       case 'treasure': { audio.sfx('chest'); const r = sm.openTreasure(c); this.clearNode(c); this.share('loot', { kind: 'treasure', cell: { q: c.q, r: c.r } }); await lootModal(t('Treasure Cache'), r); break; }
       case 'resource': { audio.sfx('coin'); const r = sm.gatherResource(c); this.clearNode(c); this.share('loot', { kind: 'resource', cell: { q: c.q, r: c.r } }); await lootModal(t('Resources Gathered'), r); break; }
-      case 'rest': await this.restPrompt(c); break;
-      case 'shop': this.share('note', { text: 'The host is browsing the merchant.' }); await this.shop(c); break;
+      case 'rest': this.share('view', { kind: 'rest' }); await this.restPrompt(c); break;
+      case 'shop': this.share('view', { kind: 'shop', cards: this.sm.shopStock(c).filter((e) => e.kind === 'card').map((e) => e.id) }); await this.shop(c); this.share('note', { close: true }); break;
       case 'event': case 'shrine': await this.event(c); break;
       default: break;
     }
@@ -205,12 +205,27 @@ export class ExploreScene {
     this.nameTags?.forEach((a) => w.detach(a));
     this.nameTags = party.map((hero, i) => w.attach(h('div.unit-label.foot', h('div.ul-foot', h('div.ul-name', { style: hero.owner ? { color: Coop.colorOf(hero.owner) } : null }, hero.name))), () => w.unitPos('party' + i, 0)));
   }
+  // Co-op: a small slip over a friend's head while they have their bag open, so nobody wonders why they stand still.
+  showBag(id, on) {
+    this.bagTags ||= new Map(); const w = this.world; w.detach(this.bagTags.get(id)); this.bagTags.delete(id);
+    const uid = this.bagUnit(id); if (!on || !uid) return;
+    this.bagTags.set(id, w.attach(h('div.ping-label', h('div.bag-tag', icon('bag', '#3a2a20', 16), t('Looking in the bag'))), () => w.unitPos(uid, 2.1)));
+  }
+  bagUnit(id) { const i = G.state.party.findIndex((x) => x.owner === id); return i < 0 ? null : 'party' + i; }
   share(type, data) { if (Coop.isHost) Coop.send({ t: type, ...data }); }
   // Guests: read-only view of an event the host resolved.
   eventView(m) {
     if (m.cell) this.clearNode(this.sm.cell(m.cell));
     openModal(h('div.event', h('div.big-icon', icon(m.icon, '#e8d8a8', 72)), h('p.event-text', m.text), h('p.event-text', h('b', m.choice)), h('p.event-text', m.msg), h('div.gains', ...(m.gains || []).map((g) => h('div.gain', g)))),
       { title: m.title, cls: 'narrow event-modal coop-view' });
+  }
+
+  // Guests: a read-only copy of the window the host has open (camp, merchant, an event's choices), until the host is done.
+  hostView(m) {
+    const wait = (s) => h('p.note.center', t(s));
+    if (m.kind === 'rest') openModal(h('div.confirm', h('div.big-icon', icon('camp', '#7fe08a', 72)), h('p', t('A sheltered campsite. The fire is still warm. Resting restores 60% HP and MP to the whole party and revives the fallen. The site can be used once.')), wait('The host is deciding whether to rest…')), { title: t('Rest Site'), cls: 'narrow coop-view' });
+    else if (m.kind === 'shop') openModal(h('div.confirm', h('div.big-icon', icon('coin', '#ffc050', 72)), h('p', t('A wandering merchant has laid out their wares.')), (m.cards || []).length ? h('div.card-grid.center', ...m.cards.filter((id) => CARDS[id]).map((id) => cardEl(id, 0, { small: true }))) : null, wait('The host is browsing the merchant…')), { title: t('Wandering Merchant'), cls: 'narrow coop-view' });
+    else if (m.kind === 'event') openModal(h('div.event', h('div.big-icon', icon(m.icon, '#e8d8a8', 72)), h('p.event-text', m.text), h('div.choices', ...(m.choices || []).map((c) => h('div.choice-view', c))), wait('The host is choosing…')), { title: m.title, cls: 'narrow event-modal coop-view' });
   }
 
   // `view`: a guest's read-only copy, shown while the host decides
@@ -231,7 +246,7 @@ export class ExploreScene {
   restPrompt(c) {
     return new Promise((res) => {
       const m = openModal(h('div.confirm', h('div.big-icon', icon('camp', '#7fe08a', 72)), h('p', t('A sheltered campsite. The fire is still warm. Resting restores 60% HP and MP to the whole party and revives the fallen. The site can be used once.')),
-        h('div.row.center', btn(t('Not now'), () => { m.close(); res(); }), btn(t('Rest'), () => { this.sm.rest(c); this.share('rest', { cell: { q: c.q, r: c.r } }); audio.sfx('heal'); this.clearNode(c); toast(t('The party is rested'), 'good'); m.close(); res(); }, { cls: 'primary' }))), { title: t('Rest Site'), closable: false, cls: 'narrow' });
+        h('div.row.center', btn(t('Not now'), () => { this.share('note', { close: true }); m.close(); res(); }), btn(t('Rest'), () => { this.sm.rest(c); this.share('rest', { cell: { q: c.q, r: c.r } }); audio.sfx('heal'); this.clearNode(c); toast(t('The party is rested'), 'good'); m.close(); res(); }, { cls: 'primary' }))), { title: t('Rest Site'), closable: false, cls: 'narrow' });
     });
   }
 
@@ -259,6 +274,7 @@ export class ExploreScene {
     return new Promise((res) => {
       const ev = this.sm.eventFor(c); const body = h('div.event');
       const m = openModal(body, { title: ev.title, closable: false, cls: 'narrow event-modal' });
+      this.share('view', { kind: 'event', title: ev.title, icon: ev.icon, text: ev.text, choices: ev.choices.map((ch) => ch.label) });
       body.replaceChildren(h('div.big-icon', icon(ev.icon, '#e8d8a8', 72)), h('p.event-text', ev.text),
         h('div.choices', ...ev.choices.map((ch) => btn(ch.label, async () => {
           const out = this.sm.resolveChoice(c, ch);

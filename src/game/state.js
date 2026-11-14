@@ -160,19 +160,16 @@ export function canAddToDeck(hero, id) {
   return usedCopies(id) < (G.state.cards[id]?.n || 0);
 }
 export function canRemoveFromDeck(hero) { return hero.deck.length > DECK_MIN; }
+// An upgrade is paid for with a second copy of the card: one that is not in any deck.
+export const spareCopy = (id) => { const c = G.state.cards[id]; return !!c && c.n >= 2 && c.n - usedCopies(id) >= 1; };
 export function tryUpgradeCard(id) {
   const st = G.state, c = st.cards[id];
   if (!c || c.lv >= MAX_CARD_LEVEL) return false;
   const cost = upgradeCost(CARDS[id], c.lv);
-  if (st.gold < cost.gold || st.shards < cost.shards) return false;
-  st.gold -= cost.gold; st.shards -= cost.shards; c.lv++;
+  if (st.gold < cost.gold || st.shards < cost.shards || !spareCopy(id)) return false;
+  st.gold -= cost.gold; st.shards -= cost.shards; c.n--; c.lv++; // the spare copy is spent on the upgrade
   progress('upgrade', 1); touch();
   return true;
-}
-export function tryCraftCard(id) {
-  const st = G.state; const cost = RARITY[CARDS[id].rarity].craft;
-  if (st.shards < cost) return false;
-  st.shards -= cost; addCard(id); return true;
 }
 export function tryDismantle(id) {
   const c = G.state.cards[id];

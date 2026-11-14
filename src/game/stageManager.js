@@ -99,6 +99,8 @@ export class StageManager {
     return { kind: 'normal', enemies: Array.from({ length: 1 + n }, () => rng.pick(this.stage.pool)) };
   }
 
+  // Loot is each player's own luck: never seeded from the map or the clock, which co-op players share.
+  luck() { return new RNG((Math.random() * 2 ** 32) >>> 0); }
   markCleared(c) { this.run.cleared[Hex.key(c.q, c.r)] = 1; touch(); }
 
   // ───── rewards ─────
@@ -127,7 +129,7 @@ export class StageManager {
   }
 
   battleRewards(battle, c) {
-    const st = G.state; const rng = new RNG(); const s = this.stage;
+    const st = G.state; const rng = this.luck(); const s = this.stage;
     const kind = battle.kind;
     const r = { exp: 0, gold: 0, shards: 0, items: [], mats: {}, cons: [], cardChoices: null, fixedCards: [], levelUps: [], first: false };
     for (const k of battle.kills) {
@@ -180,15 +182,16 @@ export class StageManager {
   onDefeat() {
     const st = G.state; const lost = Math.round(st.gold * 0.15);
     st.gold -= lost;
+    let exp = 0; myHeroes().forEach((h) => { const x = Math.round(h.exp * 0.25); h.exp -= x; exp += x; }); // a quarter of the way to the next level; a level is never lost
     myHeroes().forEach((h) => { const s = computeStats(h); h.hp = Math.round(s.hp * 0.5); h.mp = Math.round(s.mp * 0.5); });
     const start = this.startCell(); st.run.pos = { q: start.q, r: start.r };
     st.nextBuff = null;
     touch();
-    return { lost };
+    return { lost, exp };
   }
 
   openTreasure(c) {
-    const rng = this.rngFor(c, 'tr'); const st = G.state; const s = this.stage;
+    const rng = this.luck(); const st = G.state; const s = this.stage;
     const r = { gold: Math.round((30 + rng.int(0, 30)) * Math.pow(1.5, s.id - 1)), shards: rng.int(5, 12) + s.id * 2, items: [this.rollEquip(rng, 1, 'uncommon')], cons: [], mats: {}, cards: [] };
     if (rng.chance(0.6)) r.cons.push(rng.pick(['potion', 'ether', 'bomb', 'hipotion']));
     if (rng.chance(0.4)) r.cards.push(this.rollCards(rng, 1)[0]);
@@ -198,7 +201,7 @@ export class StageManager {
   }
 
   gatherResource(c) {
-    const rng = this.rngFor(c, 'res'); const s = this.stage; const r = { mats: {}, shards: rng.int(4, 10), gold: 0, items: [], cons: [], cards: [] };
+    const rng = this.luck(); const s = this.stage; const r = { mats: {}, shards: rng.int(4, 10), gold: 0, items: [], cons: [], cards: [] };
     s.mats.forEach((m) => { r.mats[m] = rng.int(1, 3); });
     Object.entries(r.mats).forEach(([m, n]) => addMaterial(m, n));
     G.state.shards += r.shards; this.markCleared(c);

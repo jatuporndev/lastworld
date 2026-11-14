@@ -7,9 +7,9 @@
 //   guard {block}  buff {st, n, allies}  heal {v (×MATK)}  summon {id, n}
 
 const T = (t) => ({
-  hp: 3 + 5 * t,
-  atk: t + 2,
-  matk: t + 2,
+  hp: Math.round(4 + 5 * t + 0.6 * t * t), // 10 16 24 34 44 56 (was 8 13 18 23 28 33)
+  atk: Math.round((2 + 1.4 * t) * 10) / 10, // 3.4 4.8 6.2 7.6 9 10.4 (was 3 4 5 6 7 8)
+  matk: Math.round((2 + 1.4 * t) * 10) / 10,
   def: Math.floor((t - 1) / 2),
   level: 1 + (t - 1) * 3,
   exp: Math.round(20 * Math.pow(1.7, t - 1)),

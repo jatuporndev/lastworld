@@ -1,5 +1,6 @@
 // Procedural audio: every sound effect and music track is synthesized with WebAudio.
 
+const SFX_BOOST = 2.2; // effects were too quiet next to the music at the same slider setting
 class AudioSystem {
   constructor() {
     this.ctx = null;
@@ -13,10 +14,10 @@ class AudioSystem {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     this.ctx = new AC();
-    this.master = this.ctx.createGain(); this.master.gain.value = 0.8;
+    this.master = this.ctx.createGain(); this.master.gain.value = 1;
     const comp = this.ctx.createDynamicsCompressor();
     this.master.connect(comp); comp.connect(this.ctx.destination);
-    this.sfxGain = this.ctx.createGain(); this.sfxGain.gain.value = this.sfxVol; this.sfxGain.connect(this.master);
+    this.sfxGain = this.ctx.createGain(); this.sfxGain.gain.value = this.sfxVol * SFX_BOOST; this.sfxGain.connect(this.master);
     this.musicGain = this.ctx.createGain(); this.musicGain.gain.value = this.musicVol; this.musicGain.connect(this.master);
     // shared reverb
     this.reverb = this.ctx.createConvolver();
@@ -30,7 +31,7 @@ class AudioSystem {
   setVolumes(music, sfx) {
     this.musicVol = music; this.sfxVol = sfx;
     if (this.musicGain) this.musicGain.gain.value = music;
-    if (this.sfxGain) this.sfxGain.gain.value = sfx;
+    if (this.sfxGain) this.sfxGain.gain.value = sfx * SFX_BOOST;
   }
 
   _impulse(dur, decay) {
@@ -76,6 +77,9 @@ class AudioSystem {
     if (rev) { const r = this.ctx.createGain(); r.gain.value = rev; g.connect(r); r.connect(this.reverb); }
     s.start(t0, Math.random() * 0.5); s.stop(t0 + dur + 0.05);
   }
+
+  // a run of very short noise ticks: crackle, shatter, rubble
+  pips(n, { vol = 0.15, freq = 4000, gap = 0.04, delay = 0, q = 4 } = {}) { for (let i = 0; i < n; i++) this.noise({ dur: 0.035, vol: vol * (1 - i / (n * 1.4)), freq: freq * (0.7 + Math.random() * 0.6), q, delay: delay + i * gap + Math.random() * gap * 0.5, rev: 0 }); }
 
   sfx(name) {
     if (!this.ctx) return;
@@ -280,6 +284,21 @@ const SFX = {
   boss: (a) => { a.tone({ freq: 55, type: 'sawtooth', dur: 2.5, vol: 0.2, attack: 0.4 }); a.tone({ freq: 58, type: 'sawtooth', dur: 2.5, vol: 0.15, attack: 0.4 }); a.noise({ dur: 2.5, vol: 0.2, filter: 'lowpass', freq: 400, q: 1 }); },
   dice: (a) => { for (let i = 0; i < 6; i++) a.noise({ dur: 0.04, vol: 0.12, freq: 2500 + Math.random() * 1500, q: 4, delay: i * 0.05 + Math.random() * 0.02, rev: 0 }); },
   portal: (a) => { a.tone({ freq: 200, to: 1600, type: 'sine', dur: 0.8, vol: 0.1, rev: 0.8 }); a.noise({ dur: 0.8, vol: 0.15, freq: 500, to: 4000, q: 6 }); },
+  burn: (a) => { a.noise({ dur: 0.1, vol: 0.4, filter: 'lowpass', freq: 2600, to: 400, rev: 0.05 }); a.tone({ freq: 140, to: 60, type: 'sine', dur: 0.18, vol: 0.3 }); a.pips(5, { vol: 0.16, freq: 4200, gap: 0.04, delay: 0.05 }); },
+  bolt: (a) => { a.noise({ dur: 0.22, vol: 0.3, freq: 1400, to: 4200, q: 3, rev: 0 }); a.tone({ freq: 320, to: 900, type: 'sawtooth', dur: 0.18, vol: 0.07 }); },
+  zap: (a) => { a.noise({ dur: 0.18, vol: 0.35, filter: 'highpass', freq: 3500, rev: 0.2 }); a.tone({ freq: 1800, to: 200, type: 'sawtooth', dur: 0.16, vol: 0.14 }); a.pips(5, { vol: 0.2, freq: 6000, gap: 0.03, delay: 0.05 }); a.tone({ freq: 60, to: 40, type: 'sine', dur: 0.3, vol: 0.3, delay: 0.05 }); },
+  smash: (a) => { a.tone({ freq: 120, to: 36, type: 'sine', dur: 0.35, vol: 0.6, rev: 0.1 }); a.noise({ dur: 0.25, vol: 0.45, filter: 'lowpass', freq: 1800, to: 200 }); a.tone({ freq: 900, to: 500, type: 'square', dur: 0.06, vol: 0.1, rev: 0.2 }); a.pips(4, { vol: 0.14, freq: 700, gap: 0.05, delay: 0.1 }); },
+  explosion: (a) => { a.noise({ dur: 0.06, vol: 0.5, filter: 'highpass', freq: 3000, rev: 0 }); a.noise({ dur: 0.95, vol: 0.6, filter: 'lowpass', freq: 2200, to: 70, q: 0.5 }); a.tone({ freq: 85, to: 28, type: 'sine', dur: 0.85, vol: 0.6 }); a.pips(8, { vol: 0.14, freq: 1800, gap: 0.07, delay: 0.25 }); },
+  magic: (a) => { a.tone({ freq: 500, to: 1500, type: 'sine', dur: 0.36, vol: 0.12, rev: 0.6 }); a.tone({ freq: 750, to: 2250, type: 'triangle', dur: 0.3, vol: 0.07, delay: 0.04 }); [0, 7, 12].forEach((x, i) => a.tone({ freq: 1320 * Math.pow(2, x / 12), type: 'sine', dur: 0.12, vol: 0.05, delay: 0.16 + i * 0.05, rev: 0.7 })); a.noise({ dur: 0.35, vol: 0.06, freq: 1500, to: 5000, q: 5 }); },
+  poison: (a) => { for (let i = 0; i < 6; i++) a.tone({ freq: 260 + Math.random() * 360, to: 140, type: 'sine', dur: 0.11, vol: 0.1, delay: i * 0.06 }); a.noise({ dur: 0.45, vol: 0.12, filter: 'highpass', freq: 4500, rev: 0 }); },
+  shadow: (a) => { a.tone({ freq: 110, to: 52, type: 'sawtooth', dur: 0.65, vol: 0.14 }); a.tone({ freq: 113, to: 55, type: 'sawtooth', dur: 0.65, vol: 0.12 }); a.tone({ freq: 440, to: 180, type: 'sine', dur: 0.5, vol: 0.07, attack: 0.25, rev: 0.7 }); a.noise({ dur: 0.6, vol: 0.24, freq: 420, to: 140, q: 3 }); },
+  holy: (a) => { [0, 4, 7, 12, 16].forEach((x, i) => a.tone({ freq: 523 * Math.pow(2, x / 12), type: 'sine', dur: 0.95, vol: 0.08, delay: i * 0.055, rev: 0.8 })); a.tone({ freq: 1046, to: 2093, type: 'triangle', dur: 0.5, vol: 0.05, attack: 0.2, rev: 0.8 }); a.noise({ dur: 0.5, vol: 0.07, filter: 'highpass', freq: 7000, rev: 0.6 }); },
+  earth: (a) => { a.tone({ freq: 72, to: 32, type: 'sine', dur: 0.65, vol: 0.55 }); a.noise({ dur: 0.5, vol: 0.4, filter: 'lowpass', freq: 700, to: 100 }); a.pips(6, { vol: 0.2, freq: 500, gap: 0.06, delay: 0.1, q: 1.5 }); },
+  wind: (a) => { a.noise({ dur: 0.55, vol: 0.3, freq: 700, to: 3200, q: 4 }); a.noise({ dur: 0.45, vol: 0.18, freq: 2400, to: 600, q: 3, delay: 0.1 }); a.tone({ freq: 420, to: 900, type: 'sine', dur: 0.4, vol: 0.05, rev: 0.5 }); },
+  ice: (a) => { [2093, 2637, 3136, 3951].forEach((f, i) => a.tone({ freq: f, type: 'sine', dur: 0.45, vol: 0.08, delay: i * 0.04, rev: 0.6 })); a.noise({ dur: 0.22, vol: 0.22, filter: 'highpass', freq: 5500, q: 1 }); a.pips(6, { vol: 0.16, freq: 7000, gap: 0.035, delay: 0.08 }); },
+  fire: (a) => { a.noise({ dur: 0.55, vol: 0.4, filter: 'lowpass', freq: 3400, to: 240, q: 0.7 }); a.noise({ dur: 0.3, vol: 0.2, freq: 900, to: 2600, q: 2 }); a.tone({ freq: 170, to: 70, type: 'sawtooth', dur: 0.45, vol: 0.12 }); a.pips(7, { vol: 0.16, freq: 4200, gap: 0.045, delay: 0.12 }); },
+  hit: (a) => { a.tone({ freq: 150, to: 45, type: 'sine', dur: 0.2, vol: 0.4, rev: 0.05 }); a.tone({ freq: 190, to: 70, type: 'square', dur: 0.1, vol: 0.14, rev: 0 }); a.noise({ dur: 0.14, vol: 0.34, freq: 1400, to: 300, q: 1 }); },
+  slash: (a) => { a.noise({ dur: 0.2, vol: 0.4, freq: 5200, to: 900, q: 1.4 }); a.tone({ freq: 2600, to: 1300, type: 'triangle', dur: 0.14, vol: 0.09, rev: 0.3 }); a.noise({ dur: 0.07, vol: 0.2, filter: 'highpass', freq: 5000, delay: 0.03, rev: 0 }); },
 };
 
 // Tracks. bars: [chord (semitones from root), melody (8 eighth-note tokens: semitone | '-' hold | '.' rest)].

@@ -283,17 +283,17 @@ export async function castVfx(w, d) {
     w.shake(big ? 0.45 : 0.25, 320);
     await tween(120, () => {});
   } else if (P.mode === 'shot') {
-    audio.sfx(P.plain ? 'arrow' : EL_SFX[el] || 'magic');
+    audio.sfx(P.plain ? 'arrow' : el === 'fire' ? 'bolt' : EL_SFX[el] || 'magic');
     if (P.proj) await fly(w, P.proj, from, aim, { arc: P.plain ? 0.5 : 0.1 }); else await shot(w, from, aim, color, SHOT.knife);
-    land(P.impact, target, { s: SINGLE[P.impact] || 1 });
+    land(P.impact, target, { s: SINGLE[P.impact] || 1 }); if (P.impact === 'hit_fire') audio.sfx('burn');
     await wait(P.impact);
   } else if (P.mode === 'remote') {
     audio.sfx(EL_SFX[el] || 'magic');
     land(P.main, target, { s: SINGLE[P.main] || 1 });
     await wait(P.main);
   } else { // melee: pull back, snap in, and the cut opens on the target
-    audio.sfx(el !== 'neutral' ? EL_SFX[el] : 'slash');
     const heavy = HEAVY.has(P.main);
+    audio.sfx(P.main === 'zap' ? 'zap' : el !== 'neutral' ? EL_SFX[el] : heavy ? 'smash' : 'slash');
     await w.strike(u.uid, aim || from, { heavy });
     const left = aim ? w.project(aim).x < w.project(from).x : false;
     land(P.main, target || u, { s: sc * (P.main === 'slash' ? 1.15 : 1), flipX: left, speed: 1.15 });

@@ -2,13 +2,14 @@
 import { h, fmt } from '../core/util.js';
 import { t, LANG, setLang } from '../core/i18n.js';
 import { audio } from '../core/audio.js';
-import { G, myHeroes, touch, deckCount, usedCopies, canAddToDeck, canRemoveFromDeck, tryUpgradeCard, tryCraftCard, tryDismantle, equipItem, unequip, sellItem, useConsumable, questStatus, claimQuest, progress, addItem } from '../game/state.js';
+import { G, myHeroes, touch, deckCount, usedCopies, canAddToDeck, canRemoveFromDeck, tryUpgradeCard, spareCopy, tryDismantle, equipItem, unequip, sellItem, useConsumable, questStatus, claimQuest, progress, addItem } from '../game/state.js';
 import { computeStats, attributes, canLearn, learnSkill, canEquip, clampVitals } from '../game/character.js';
 import { CLASSES, SKILL_TREES, STAT_INFO, expToNext } from '../data/classes.js';
 import { CARDS, RARITY, MAX_CARD_LEVEL, upgradeCost, DECK_MIN, DECK_MAX } from '../data/cards.js';
 import { CONSUMABLES, MATERIALS, RECIPES, BASES, ITEM_RARITY, makeEquipment } from '../data/items.js';
 import { QUESTS } from '../data/events.js';
 import { Net } from '../net/firebase.js';
+import { Coop } from '../net/coop.js';
 import { openModal, cardEl, itemTip, heroSprite, bar, btn, icon, toast, toggleFullscreen, confirmBox, dragPiece } from './components.js';
 
 const TABS = [['hero', 'Heroes', 'crown'], ['equip', 'Bag', 'bag'], ['deck', 'Deck', 'book'], ['forge', 'Forge', 'anvil'], ['system', 'System', 'star']];
@@ -19,7 +20,8 @@ export function openMenu(app, tab = 'hero') {
   sel = Math.max(0, Math.min(sel, myHeroes().length - 1));
   const body = h('div.menu-body'); const tabs = h('div.menu-tabs'); const res = h('div.menu-res');
   const root = h('div.menu', h('div.menu-side', tabs, res), body);
-  const m = openModal(root, { cls: 'menu-modal', title: t("Adventurer's Journal") });
+  const m = openModal(root, { cls: 'menu-modal', title: t("Adventurer's Journal"), onClose: () => Coop.send({ t: 'bag', on: 0 }) });
+  Coop.send({ t: 'bag', on: 1 });
   if (tab === 'quests') tab = 'hero';
   let shown = null;
   const render = () => {
@@ -151,7 +153,7 @@ function deckTab(render) {
     if (free <= 0) el.classList.add('dim');
     return h('div.pool-item', el,
       h('div.pool-actions',
-        c.lv < MAX_CARD_LEVEL ? h('button.mini.up', { 'data-tip': t('Upgrade to +{lv}: {gold} gold, {shards} shards', { lv: c.lv + 1, gold: cost.gold, shards: cost.shards }), disabled: st.gold < cost.gold || st.shards < cost.shards, onclick: () => { if (tryUpgradeCard(id)) { audio.sfx('levelup'); render(); } } }, `⬆ ${cost.gold}g ${cost.shards}◆`) : h('span.maxed', 'MAX'),
+        c.lv < MAX_CARD_LEVEL ? h('button.mini.up', { 'data-tip': t('Upgrade to +{lv}: one spare copy of this card, {gold} gold, {shards} shards', { lv: c.lv + 1, gold: cost.gold, shards: cost.shards }) + (spareCopy(id) ? '' : ' — ' + t('you need a second copy that is not in a deck')), disabled: st.gold < cost.gold || st.shards < cost.shards || !spareCopy(id), onclick: () => { if (tryUpgradeCard(id)) { audio.sfx('levelup'); render(); } } }, `⬆ ▮1 ${cost.gold}g ${cost.shards}◆`) : h('span.maxed', 'MAX'),
         h('button.mini', { 'data-tip': t('Dismantle one copy for {n} shards', { n: RARITY[card.rarity].shards }), disabled: free <= 0, onclick: () => { if (tryDismantle(id)) { audio.sfx('coin'); render(); } } }, `✂ +${RARITY[card.rarity].shards}◆`))); };
   return h('div.tab-deck', heroPicker(render),
     h('div.deck-cols',
@@ -159,21 +161,17 @@ function deckTab(render) {
       h('div.deck-col', h('div.sec-title', t('Collection'), h('span.points', t('Drag or click a card to move it'))), h('div.card-grid.scroll', { 'data-drop': 'pool' }, ...pool.map(poolCard)))));
 }
 
-// ───── Forge: craft equipment and cards ─────
+// ───── Forge: craft equipment (cards are found, never made) ─────
 function forgeTab(render) {
   const st = G.state; const classes = new Set(myHeroes().map((x) => x.cls));
   const recipes = RECIPES.filter((r) => r.tier <= st.unlocked + 1);
-  const craftable = Object.values(CARDS).filter((c) => !c.id.startsWith('r_') && (c.cls === 'any' || classes.has(c.cls))).sort((a, b) => ['common', 'rare', 'epic', 'legendary'].indexOf(a.rarity) - ['common', 'rare', 'epic', 'legendary'].indexOf(b.rarity) || a.cls.localeCompare(b.cls));
   return h('div.tab-forge',
     h('div.deck-col', h('div.sec-title', t('Smithing'), h('span.points', t('Forge equipment from materials'))),
       h('div.item-list.scroll', ...recipes.map((r) => { const B = BASES[r.base]; const ok = st.gold >= r.gold && Object.entries(r.mats).every(([m, n]) => (st.inv.mats[m] || 0) >= n);
         return h('div.item.recipe' + (ok ? '' : '.dim'), { style: { '--rar': ITEM_RARITY[r.rarity].color } }, h('div.item-icon', icon(B.icon, ITEM_RARITY[r.rarity].color, 32)),
           h('div.item-info', h('div.item-name', `${B.names[r.tier - 1]}`), h('div.item-sub', `${ITEM_RARITY[r.rarity].name} · ${t('Tier {n}', { n: r.tier })} ${t(B.type)}`),
             h('div.recipe-cost', ...Object.entries(r.mats).map(([m, n]) => h('span' + ((st.inv.mats[m] || 0) >= n ? '' : '.lack'), `${MATERIALS[m].name} ${st.inv.mats[m] || 0}/${n}`)), h('span' + (st.gold >= r.gold ? '' : '.lack'), t('{n} gold', { n: r.gold })))),
-          h('button.mini.up', { disabled: !ok, onclick: () => { Object.entries(r.mats).forEach(([m, n]) => { st.inv.mats[m] -= n; if (st.inv.mats[m] <= 0) delete st.inv.mats[m]; }); st.gold -= r.gold; const it = makeEquipment(r.base, r.tier, r.rarity); addItem(it); progress('craft', 1); audio.sfx('place'); audio.sfx('levelup'); toast(t('Forged {name}!', { name: it.name }), 'good'); render(); } }, t('Forge'))); }))),
-    h('div.deck-col', h('div.sec-title', t('Card Scribing'), h('span.points', t('Spend shards to create cards'))),
-      h('div.card-grid.scroll', ...craftable.map((c) => { const cost = RARITY[c.rarity].craft; const el = cardEl(c.id, 0, { small: true, count: st.cards[c.id]?.n || 0 });
-        return h('div.pool-item', el, h('div.pool-actions', h('button.mini.up', { disabled: st.shards < cost, onclick: () => { if (tryCraftCard(c.id)) { progress('craft', 1); audio.sfx('draw'); audio.sfx('buff'); render(); } } }, t('Scribe {n}◆', { n: cost })))); }))));
+          h('button.mini.up', { disabled: !ok, onclick: () => { Object.entries(r.mats).forEach(([m, n]) => { st.inv.mats[m] -= n; if (st.inv.mats[m] <= 0) delete st.inv.mats[m]; }); st.gold -= r.gold; const it = makeEquipment(r.base, r.tier, r.rarity); addItem(it); progress('craft', 1); audio.sfx('place'); audio.sfx('levelup'); toast(t('Forged {name}!', { name: it.name }), 'good'); render(); } }, t('Forge'))); }))));
 }
 
 // ───── Quests ─────

@@ -149,6 +149,80 @@ add([
   { id: 'r_rift', cls: 'any', name: 'Abyssal Rift', cat: 'special', icon: 'blink', rarity: 'legendary', tg: 'self', shape: 'burst', size: 3, cost: 3, mp: 12, cd: 5, el: 'shadow', fx: [{ t: 'dmg', v: 3, s: 'atk' }, { t: 'pull', v: 2 }, { t: 'status', st: 'vulnerable', n: 2 }] },
 ]);
 
+// ───────── MORE CARDS (found as loot: battles, chests, merchants) ─────────
+add([
+  // knight
+  { id: 'k_cleave', cls: 'knight', name: 'Cleave', cat: 'attack', icon: 'sword', shape: 'line', size: 2, tg: 'any', cd: 1, fx: [{ t: 'dmg', v: 1, s: 'atk' }] },
+  { id: 'k_riposte', cls: 'knight', name: 'Riposte', cat: 'attack', icon: 'sword', cd: 1, combo: { after: 'defense', bonus: { dmg: 3 } }, fx: [{ t: 'dmg', v: 1, s: 'atk' }] },
+  { id: 'k_bulwark', cls: 'knight', name: 'Bulwark', cat: 'defense', icon: 'shield', rarity: 'rare', tg: 'self', cost: 2, cd: 3, fx: [{ t: 'block', v: 4 }, { t: 'status', st: 'regen', n: 2 }] },
+  { id: 'k_radiant', cls: 'knight', name: 'Radiant Blade', cat: 'attack', icon: 'sword', rarity: 'rare', cd: 2, el: 'holy', fx: [{ t: 'dmg', v: 2, s: 'atk' }, { t: 'status', st: 'weak', n: 2 }] },
+  { id: 'k_stomp', cls: 'knight', name: 'War Stomp', cat: 'special', icon: 'quake', tg: 'self', shape: 'burst', size: 1, cd: 2, el: 'earth', fx: [{ t: 'dmg', v: 0, s: 'atk' }, { t: 'status', st: 'root', n: 1 }] },
+  { id: 'k_shieldslam', cls: 'knight', name: 'Shield Slam', cat: 'attack', icon: 'shield', cost: 2, cd: 2, fx: [{ t: 'dmg', v: 1, s: 'atk', spendBlock: true }] },
+  { id: 'k_laststand', cls: 'knight', name: 'Last Stand', cat: 'attack', icon: 'sword', rarity: 'rare', cd: 2, fx: [{ t: 'dmg', v: 1, s: 'atk', wounded: 2 }] },
+  { id: 'k_holdline', cls: 'knight', name: 'Hold the Line', cat: 'defense', icon: 'banner', rarity: 'rare', tg: 'self', shape: 'burst', size: 2, allies: true, cd: 3, fx: [{ t: 'block', v: 2 }] },
+  { id: 'k_executioner', cls: 'knight', name: 'Executioner', cat: 'attack', icon: 'skull', rarity: 'epic', cost: 2, cd: 3, fx: [{ t: 'dmg', v: 2, s: 'atk', execute: 0.25 }] },
+  // mage
+  { id: 'm_spark', cls: 'mage', name: 'Spark', cat: 'attack', icon: 'bolt', range: 3, el: 'wind', proj: 'wind', fx: [{ t: 'dmg', v: 1, s: 'matk' }, { t: 'status', st: 'vulnerable', n: 1 }] },
+  { id: 'm_detonate', cls: 'mage', name: 'Detonate', cat: 'attack', icon: 'flame', rarity: 'rare', range: 4, cd: 2, el: 'fire', fx: [{ t: 'dmg', v: 0, s: 'matk', perStatus: { st: 'burn', v: 2, consume: true } }] },
+  { id: 'm_shatter', cls: 'mage', name: 'Shatter', cat: 'attack', icon: 'snow', rarity: 'rare', range: 4, cd: 2, el: 'ice', proj: 'ice', fx: [{ t: 'dmg', v: 1, s: 'matk', ifStatus: { sts: ['chill', 'frozen'], v: 4 } }] },
+  { id: 'm_wildfire', cls: 'mage', name: 'Wildfire', cat: 'special', icon: 'flame', range: 4, cd: 2, el: 'fire', fx: [{ t: 'status', st: 'burn', n: 1 }, { t: 'spread', sts: ['burn'] }] },
+  { id: 'm_overload', cls: 'mage', name: 'Arcane Overload', cat: 'attack', icon: 'orb', rarity: 'epic', range: 5, cost: 2, cd: 3, proj: 'arcane', fx: [{ t: 'dmg', v: 0, s: 'matk', spendMp: 4 }] },
+  { id: 'm_stonespike', cls: 'mage', name: 'Stone Spike', cat: 'attack', icon: 'quake', range: 4, cd: 1, el: 'earth', proj: 'earth', fx: [{ t: 'dmg', v: 2, s: 'matk' }, { t: 'push', v: 1 }] },
+  { id: 'm_voidbolt', cls: 'mage', name: 'Void Bolt', cat: 'attack', icon: 'orb', range: 5, cd: 1, mp: 2, el: 'shadow', proj: 'shadow', fx: [{ t: 'dmg', v: 2, s: 'matk' }, { t: 'status', st: 'weak', n: 1 }] },
+  { id: 'm_flamewave', cls: 'mage', name: 'Flame Wave', cat: 'attack', icon: 'flame', shape: 'line', size: 3, tg: 'any', cost: 2, mp: 3, cd: 2, el: 'fire', fx: [{ t: 'dmg', v: 1, s: 'matk' }, { t: 'status', st: 'burn', n: 2 }] },
+  { id: 'm_chain', cls: 'mage', name: 'Chain Lightning', cat: 'attack', icon: 'bolt', rarity: 'rare', shape: 'line', size: 5, tg: 'any', cost: 2, mp: 4, cd: 2, el: 'wind', fx: [{ t: 'dmg', v: 2, s: 'matk' }] },
+  { id: 'm_deepfreeze', cls: 'mage', name: 'Deep Freeze', cat: 'special', icon: 'snow', rarity: 'rare', range: 4, cost: 2, mp: 5, cd: 3, el: 'ice', fx: [{ t: 'status', st: 'frozen', n: 1 }, { t: 'dmg', v: 1, s: 'matk' }] },
+  { id: 'm_toxic', cls: 'mage', name: 'Toxic Cloud', cat: 'attack', icon: 'skull', rarity: 'rare', range: 4, shape: 'area', size: 1, tg: 'any', cost: 2, mp: 4, cd: 3, el: 'poison', fx: [{ t: 'dmg', v: 0, s: 'matk' }, { t: 'status', st: 'poison', n: 4 }] },
+  { id: 'm_earthquake', cls: 'mage', name: 'Earthquake', cat: 'attack', icon: 'quake', rarity: 'epic', tg: 'self', shape: 'burst', size: 2, cost: 3, mp: 8, cd: 4, el: 'earth', fx: [{ t: 'dmg', v: 2, s: 'matk' }, { t: 'status', st: 'stun', n: 1 }] },
+  // archer
+  { id: 'a_flame', cls: 'archer', name: 'Flame Arrow', cat: 'attack', icon: 'arrow', range: 5, cd: 1, el: 'fire', proj: 'arrow', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'burn', n: 2 }] },
+  { id: 'a_longshot', cls: 'archer', name: 'Long Shot', cat: 'attack', icon: 'arrow', range: 7, cd: 1, proj: 'arrow', fx: [{ t: 'dmg', v: 0, s: 'atk', far: { d: 4, v: 3 } }] },
+  { id: 'a_quiver', cls: 'archer', name: 'Full Quiver', cat: 'attack', icon: 'arrows', rarity: 'rare', range: 5, cost: 2, cd: 2, proj: 'arrow', fx: [{ t: 'dmg', v: 0, s: 'atk', perHand: 1 }] },
+  { id: 'a_double', cls: 'archer', name: 'Double Shot', cat: 'attack', icon: 'arrows', range: 4, cd: 1, proj: 'arrow', fx: [{ t: 'dmg', v: 0, s: 'atk', hits: 2 }] },
+  { id: 'a_disengage', cls: 'archer', name: 'Disengage', cat: 'movement', icon: 'boot', tg: 'hex', range: 3, cd: 2, fx: [{ t: 'move', v: 3 }, { t: 'status', st: 'haste', n: 1, self: true }] },
+  { id: 'a_camo', cls: 'archer', name: 'Camouflage', cat: 'defense', icon: 'leaf', tg: 'self', cd: 3, fx: [{ t: 'status', st: 'stealth', n: 1 }, { t: 'draw', v: 1 }] },
+  { id: 'a_concuss', cls: 'archer', name: 'Concussive Shot', cat: 'attack', icon: 'arrow', rarity: 'rare', range: 4, cd: 2, proj: 'arrow', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'stun', n: 1 }] },
+  { id: 'a_headshot', charge: true, cls: 'archer', name: 'Headshot', cat: 'attack', icon: 'eye', rarity: 'epic', range: 7, cost: 3, cd: 3, proj: 'arrow', fx: [{ t: 'dmg', v: 3, s: 'atk', crit: 40 }] },
+  { id: 'a_firerain', cls: 'archer', name: 'Rain of Fire', cat: 'attack', icon: 'arrows', rarity: 'epic', range: 5, shape: 'area', size: 2, tg: 'any', cost: 3, mp: 8, cd: 4, el: 'fire', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'burn', n: 2 }] },
+  // assassin
+  { id: 's_hamstring', cls: 'assassin', name: 'Hamstring', cat: 'attack', icon: 'dagger', cd: 1, fx: [{ t: 'dmg', v: 0, s: 'atk' }, { t: 'status', st: 'root', n: 1 }, { t: 'status', st: 'bleed', n: 2 }] },
+  { id: 's_ambush', cls: 'assassin', name: 'Ambush', cat: 'attack', icon: 'dagger', cd: 1, el: 'shadow', fx: [{ t: 'dmg', v: 1, s: 'atk', alone: 3 }] },
+  { id: 's_fester', cls: 'assassin', name: 'Fester', cat: 'attack', icon: 'dagger', rarity: 'rare', cd: 2, el: 'poison', fx: [{ t: 'dmg', v: 0, s: 'atk', perStatus: { st: 'poison', v: 1 } }] },
+  { id: 's_contagion', cls: 'assassin', name: 'Contagion', cat: 'special', icon: 'skull', rarity: 'rare', range: 3, cd: 2, el: 'poison', fx: [{ t: 'status', st: 'poison', n: 1 }, { t: 'spread', sts: ['poison', 'bleed'] }] },
+  { id: 's_twinfangs', cls: 'assassin', name: 'Twin Fangs', cat: 'attack', icon: 'dagger', cd: 1, el: 'poison', fx: [{ t: 'dmg', v: 0, s: 'atk', hits: 2 }, { t: 'status', st: 'poison', n: 1 }] },
+  { id: 's_miasma', cls: 'assassin', name: 'Miasma', cat: 'attack', icon: 'skull', tg: 'self', shape: 'burst', size: 1, cd: 2, el: 'poison', fx: [{ t: 'dmg', v: 0, s: 'atk' }, { t: 'status', st: 'poison', n: 3 }] },
+  { id: 's_rupture', cls: 'assassin', name: 'Rupture', cat: 'attack', icon: 'dagger', rarity: 'rare', cost: 2, cd: 2, fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'bleed', n: 4 }] },
+  { id: 's_vanish', cls: 'assassin', name: 'Vanish', cat: 'movement', icon: 'blink', rarity: 'rare', tg: 'hex', range: 4, cd: 3, el: 'shadow', fx: [{ t: 'teleport' }, { t: 'status', st: 'stealth', n: 1, self: true }] },
+  { id: 's_deathmark', cls: 'assassin', name: 'Death Mark', cat: 'special', icon: 'skull', rarity: 'rare', range: 3, cd: 3, el: 'shadow', fx: [{ t: 'status', st: 'mark', n: 1 }, { t: 'status', st: 'vulnerable', n: 3 }] },
+  { id: 's_shuriken', cls: 'assassin', name: 'Shuriken Storm', cat: 'attack', icon: 'whirl', rarity: 'epic', tg: 'self', shape: 'burst', size: 2, cost: 3, mp: 5, cd: 3, fx: [{ t: 'dmg', v: 2, s: 'atk' }, { t: 'status', st: 'bleed', n: 2 }] },
+  // priest
+  { id: 'p_flash', cls: 'priest', name: 'Holy Flash', cat: 'attack', icon: 'sun', tg: 'self', shape: 'burst', size: 1, cd: 2, mp: 2, el: 'holy', fx: [{ t: 'dmg', v: 0, s: 'matk' }, { t: 'status', st: 'weak', n: 1 }] },
+  { id: 'p_renew', cls: 'priest', name: 'Renew', cat: 'buff', icon: 'heart', tg: 'ally', range: 3, cd: 1, el: 'holy', fx: [{ t: 'status', st: 'regen', n: 4 }] },
+  { id: 'p_rebuke', cls: 'priest', name: 'Rebuke', cat: 'attack', icon: 'sun', range: 3, cd: 1, el: 'holy', proj: 'holy', fx: [{ t: 'dmg', v: 1, s: 'matk', ifStatus: { sts: ['weak', 'vulnerable'], v: 3 } }] },
+  { id: 'p_vigil', cls: 'priest', name: 'Vigil', cat: 'buff', icon: 'star', rarity: 'rare', tg: 'self', cd: 4, fx: [{ t: 'recall', v: 1 }, { t: 'cool', v: 1 }] },
+  { id: 'p_swift', cls: 'priest', name: 'Swift Blessing', cat: 'buff', icon: 'wind', tg: 'ally', range: 3, cd: 2, el: 'wind', fx: [{ t: 'status', st: 'haste', n: 2 }, { t: 'block', v: 1 }] },
+  { id: 'p_faith', cls: 'priest', name: 'Hammer of Faith', cat: 'attack', icon: 'mace', rarity: 'rare', cost: 2, cd: 2, el: 'holy', fx: [{ t: 'dmg', v: 2, s: 'atk' }, { t: 'status', st: 'stun', n: 1 }] },
+  { id: 'p_ward', cls: 'priest', name: 'Divine Ward', cat: 'defense', icon: 'shield', rarity: 'rare', tg: 'self', shape: 'burst', size: 2, allies: true, cost: 2, mp: 4, cd: 3, el: 'holy', fx: [{ t: 'block', v: 3 }] },
+  { id: 'p_banish', cls: 'priest', name: 'Banish', cat: 'attack', icon: 'sun', rarity: 'rare', range: 4, cost: 2, mp: 4, cd: 3, el: 'holy', proj: 'holy', fx: [{ t: 'dmg', v: 1, s: 'matk' }, { t: 'push', v: 3 }] },
+  { id: 'p_lifebloom', cls: 'priest', name: 'Lifebloom', cat: 'buff', icon: 'leaf', rarity: 'rare', tg: 'ally', range: 3, cost: 2, mp: 5, cd: 3, el: 'earth', fx: [{ t: 'heal', v: 4, s: 'matk' }, { t: 'status', st: 'regen', n: 2 }] },
+  { id: 'p_radiance', cls: 'priest', name: 'Radiance', cat: 'attack', icon: 'sun', rarity: 'epic', tg: 'self', shape: 'burst', size: 2, cost: 3, mp: 8, cd: 4, el: 'holy', fx: [{ t: 'dmg', v: 2, s: 'matk' }, { t: 'status', st: 'vulnerable', n: 2 }] },
+  // blacksmith
+  { id: 'b_sunder', cls: 'blacksmith', name: 'Sunder', cat: 'attack', icon: 'hammer', cd: 2, fx: [{ t: 'breakBlock' }, { t: 'dmg', v: 1, s: 'atk' }] },
+  { id: 'b_retool', cls: 'blacksmith', name: 'Retool', cat: 'buff', icon: 'wrench', tg: 'self', cost: 0, cd: 3, fx: [{ t: 'cool', v: 2 }] },
+  { id: 'b_salvage', cls: 'blacksmith', name: 'Salvage', cat: 'buff', icon: 'wrench', rarity: 'rare', tg: 'self', cost: 0, cd: 3, fx: [{ t: 'recall', v: 1 }, { t: 'block', v: 1 }] },
+  { id: 'b_oil', cls: 'blacksmith', name: 'Oil Flask', cat: 'special', icon: 'flame', range: 3, cd: 2, el: 'fire', proj: 'fire', fx: [{ t: 'status', st: 'vulnerable', n: 2 }, { t: 'status', st: 'burn', n: 2 }] },
+  { id: 'b_magnet', cls: 'blacksmith', name: 'Magnet Pull', cat: 'special', icon: 'bolt', range: 4, cd: 2, el: 'wind', fx: [{ t: 'dmg', v: 0, s: 'atk' }, { t: 'pull', v: 2 }] },
+  { id: 'b_whetstone', cls: 'blacksmith', name: 'Whetstone', cat: 'buff', icon: 'anvil', tg: 'self', cost: 0, cd: 3, fx: [{ t: 'status', st: 'strength', n: 2 }, { t: 'draw', v: 1 }] },
+  { id: 'b_shrapnel', cls: 'blacksmith', name: 'Shrapnel Blast', cat: 'attack', icon: 'flame', tg: 'self', shape: 'burst', size: 1, cost: 2, cd: 2, el: 'fire', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'bleed', n: 2 }] },
+  { id: 'b_anvildrop', cls: 'blacksmith', name: 'Anvil Drop', cat: 'attack', icon: 'anvil', rarity: 'rare', range: 3, shape: 'area', size: 1, tg: 'any', cost: 2, cd: 2, el: 'earth', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'weak', n: 2 }] },
+  { id: 'b_meteorhammer', charge: true, cls: 'blacksmith', name: 'Meteor Hammer', cat: 'attack', icon: 'hammer', rarity: 'epic', cost: 3, mp: 6, cd: 4, el: 'fire', fx: [{ t: 'dmg', v: 3, s: 'atk' }, { t: 'status', st: 'burn', n: 3 }, { t: 'push', v: 2 }] },
+  // any class
+  { id: 'n_catchbreath', cls: 'any', name: 'Catch Breath', cat: 'buff', icon: 'heart', rarity: 'rare', tg: 'self', cd: 3, fx: [{ t: 'cool', v: 1 }, { t: 'heal', v: 1 }] },
+  { id: 'n_firstaid', cls: 'any', name: 'First Aid', cat: 'buff', icon: 'cross', tg: 'ally', range: 1, cd: 3, fx: [{ t: 'heal', v: 2 }] },
+  { id: 'n_stone', cls: 'any', name: 'Throw Stone', cat: 'attack', icon: 'quake', range: 3, el: 'earth', proj: 'earth', fx: [{ t: 'dmg', v: 0, s: 'atk' }, { t: 'push', v: 1 }] },
+  { id: 'n_breath', cls: 'any', name: 'Deep Breath', cat: 'buff', icon: 'wind', tg: 'self', cost: 0, cd: 3, fx: [{ t: 'mp', v: 5 }, { t: 'cleanse' }] },
+]);
+
 export const STARTER_DECKS = {
   knight: ['k_slash', 'k_slash', 'k_shieldwall', 'k_charge', 'k_bash', 'k_advance', 'k_taunt', 'k_vow'],
   mage: ['m_firebolt', 'm_firebolt', 'm_frostshard', 'm_frostshard', 'm_barrier', 'm_blink', 'm_fireball', 'm_surge'],
@@ -243,6 +317,14 @@ export function describeCard(card, unit = null) {
         if (f.hits > 1) s += ` ×${f.hits}`;
         if (f.fromBlock) s += t(', +{n}% of your Block', { n: Math.round(f.fromBlock * 100) });
         if (f.crit) s += t(', +{n}% crit', { n: f.crit });
+        if (f.ifStatus) s += t(', +{n} if the target has {st}', { n: f.ifStatus.v, st: f.ifStatus.sts.map((x) => STATUS_INFO[x].name).join(' / ') });
+        if (f.perStatus) s += t(f.perStatus.consume ? ', +{n} per {st} on the target (removes it)' : ', +{n} per {st} on the target', { n: f.perStatus.v, st: STATUS_INFO[f.perStatus.st].name });
+        if (f.perHand) s += t(', +{n} per card in your hand', { n: f.perHand });
+        if (f.wounded) s += t(', +{n} per quarter of your HP missing', { n: f.wounded });
+        if (f.far) s += t(', +{n} from {d} hexes or more', { n: f.far.v, d: f.far.d });
+        if (f.alone) s += t(', +{n} if no other enemy stands next to the target', { n: f.alone });
+        if (f.spendBlock) s += t(', spends all your Block: +1 each');
+        if (f.spendMp) s += t(', spends all your MP: +1 per {n} MP', { n: f.spendMp });
         if (f.execute) s += t('. Double vs targets under {n}% HP', { n: f.execute * 100 });
         if (f.drain) s += t('. Heal {n}% of damage dealt', { n: f.drain * 100 });
         parts.push(s + t('.')); break;
@@ -263,6 +345,10 @@ export function describeCard(card, unit = null) {
       case 'summon': parts.push(t(f.id === 'turret' ? 'Build a Turret that fires each round.' : 'Raise an Iron Barricade (8 HP).')); break;
       case 'revive': parts.push(t('Revive fallen allies at {n}% HP.', { n: f.pct * 100 })); break;
       case 'selfdmg': parts.push(t('Lose {n} HP.', { n: f.v })); break;
+      case 'spread': parts.push(t('Spread its {st} to enemies next to it.', { st: f.sts.map((x) => STATUS_INFO[x].name).join(' / ') })); break;
+      case 'breakBlock': parts.push(t("Destroy the target's Block.")); break;
+      case 'cool': parts.push(t('Your cooling cards return {n} round(s) sooner.', { n: f.v })); break;
+      case 'recall': parts.push(t('Take {n} random card(s) back from your discard pile.', { n: f.v })); break;
       default: break;
     }
   }

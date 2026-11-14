@@ -136,6 +136,7 @@ export class BattleScene {
   }
 
   dispose() {
+    this.bagTags?.forEach((a) => this.world.detach(a));
     releaseSheets();
     this._offs?.forEach((off) => off());
     this.unbind();
@@ -212,7 +213,7 @@ export class BattleScene {
     const b = this.battle;
     this.el = {
       order: h('div.turn-order'), round: h('div.round-label', t('Round {n}', { n: 1 })), party: h('div.b-party'), info: h('div.b-info'), log: h('div.dice-log'),
-      hand: h('div.hand'), slots: h('div.slots'), energy: h('div.energy-orb'), cool: h('div.cooldown-track'), heroTag: h('div.hero-tag'),
+      hand: h('div.hand'), whose: h('div.hand-whose'), slots: h('div.slots'), energy: h('div.energy-orb'), cool: h('div.cooldown-track'), heroTag: h('div.hero-tag'),
       exec: btn(t('Execute'), () => this.execute(), { cls: 'primary exec', tip: t('Resolve the cards in your Action Slots (E)') }),
       end: btn(t('End Turn'), () => this.endTurn(), { cls: 'end', tip: t("End this hero's turn (Space)") }),
       undo: btn(t('Undo'), () => this.undo(), { cls: 'small', tip: t('Remove the last planned card') }),
@@ -224,7 +225,7 @@ export class BattleScene {
       this.el.party, this.el.info, this.el.hint,
       h('div.b-bottom',
         h('div.b-left', this.el.heroTag),
-        h('div.b-center', h('div.slots-wrap', h('div.slots-label', t('ACTION SLOTS')), this.el.slots), this.el.hand),
+        h('div.b-center', h('div.slots-wrap', h('div.slots-label', t('ACTION SLOTS')), this.el.slots), this.el.whose, this.el.hand),
         h('div.b-right', h('div.cool-wrap', h('div.slots-label', t('COOLDOWN')), this.el.cool), h('div.b-buttons', this.el.undo, this.el.items, this.el.exec, this.el.end))),
     );
     ui().appendChild(this.hud);
@@ -268,7 +269,16 @@ export class BattleScene {
       ...rows);
   }
 
+  // Co-op: a small slip over a friend's head while they have their bag open, so nobody wonders why they stand still.
+  showBag(id, on) {
+    this.bagTags ||= new Map(); const w = this.world; w.detach(this.bagTags.get(id)); this.bagTags.delete(id);
+    const uid = this.bagUnit(id); if (!on || !uid) return;
+    this.bagTags.set(id, w.attach(h('div.ping-label', h('div.bag-tag', icon('bag', '#3a2a20', 16), t('Looking in the bag'))), () => w.unitPos(uid, 2.1)));
+  }
+  bagUnit(id) { return this.battle.units.find((u) => u.alive && u.hero?.owner === id)?.uid || null; }
   hero() { const u = this.battle.current; return u && u.cards && u.alive ? u : null; }
+  // The hero this player owns (the first one alive), for showing a hand while someone else acts.
+  mine() { return this.battle.units.find((u) => u.cards && u.alive && this.canControl(u)) || null; }
 
   // A card that can be charged asks how hard to play it before it goes into a slot: the same card laid out
   // once per choice in the middle of the table. cb(extra) with the dice added, or cb(null) when called off.
@@ -311,10 +321,11 @@ export class BattleScene {
   }
 
   renderHand(drawn = []) {
-    const u = this.hero(); const E = this.el;
-    const active = !!u && this.inputOn;
-    this.hud.classList.toggle('my-turn', active);
-    if (!u) { E.hand.replaceChildren(); E.slots.replaceChildren(); E.cool.replaceChildren(); E.energy.replaceChildren(); E.heroTag.replaceChildren(); return; }
+    // Outside my own turn the hand stays on the table to be read: the acting friend's, or my own while a monster moves.
+    const cur = this.hero(); const u = cur || this.mine(); const E = this.el;
+    const active = !!cur && this.inputOn;
+    this.hud.classList.toggle('my-turn', active); this.hud.classList.toggle('watch', !!u && !active);
+    if (!u) { E.hand.replaceChildren(); E.slots.replaceChildren(); E.cool.replaceChildren(); E.energy.replaceChildren(); E.heroTag.replaceChildren(); E.whose.textContent = ''; return; }
     // hero tag + energy
     E.heroTag.replaceChildren(h('div.ht-portrait', unitSprite(u, { size: 84, zoom: 1.45, oy: 0.28 })), h('div.ht-name', u.name), h('div.ht-move' + (u.moved || u.plan.length ? '.used' : ''), u.status.root ? t('Rooted') : u.moved ? t('Moved') : t('Move {n}', { n: this.battle.moveBudget(u) })));
     E.energy.replaceChildren(h('div.eo-num', u.energy), h('div.eo-label', t('ENERGY')), h('div.eo-pips', ...Array.from({ length: Math.max(u.stats.energy, u.energy) }, (_, i) => h('i' + (i < u.energy ? '.on' : '')))));
@@ -322,8 +333,9 @@ export class BattleScene {
     const n = u.cards.hand.length;
     E.hand.replaceChildren(...u.cards.hand.map((inst, i) => {
       const el = cardEl(inst.id, inst.lv, { unit: u });
-      const why = this.battle.whyNot(u, inst);
+      const why = active ? this.battle.whyNot(u, inst) : null;
       el.dataset.uid = inst.uid;
+      if (!active) el.addEventListener('click', () => { const on = el.classList.contains('peeked'); E.hand.querySelectorAll('.peeked').forEach((x) => x.classList.remove('peeked')); if (!on) el.classList.add('peeked'); }); // touch: tap to lift a card and read it
       if (why) { el.classList.add('unplayable'); el.dataset.tip = why; }
       if (this.pending?.inst === inst) el.classList.add('selected');
       if (drawn.includes(inst)) { el.classList.add('drawn'); el.style.animationDelay = drawn.indexOf(inst) * 90 + 'ms'; }
@@ -359,6 +371,7 @@ export class BattleScene {
     E.cool.replaceChildren(...(u.cards.cooldown.length ? u.cards.cooldown.map((e) => h('div.cool-card', { onclick: piles, style: { '--el': ELEMENTS[e.inst.card.el].color, '--art': `url(${cardArt(e.inst.id)})` }, 'data-tip': t('{name} — ready in {n} round(s)', { name: e.inst.card.name, n: e.left }) }, icon(e.inst.card.icon, '#fff', 22), h('b', e.left))) : [h('div.cool-empty', '—')]),
       h('div.pile.discard', { onclick: piles, 'data-tip': t('Discard pile {n} — click to look', { n: u.cards.discard.length }) }, h('span', String(u.cards.discard.length)), h('small', t('DISCARD'))),
       h('div.pile', { onclick: piles, 'data-tip': t('Draw pile {n} — click to look', { n: u.cards.draw.length }) }, h('span', String(u.cards.draw.length)), h('small', t('DECK'))));
+    E.whose.textContent = !active && u ? (cur && !this.canControl(u) ? t("{name}'s hand", { name: u.name }) : t('Your hand')) : '';
     E.exec.disabled = !active || !u.plan.length; E.end.disabled = !active; E.undo.disabled = !active || !u.plan.length;
     const cons = Object.values(this.consOf(u)).reduce((s, v) => s + v, 0);
     E.items.disabled = !active || u.itemUsed || !cons; E.items.querySelector('span').textContent = t('Items ({n})', { n: cons });
