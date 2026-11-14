@@ -23,6 +23,27 @@ function nestIntent(b, u) {
   return { k: 'summon', name: d.hatchName, id: b.rng.pick(d.hatch), n: 1 };
 }
 
+// Attacks with a shape to read, marked on the board the moment they are announced and never moved after:
+//   star · `arms` (3 or 6) lines of `size` hexes out from the monster; with 3, one arm points at the target
+//   ring · every hex from `inner` to `size` steps away; close in is safe when `inner` is 2 or more
+//   cross · two lines of `size` hexes each way, crossing on the hex where the target stands
+//   checker · one hex in three within `size` steps (`phase` 0, 1 or 2 picks which third)
+// Distances are counted from the edge of the monster's own footprint. The monster stands still to cast.
+function pattern(b, u, it, tgt) {
+  const foot = u.size === 7 ? 1 : 0; const o = { q: u.q, r: u.r }; const own = b.cellsOf(u); let cells;
+  if (it.shape === 'star') {
+    let dirs = [0, 1, 2, 3, 4, 5];
+    if (it.arms === 3) { const d = tgt ? Hex.directionTo(o, b.nearestCell(o, tgt)) : 0; dirs = [d, (d + 2) % 6, (d + 4) % 6]; }
+    cells = dirs.flatMap((d) => Hex.lineInDir(o, d, foot + it.size));
+  } else if (it.shape === 'cross') { // two lines crossing on the target's own hex
+    const c = tgt ? b.nearestCell(o, tgt) : o; const d = Hex.hexEq(c, o) ? 0 : Hex.directionTo(o, c);
+    cells = [{ q: c.q, r: c.r }, ...[d, (d + 3) % 6, (d + 1) % 6, (d + 4) % 6].flatMap((x) => Hex.lineInDir(c, x, it.size))];
+  } else if (it.shape === 'checker') { // one hex in three, all over the ground round the monster
+    cells = Hex.spiral(o, foot + it.size).filter((h) => Hex.distance(o, h) > foot && ((((h.q - h.r) % 3) + 3) % 3) === (it.phase || 0));
+  } else cells = Hex.spiral(o, foot + it.size).filter((h) => Hex.distance(o, h) >= foot + (it.inner || 1));
+  it.cells = cells.filter((h) => b.cell(h) && !own.some((x) => Hex.hexEq(x, h))); it.fixed = true; it.center = o;
+}
+
 export function chooseIntent(b, u) {
   const d = u.def;
   if (d.nest) return nestIntent(b, u);
@@ -38,7 +59,11 @@ export function chooseIntent(b, u) {
     return true;
   });
   if (!list.length) list = [d.intents[0]];
-  const it = { ...b.rng.weighted(list.map((x) => ({ w: x.w || 1, v: x }))) };
+  // the second half of a two-step attack follows on its own
+  const it = u.nextIntent ? { ...u.nextIntent } : { ...b.rng.weighted(list.map((x) => ({ w: x.w || 1, v: x }))) };
+  u.nextIntent = null;
+  const boss = d.rank === 'mvp' || d.rank === 'mini';
+  if (it.k === 'aoe' && it.shape === 'area' && boss) it.size += 1; // harder to walk out of, and it stays where it is marked
   u.lastIntent = it.name;
   const tgt = pickTarget(b, u);
   it.targetUid = tgt?.uid || null;
@@ -46,6 +71,7 @@ export function chooseIntent(b, u) {
     it.center = { q: tgt.q, r: tgt.r };
     it.cells = Hex.spiral(it.center, it.size).filter((h) => b.cell(h));
   }
+  if (it.k === 'aoe' && ['star', 'ring', 'cross', 'checker'].includes(it.shape)) pattern(b, u, it, tgt);
   if (it.dmg) { it.power = b.intentPower(u, it); it.dice = d.dice || 1; }
   if (it.k === 'guard') it.blockValue = it.block + (d.tier - 1);
   return it;
@@ -101,17 +127,15 @@ export async function monsterAct(b, u) {
       break;
     }
     case 'aoe': {
+      if (it.fixed) { // a marked pattern: cast from where it stands, onto exactly the hexes that were marked
+        await b.monsterAoe(u, it, it.cells, { q: u.q, r: u.r });
+        if (it.then && u.alive) u.nextIntent = { ...it.then };
+        break;
+      }
       if (it.shape === 'area') {
-        let cells = it.cells || Hex.spiral(tgt, it.size).filter((h) => b.cell(h));
+        const cells = it.cells || Hex.spiral(tgt, it.size).filter((h) => b.cell(h));
         if (tgt && b.dist(u, tgt) > 2) await approach(b, u, tgt, 2, Math.min(budget, 1));
         if (!u.alive) return;
-        // the marked area slides toward whoever it was aimed at: 2 hexes for an MVP, 1 for a mini boss
-        const drift = u.def.rank === 'mvp' ? 2 : u.def.rank === 'mini' ? 1 : 0;
-        if (drift && it.center && tgt) {
-          let c = it.center;
-          for (let i = 0; i < drift && Hex.distance(c, tgt) > 0; i++) { const n = Hex.neighbors(c).filter((h) => b.cell(h)).sort((x, y) => Hex.distance(x, tgt) - Hex.distance(y, tgt) || x.q - y.q || x.r - y.r)[0]; if (!n || Hex.distance(n, tgt) >= Hex.distance(c, tgt)) break; c = { q: n.q, r: n.r }; }
-          if (!Hex.hexEq(c, it.center)) { it.center = c; it.cells = cells = Hex.spiral(c, it.size).filter((h) => b.cell(h)); await b.emit('text', { unit: u, text: 'Takes aim…', color: '#ffd76a' }); }
-        }
         u.facing = Hex.directionTo(u, it.center || tgt);
         await b.monsterAoe(u, it, cells, it.center || { q: tgt.q, r: tgt.r });
       } else {

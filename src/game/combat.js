@@ -834,7 +834,7 @@ export class Battle {
 
   async monsterAoe(u, it, cells, origin) {
     const victims = this.heroSide().filter((v) => this.cellsOf(v).some((c) => cells.some((x) => Hex.hexEq(x, c))));
-    await this.emit('cast', { unit: u, card: { name: it.name, el: it.el || u.el, cat: 'attack', shape: it.shape, size: it.size, big: true }, cells, targets: victims, target: origin, monster: true });
+    await this.emit('cast', { unit: u, card: { name: it.name, el: it.el || u.el, cat: 'attack', shape: it.shape, size: it.size, big: true, pattern: !!it.fixed }, cells, targets: victims, target: origin, monster: true });
     const roll = this.monsterRoll(u); // one roll for the whole area
     for (const v of victims) {
       const res = await this.hit(u, v, { raw: this.intentPower(u, it) + roll, el: it.el || 'neutral', aoe: true, tags: ['🎲 ' + roll] });

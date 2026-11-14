@@ -1008,4 +1008,9 @@ export const TH = {
   'Sealed': 'ถูกผนึก',
   'Objective: defeat {n} monster group(s) to draw out {mini}': 'เป้าหมาย: ปราบมอนสเตอร์ {n} กลุ่มเพื่อล่อ{mini}ออกมา',
   'Objective: defeat {mini} to break the seal on {boss}': 'เป้าหมาย: ปราบ{mini}เพื่อทำลายผนึกของ{boss}',
+  'star': 'แฉก',
+  'ring': 'วงแหวน',
+  ' A second wave follows next round.': ' มีคลื่นที่สองตามมารอบหน้า',
+  'cross': 'กากบาท',
+  'checker': 'ลายสลับ',
 };

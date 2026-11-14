@@ -198,7 +198,7 @@ export class BattleScene {
     switch (i.k) {
       case 'strike': return t('{name}: melee attack for {p}{hits}.{st}', { name: i.name, p: pw(i), hits: i.hits > 1 ? ' ×' + i.hits : '', st });
       case 'shoot': return t('{name}: ranged attack (range {r}) for {p}.{st}', { name: i.name, r: i.range, p: pw(i), st });
-      case 'aoe': return t('{name}: {shape} attack for {p}.{st}{warn}', { name: i.name, shape: t(i.shape), p: pw(i), st, warn: i.shape === 'area' ? t(' Target area is marked on the board — move out!') : '' });
+      case 'aoe': return t('{name}: {shape} attack for {p}.{st}{warn}', { name: i.name, shape: t(i.shape), p: pw(i), st, warn: i.cells ? t(' Target area is marked on the board — move out!') + (i.then ? t(' A second wave follows next round.') : '') : '' });
       case 'guard': return t('{name}: gains {n} Block.', { name: i.name, n: i.blockValue });
       case 'buff': return t('{name}: grants {st} {n}{allies}.', { name: i.name, st: STATUS_INFO[i.st].name, n: i.n, allies: i.allies ? t(' to nearby allies') : '' });
       case 'heal': return t('{name}: heals a wounded ally.', { name: i.name });
@@ -412,7 +412,7 @@ export class BattleScene {
     const b = this.battle; const cells = [];
     for (const e of b.enemies()) {
       const i = e.intent; if (!i || i.k !== 'aoe') continue;
-      if (i.shape === 'area' && i.cells) cells.push(...i.cells);
+      if (i.cells) cells.push(...i.cells);
       else if (i.shape === 'burst') cells.push(...Hex.spiral(e, i.size + (e.size === 7 ? 1 : 0)).filter((c) => b.cell(c) && !b.cellsOf(e).some((o) => Hex.hexEq(o, c))));
     }
     this.world.setLayer('telegraph', cells, { color: 0xff2a2a, opacity: 0.5, pulse: 5, y: 0.03, order: 3 });

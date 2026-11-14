@@ -192,7 +192,8 @@ export function fxPlan(card, monster = false, hostile = card.cat === 'attack') {
     P.main = SUPPORT[P.kind]; if (aoe && P.kind === 'heal') P.extra = 'heal_area';
   } else if (aoe) {
     P.mode = card.shape;
-    if (card.shape === 'area') {
+    if (card.pattern) { P.mode = 'pattern'; P.impact = IMPACT[el] || 'hit_spark'; } // a marked pattern: every marked hex is struck, spreading out from the caster
+    else if (card.shape === 'area') {
       if (card.icon === 'meteor') P.main = el === 'holy' ? 'starfall' : 'meteor';
       else if (card.icon === 'arrows') { P.proj = 'arrow'; P.impact = 'hit_spark'; }
       else if (el === 'fire') { P.proj = 'fireball'; P.main = 'blast'; }
@@ -271,7 +272,9 @@ export async function castVfx(w, d) {
     // the effect sweeps outward: cells nearer the origin go first
     const order = cells.slice(0, 26).sort((a, b) => chest(a).distanceToSquared(origin) - chest(b).distanceToSquared(origin));
     const sweep = (gap, name, o, max = 8) => order.slice(0, max).forEach((c, i) => after(i * gap, () => land(name, c, o)));
-    if (card.shape === 'area') {
+    if (P.mode === 'pattern') {
+      sweep(26, P.impact, { s: 0.8 }, 26); await tween(Math.min(700, order.length * 26) + 80, () => {});
+    } else if (card.shape === 'area') {
       if (P.proj === 'arrow') { // a volley falls on every cell
         order.slice(0, 10).forEach((c, i) => after(i * 45, () => { const p = chest(c); fly(w, 'arrow', p.clone().add(V(-1.6 + R(0.6), 7, -0.6)), p, { ms: 230 }).then(() => land('hit_spark', c, { s: 0.8 })); }));
         audio.sfx('arrow'); await tween(Math.min(10, order.length) * 45 + 230, () => {});
