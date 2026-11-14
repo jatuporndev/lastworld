@@ -389,3 +389,58 @@ export function itemArt(icon, color = '#c8c0b0') {
   (ITEM[icon] || ITEM.gem)(c, P, R); c.restore(); finish(c, w, w);
   url = cv.toDataURL('image/jpeg', 0.88); itemCache.set(key, url); return url;
 }
+
+// ───── the world map ─────
+// The sundered realms as a painted chart: every stage is an island adrift in a dark sky, in its own ground colour
+// with a few of its landmarks. Painted once (islands sit at each stage's mapPos), then reused as one picture.
+const LAND = { 1: '#5d8a3a', 2: '#d9b26f', 3: '#e4edf5', 4: '#5c5566', 5: '#c9c3e6', 6: '#3a2530', 7: '#3f6f6a', 8: '#8a7a5a', 9: '#e2c98a', 10: '#5a3026', 11: '#b9a8e6' };
+const lite = (hex, k) => css(mix(hex, [255, 255, 255], k)), dark = (hex, k) => css(mix(hex, [0, 0, 0], k));
+const tri = (c, x, y, w, hh, col) => poly(c, [[x - w, y], [x, y - hh], [x + w, y]], col);
+const LANDMARK = {
+  1: (c, x, y, R) => { c.fillStyle = '#4a3524'; c.fillRect(x - 2, y - 8, 4, 10); disc(c, x, y - 16, 11, '#2f5a26'); disc(c, x - 4, y - 19, 7, '#4f8a3a'); }, // trees
+  2: (c, x, y, R) => { c.strokeStyle = '#a97a3a'; c.lineWidth = 3; c.beginPath(); c.arc(x, y + 6, 15, Math.PI * 1.15, Math.PI * 1.85); c.stroke(); c.strokeStyle = '#f2d9a0'; c.beginPath(); c.arc(x, y + 9, 15, Math.PI * 1.2, Math.PI * 1.8); c.stroke(); }, // dunes
+  3: (c, x, y, R) => { tri(c, x, y, 9, 24, '#7f9ab8'); tri(c, x, y - 8, 7, 18, '#b8cee0'); tri(c, x, y - 15, 5, 12, '#ffffff'); }, // snowy pines
+  4: (c, x, y, R) => { c.fillStyle = '#2c2832'; c.fillRect(x - 6, y - 14, 12, 14); disc(c, x, y - 14, 6, '#2c2832'); c.fillStyle = '#8a8496'; c.fillRect(x - 4, y - 13, 8, 12); disc(c, x, y - 13, 4, '#8a8496'); }, // gravestones
+  5: (c, x, y, R) => { poly(c, [[x, y - 26], [x + 8, y - 8], [x, y], [x - 8, y - 8]], '#6f6a9a'); poly(c, [[x, y - 26], [x + 8, y - 8], [x, y - 8]], '#f0ecff'); }, // crystals
+  6: (c, x, y, R) => { if (R() < 0.4) { c.fillStyle = '#ff6a1a'; c.beginPath(); c.ellipse(x, y, 11, 5, 0, 0, TAU); c.fill(); c.fillStyle = '#ffd070'; c.beginPath(); c.ellipse(x, y, 6, 2.5, 0, 0, TAU); c.fill(); } else { tri(c, x, y, 6, 26, '#120a16'); tri(c, x + 2, y, 3, 20, '#4a3046'); } }, // spires and lava
+  7: (c, x, y, R) => { c.fillStyle = '#d8e8e0'; c.fillRect(x - 2, y - 12, 4, 13); c.fillStyle = '#6a3a9a'; c.beginPath(); c.ellipse(x, y - 13, 12, 7, 0, Math.PI, TAU); c.fill(); disc(c, x - 4, y - 16, 2, '#80ffd0'); disc(c, x + 4, y - 15, 1.6, '#80ffd0'); }, // glowing mushrooms
+  8: (c, x, y, R) => { c.fillStyle = '#3a3028'; c.fillRect(x - 5, y - 22, 10, 22); c.fillStyle = '#c09a50'; c.fillRect(x - 5, y - 22, 10, 4); disc(c, x + 10, y - 6, 7, '#c09a50'); disc(c, x + 10, y - 6, 3, '#3a3028'); }, // chimneys and gears
+  9: (c, x, y, R) => { c.strokeStyle = '#6a4a2a'; c.lineWidth = 3; c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + 4, y - 12, x + 1, y - 22); c.stroke(); for (let i = 0; i < 5; i++) { const a = -Math.PI / 2 + (i - 2) * 0.7; line(c, x + 1, y - 22, x + 1 + Math.cos(a) * 12, y - 22 + Math.sin(a) * 9 + 5, 3, '#3f8a4a'); } }, // palms
+  10: (c, x, y, R) => { tri(c, x, y, 16, 26, '#2a1410'); tri(c, x, y - 14, 6, 12, '#ff6a1a'); disc(c, x, y - 27, 4, '#ffd070'); }, // small volcanoes
+  11: (c, x, y, R) => { poly(c, [[x - 5, y], [x - 3, y - 22], [x + 3, y - 22], [x + 5, y]], '#6f6a9a'); poly(c, [[x, y - 34], [x + 5, y - 28], [x, y - 22], [x - 5, y - 28]], '#fff0b0'); }, // pillars under floating shards
+};
+function island(c, R, x, y, r, col, id) {
+  const pts = [...Array(16)].map((_, i) => { const a = (i / 16) * TAU, rr = r * (0.8 + R() * 0.28); return [x + Math.cos(a) * rr, y + Math.sin(a) * rr * 0.58]; });
+  const shape = (dy = 0, s = 1) => { c.beginPath(); pts.forEach(([px, py], i) => { const X = x + (px - x) * s, Y = y + (py - y) * s + dy; i ? c.lineTo(X, Y) : c.moveTo(X, Y); }); c.closePath(); };
+  const glo = c.createRadialGradient(x, y + r * 0.9, 0, x, y + r * 0.9, r * 1.2); glo.addColorStop(0, 'rgba(0,0,0,0.45)'); glo.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = glo; c.beginPath(); c.ellipse(x, y + r * 0.95, r * 1.1, r * 0.3, 0, 0, TAU); c.fill(); // its shadow on the clouds below
+  // the rock it hangs from
+  const left = Math.min(...pts.map((p) => p[0])), right = Math.max(...pts.map((p) => p[0]));
+  c.fillStyle = lin(c, x, y, x, y + r * 0.95, ['#5a4636', '#2a1e1a', '#0e0a0c']); c.beginPath(); c.moveTo(left + 6, y + 6); c.quadraticCurveTo(x - r * 0.55, y + r * 0.55, x - r * 0.12 + R() * 16, y + r * 0.9); c.quadraticCurveTo(x + r * 0.3, y + r * 0.5, right - 6, y + 6); c.closePath(); c.fill();
+  for (let i = 0; i < 4; i++) { const px = x + (R() - 0.5) * r * 1.3; tri(c, px, y + r * 0.22 + R() * 14, 7 + R() * 8, -(22 + R() * 30), '#1a1214'); }
+  shape(14); c.fillStyle = dark(col, 0.5); c.fill(); shape(7); c.fillStyle = dark(col, 0.3); c.fill(); // the cliff edge
+  shape(0); c.fillStyle = col; c.fill(); c.save(); shape(0); c.clip();
+  const lg = c.createRadialGradient(x - r * 0.3, y - r * 0.25, 0, x, y, r); lg.addColorStop(0, lite(col, 0.32)); lg.addColorStop(0.6, col); lg.addColorStop(1, dark(col, 0.28)); c.fillStyle = lg; c.fillRect(x - r * 1.2, y - r, r * 2.4, r * 2);
+  for (let i = 0; i < 9; i++) { c.fillStyle = i % 2 ? lite(col, 0.14) : dark(col, 0.12); c.beginPath(); c.ellipse(x + (R() - 0.5) * r * 1.5, y + (R() - 0.5) * r * 0.8, 14 + R() * 26, 6 + R() * 10, R() * 0.6, 0, TAU); c.fill(); } // patches of ground
+  if (id === 9) { c.strokeStyle = '#5ab0d0'; c.lineWidth = 9; shape(0, 0.97); c.stroke(); c.strokeStyle = '#d8f4ff'; c.lineWidth = 2.5; shape(0, 0.9); c.stroke(); } // surf round the beach
+  c.restore();
+  const mark = LANDMARK[id] || LANDMARK[1]; const spots = [...Array(11)].map(() => { const a = R() * TAU, d = 0.34 + R() * 0.5; return [x + Math.cos(a) * r * d, y + Math.sin(a) * r * d * 0.52 + 4]; }).sort((a, b) => a[1] - b[1]);
+  for (const [px, py] of spots) mark(c, px, py, R);
+}
+function compass(c, x, y, r) {
+  c.save(); c.translate(x, y); c.globalAlpha = 0.85; c.strokeStyle = '#e9d8b0'; c.lineWidth = 2.5; c.beginPath(); c.arc(0, 0, r, 0, TAU); c.stroke(); c.lineWidth = 1.2; c.beginPath(); c.arc(0, 0, r * 0.78, 0, TAU); c.stroke();
+  for (let i = 0; i < 8; i++) { const a = (i / 8) * TAU, l = i % 2 ? r * 0.55 : r * 1.05, wd = i % 2 ? 6 : 10; c.save(); c.rotate(a); poly(c, [[0, -l], [wd, 0], [0, 0]], '#e9d8b0'); poly(c, [[0, -l], [-wd, 0], [0, 0]], '#8a7450'); c.restore(); }
+  disc(c, 0, 0, 5, '#f2b632'); c.restore();
+}
+let mapUrl = null;
+/** The painted world map as an image URL; `stages` gives each island its place and its number. */
+export function worldMapArt(stages) {
+  if (mapUrl) return mapUrl;
+  const w = 1500, hgt = 900; const cv = document.createElement('canvas'); cv.width = w; cv.height = hgt; const c = cv.getContext('2d', { willReadFrequently: true }); const R = seeded(4242);
+  const g = c.createRadialGradient(w * 0.5, hgt * 0.45, 60, w * 0.5, hgt * 0.5, w * 0.75); g.addColorStop(0, '#2f5068'); g.addColorStop(0.55, '#172a40'); g.addColorStop(1, '#0a1220'); c.fillStyle = g; c.fillRect(0, 0, w, hgt);
+  for (let i = 0; i < 260; i++) { c.fillStyle = `rgba(255,244,220,${(0.08 + R() * 0.4).toFixed(2)})`; c.beginPath(); c.arc(R() * w, R() * hgt, 0.6 + R() * 1.6, 0, TAU); c.fill(); } // stars in the gap between worlds
+  for (let i = 0; i < 30; i++) { const x = R() * w, y = R() * hgt, s = 60 + R() * 150; const cg = c.createRadialGradient(x, y, 0, x, y, s); cg.addColorStop(0, 'rgba(200,222,240,0.13)'); cg.addColorStop(1, 'rgba(200,222,240,0)'); c.fillStyle = cg; c.save(); c.translate(x, y); c.scale(1.9, 0.5); c.beginPath(); c.arc(0, 0, s, 0, TAU); c.fill(); c.restore(); } // cloud bands
+  const order = stages.map((_, i) => i).sort((a, b) => stages[a].mapPos[1] - stages[b].mapPos[1]);
+  for (const i of order) { const s = stages[i]; island(c, seeded(100 + s.id * 37), s.mapPos[0] * w, s.mapPos[1] * hgt, 112, LAND[s.id] || '#7a7a7a', s.id); }
+  compass(c, 110, hgt - 105, 58);
+  finish(c, w, hgt); mapUrl = cv.toDataURL('image/jpeg', 0.9); return mapUrl;
+}

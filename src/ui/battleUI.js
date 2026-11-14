@@ -32,7 +32,7 @@ export class BattleScene {
     this.app = app; this.world = app.world; this.stage = stage; this.enc = enc;
     this.labels = new Map(); this.pending = null; this.inputOn = false; this.hoverCell = null; this.inspect = null;
     // co-op battles use the party snapshot every client received (each hero carries its card levels and potions)
-    this.battle = new Battle({ stage, enemies: enc.enemies, kind: enc.kind, party: party ? JSON.parse(JSON.stringify(party)) : G.state.party, levelOf: cardLevel, inv: party ? null : G.state.inv, nextBuff: G.state.nextBuff, view: this, seed });
+    this.battle = new Battle({ stage, enemies: enc.enemies, kind: enc.kind, board: enc.board ?? null, party: party ? JSON.parse(JSON.stringify(party)) : G.state.party, levelOf: cardLevel, inv: party ? null : G.state.inv, nextBuff: G.state.nextBuff, view: this, seed });
     // co-op lockstep: every hero action is a numbered command applied in the same order on every client
     this.cmdN = 0; this.remote = new Map(); this.applying = false;
     this.coop = Coop.active;

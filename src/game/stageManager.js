@@ -23,6 +23,7 @@ export const NODE_INFO = {
   '*': { type: 'shrine', name: 'Shrine', icon: 'shrine', color: '#9ad8ff' },
 };
 
+export const MINI_NEEDS = 2; // monster groups to beat before a stage's mini boss can be challenged
 export class StageManager {
   constructor() { this.stage = null; this.cells = new Map(); }
 
@@ -101,6 +102,14 @@ export class StageManager {
 
   // Loot is each player's own luck: never seeded from the map or the clock, which co-op players share.
   luck() { return new RNG((Math.random() * 2 ** 32) >>> 0); }
+  // What still stands between the party and a boss node: null when it may be challenged.
+  //   mini boss: MINI_NEEDS monster groups beaten in this stage · MVP: every mini boss beaten
+  sealOf(c) {
+    const type = c?.node?.type; const all = [...this.cells.values()];
+    if (type === 'mini') { const won = all.filter((x) => x.node?.type === 'monster' && this.isCleared(x)).length; return won < MINI_NEEDS ? { kind: 'groups', left: MINI_NEEDS - won } : null; }
+    if (type === 'boss') return all.some((x) => x.node?.type === 'mini' && !this.isCleared(x)) ? { kind: 'mini' } : null;
+    return null;
+  }
   markCleared(c) { this.run.cleared[Hex.key(c.q, c.r)] = 1; touch(); }
 
   // ───── rewards ─────

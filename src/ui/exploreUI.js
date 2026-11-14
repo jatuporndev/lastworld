@@ -73,7 +73,11 @@ export class ExploreScene {
     const left = [...sm.cells.values()].filter((c) => sm.activeNode(c));
     const boss = left.find((c) => c.node.type === 'boss');
     const bossName = MONSTERS[this.stage.boss].name;
-    this.el.obj.textContent = boss ? t('Objective: find and defeat {boss}', { boss: bossName }) : t('{boss} has been defeated', { boss: bossName });
+    const mini = left.find((c) => c.node.type === 'mini'); const need = mini ? sm.sealOf(mini) : null; const miniName = MONSTERS[this.stage.mini[0]].name;
+    this.el.obj.textContent = !boss ? t('{boss} has been defeated', { boss: bossName })
+      : need ? t('Objective: defeat {n} monster group(s) to draw out {mini}', { n: need.left, mini: miniName })
+        : mini ? t('Objective: defeat {mini} to break the seal on {boss}', { mini: miniName, boss: bossName })
+          : t('Objective: find and defeat {boss}', { boss: bossName });
   }
 
   bind() {
@@ -170,6 +174,14 @@ export class ExploreScene {
     const node = c.node; const sm = this.sm;
     switch (node.type) {
       case 'monster': case 'mini': case 'boss': {
+        const seal = sm.sealOf(c);
+        if (seal) { // not yet: say what has to be done first, and step back
+          audio.sfx('error');
+          const why = seal.kind === 'groups' ? t('{name} will not face you yet. Defeat {n} more monster group(s) in this stage first.', { name: MONSTERS[this.stage.mini[0]].name, n: seal.left }) : t('A seal guards {boss}. Defeat {mini} to break it.', { boss: MONSTERS[this.stage.boss].name, mini: MONSTERS[this.stage.mini[0]].name });
+          this.share('note', { text: why });
+          await new Promise((res) => { const m = openModal(h('div.confirm', h('div.big-icon', icon(node.type === 'boss' ? 'crown' : 'horns', '#806b54', 72)), h('p', why), h('div.row.center', btn(t('OK'), () => { m.close(); res(); }, { cls: 'primary' }))), { title: t('Sealed'), closable: false, cls: 'narrow' }); });
+          await this.retreat(); break;
+        }
         const enc = sm.encounterFor(c);
         this.share('enc', { enc: { kind: enc.kind, enemies: enc.enemies }, name: node.name });
         const go = await this.encounterPrompt(enc, node);

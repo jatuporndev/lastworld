@@ -1003,4 +1003,9 @@ export const TH = {
   'Aeon falls silent, and the pen drops from its hand. The page it was erasing is still there: your world, whole, with every realm you walked through written back into it.': 'เอออนเงียบลง ปากกาหล่นจากมือ หน้าที่มันกำลังลบยังอยู่ตรงนั้น: โลกของคุณ ครบถ้วน ทุกแดนที่คุณเดินผ่านถูกเขียนกลับคืน',
   'Nobody is left to unmake it. What is written next is up to the people who live there.': 'ไม่เหลือใครจะลบมันอีก สิ่งที่จะถูกเขียนต่อไปขึ้นอยู่กับผู้คนที่อาศัยอยู่ที่นั่น',
   'The Last World is the first of many again.': 'โลกใบสุดท้ายกลับเป็นใบแรกของอีกมากมาย',
+  '{name} will not face you yet. Defeat {n} more monster group(s) in this stage first.': '{name} ยังไม่ยอมออกมาสู้ ต้องปราบมอนสเตอร์ในด่านนี้อีก {n} กลุ่มก่อน',
+  'A seal guards {boss}. Defeat {mini} to break it.': 'มีผนึกคุ้มกัน{boss}อยู่ ต้องปราบ{mini}เพื่อทำลายผนึก',
+  'Sealed': 'ถูกผนึก',
+  'Objective: defeat {n} monster group(s) to draw out {mini}': 'เป้าหมาย: ปราบมอนสเตอร์ {n} กลุ่มเพื่อล่อ{mini}ออกมา',
+  'Objective: defeat {mini} to break the seal on {boss}': 'เป้าหมาย: ปราบ{mini}เพื่อทำลายผนึกของ{boss}',
 };

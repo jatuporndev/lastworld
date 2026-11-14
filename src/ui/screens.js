@@ -15,6 +15,7 @@ import { ui, btn, icon, openModal, heroSprite, monsterSprite, cardEl, toast, tog
 import { openMenu, openQuests } from './panels.js';
 import { coopModal, inviteFriends } from './coopUI.js';
 import { Coop } from '../net/coop.js';
+import { worldMapArt } from './cardArt.js';
 
 function mount(el) { ui().querySelectorAll('.screen').forEach((s) => s.remove()); ui().appendChild(el); return el; }
 export function clearScreens() { ui().querySelectorAll('.screen, .battle-hud, .explore-hud').forEach((s) => s.remove()); }
@@ -236,13 +237,14 @@ export function worldMapScreen(app) {
   const detail = h('div.wm-detail'); const nodes = h('div.wm-nodes');
   const W = 1000, H = 600;
   const pts = STAGES.map((s) => [s.mapPos[0] * W, s.mapPos[1] * H]);
-  const pathD = pts.map((p, i) => { if (!i) return `M${p[0]},${p[1]}`; const q = pts[i - 1]; const mx = (p[0] + q[0]) / 2 + (i % 2 ? 40 : -40), my = (p[1] + q[1]) / 2 + (i % 2 ? -30 : 30); return `Q${mx},${my} ${p[0]},${p[1]}`; }).join(' ');
-  const svg = h('div.wm-svg', { html: `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><path class="wm-path-bg" d="${pathD}"/><path class="wm-path" d="${pathD}" pathLength="100" style="stroke-dasharray:${((st.unlocked - 1) / (STAGES.length - 1)) * 100} 100"/></svg>` });
+  const trail = (n) => pts.slice(0, n).map((p, i) => { if (!i) return `M${p[0]},${p[1]}`; const q = pts[i - 1]; const mx = (p[0] + q[0]) / 2 + (i % 2 ? 40 : -40), my = (p[1] + q[1]) / 2 + (i % 2 ? -30 : 30); return `Q${mx},${my} ${p[0]},${p[1]}`; }).join(' ');
+  const pathD = trail(pts.length), openD = trail(Math.max(1, st.unlocked)); // the whole route, and the part already open
+  const svg = h('div.wm-svg', { html: `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><path class="wm-path-bg" d="${pathD}"/><path class="wm-path" d="${openD}"/></svg>` });
   const render = () => {
     nodes.replaceChildren(...STAGES.map((s) => { const locked = s.id > st.unlocked; const cleared = !!st.cleared[s.id];
       return h('div.wm-node' + (locked ? '.locked' : '') + (cleared ? '.cleared' : '') + (s.id === selId ? '.sel' : '') + (s.id === st.unlocked && !cleared ? '.next' : ''), { style: { left: s.mapPos[0] * 100 + '%', top: s.mapPos[1] * 100 + '%', '--c': '#' + s.sky.toString(16).padStart(6, '0') },
         onclick: () => { selId = s.id; audio.sfx(locked ? 'error' : 'click'); render(); } },
-        h('div.wm-pin', locked ? '🔒' : cleared ? '✔' : s.id), h('div.wm-label', s.name));
+        h('div.wm-pin', h('span', locked ? '?' : s.id), cleared ? h('i.wm-done', '✓') : null), h('div.wm-label', locked ? t('Stage {n}', { n: s.id }) : s.name));
     }));
     const s = STAGES[selId - 1]; const locked = s.id > st.unlocked; const boss = MONSTERS[s.boss]; const cleared = !!st.cleared[s.id];
     detail.replaceChildren(
@@ -260,7 +262,7 @@ export function worldMapScreen(app) {
         bagButton(() => openMenu(app), myHeroes().reduce((s, p) => s + p.statPoints + p.skillPoints, 0)), questButton(() => openQuests(app), q)),
       h('div.wm-actions', h('div.res', icon('coin', '#ffd24a', 18), fmt(st.gold)), h('div.res', icon('gem', '#9ad8ff', 18), fmt(st.shards)),
         btn(t('Forge'), () => openMenu(app, 'forge'), { cls: 'small', iconName: 'anvil' }), Coop.active ? null : btn(t('Invite Friends'), () => inviteFriends(app), { cls: 'small', iconName: 'banner', tip: t('Open this world to friends (online co-op)'), disabled: !Net.online }), btn(t('Title'), () => app.toTitle(), { cls: 'small' }))),
-    h('div.wm-main', h('div.wm-map', h('div.wm-parchment'), svg, nodes, h('div.wm-compass', '✦')), detail));
+    h('div.wm-main', h('div.wm-map', h('div.wm-chart', { style: { backgroundImage: `url(${worldMapArt(STAGES)})` } }), svg, nodes), detail));
   el._refresh = () => { if (el.isConnected) worldMapScreen(app); };
   return mount(el);
 }

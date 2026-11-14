@@ -23,8 +23,9 @@ export { DICE } from '../data/cards.js';
 
 // Builds the battle board from the stage's hand-designed layouts (see data/stages.js).
 // Skirmishes pick one of the stage's boards; the MVP fight always uses the stage's boss arena.
-export function generateBoard(stage, kind, rng) {
-  const layout = kind === 'boss' ? stage.boards.boss : rng.pick(stage.boards.skirmish);
+export function generateBoard(stage, kind, rng, pick = null) {
+  const drawn = rng.pick(stage.boards.skirmish); // (always drawn, so the dice that follow are the same whether or not a board was picked)
+  const layout = kind === 'boss' ? stage.boards.boss : stage.boards.skirmish[pick] || drawn;
   const parsed = parseLayout(layout);
   // centre the board on the origin so the camera and effects stay simple
   let cx = 0, cz = 0;
@@ -52,12 +53,12 @@ export function generateBoard(stage, kind, rng) {
 }
 
 export class Battle {
-  constructor({ stage, enemies, kind = 'normal', party, levelOf = () => 0, inv = null, nextBuff = null, view = null, seed = Date.now() }) {
+  constructor({ stage, enemies, kind = 'normal', party, levelOf = () => 0, inv = null, nextBuff = null, view = null, seed = Date.now(), board = null }) {
     this.stage = stage; this.kind = kind; this.view = view;
     this.rng = new RNG(seed); this.seed = seed;
     this._ids = 1; // per-battle ids keep co-op clients in lockstep
     this.nextId = () => this._ids++;
-    this.board = generateBoard(stage, kind, this.rng);
+    this.board = generateBoard(stage, kind, this.rng, board);
     this.units = []; this.round = 0; this.order = []; this.current = null; this.result = null;
     this.inv = inv; this.combos = 0; this.kills = []; this.log = [];
     // MVP arenas with nests: a lone hero faces slower nests that keep one hatchling each

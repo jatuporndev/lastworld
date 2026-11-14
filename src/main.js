@@ -147,6 +147,11 @@ class App {
     const seed = (Math.random() * 2 ** 31) | 0;
     const party = Coop.active ? G.state.party.map((hero) => this.heroSnap(hero)) : null;
     const at = cell ? { q: cell.q, r: cell.r } : null;
+    if (enc.kind !== 'boss') { // a different board from the last skirmish fought in this stage
+      const n = stage.boards.skirmish.length; const last = (this._lastBoard ||= {})[stage.id]; let ix = Math.floor(Math.random() * n);
+      if (n > 1 && ix === last) ix = (ix + 1 + Math.floor(Math.random() * (n - 1))) % n;
+      this._lastBoard[stage.id] = ix; enc = { ...enc, board: ix };
+    }
     if (Coop.isHost) Coop.send({ t: 'battle', stageId: stage.id, enc, seed, party, cell: at, nextBuff: G.state.nextBuff });
     await this.runBattle({ stage, enc, seed, party, cell });
   }
