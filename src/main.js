@@ -14,6 +14,7 @@ import { MONSTERS } from './data/monsters.js';
 import { STAGE_BY_ID, STAGES } from './data/stages.js';
 import { initTooltips, transition, toast, openModal, btn, topModal, banner } from './ui/components.js';
 import { titleScreen, playScreen, charCreateScreen, worldMapScreen, authModal, clearScreens, epilogue } from './ui/screens.js';
+import { travelScene } from './ui/travelScene.js';
 import { ExploreScene, rewardsModal, stageIntro, lootModal, battleSummary, ownModalOpen } from './ui/exploreUI.js';
 import { BattleScene } from './ui/battleUI.js';
 import { Coop } from './net/coop.js';
@@ -135,11 +136,24 @@ class App {
     await this.menuScreen(() => { worldMapScreen(this); audio.music('world'); });
     this.hostScene();
   }
-  async enterStage(id) {
+  // `cut`: build the stage at once with no fade to black (something else is covering the screen, e.g. the journey scene)
+  async enterStage(id, { cut = false } = {}) {
     const st = G.state; const fresh = !(st.run && st.run.stageId === id);
-    await transition(() => { this.disposeScene(); clearScreens(); this.leaveDiorama(); this.scene = new ExploreScene(this, id, { fresh }); this.scene.build(); });
+    const build = () => { this.disposeScene(); clearScreens(); this.leaveDiorama(); this.scene = new ExploreScene(this, id, { fresh }); this.scene.build(); };
+    if (cut) build(); else await transition(build);
     this.hostScene();
     if (!st.seenIntro[id]) { st.seenIntro[id] = true; touch(); await stageIntro(STAGE_BY_ID[id]); }
+  }
+
+  // After a realm's boss falls for the first time: the journey scene, then straight into the next realm.
+  // The scene tells the new realm's story, so its intro window is not shown again on arrival.
+  async travelTo(from, to) {
+    G.state.seenIntro[to] = true; touch();
+    if (Coop.isHost) Coop.send({ t: 'travel', a: from, b: to }); // (`from` is taken: every message carries its sender there)
+    audio.music('world');
+    const lift = await travelScene(from, to);
+    await this.enterStage(to, { cut: true }); // laid out under the picture, which then dissolves into it
+    await sleep(120); await lift?.(this.world);
   }
 
   // ───── battle ─────
@@ -166,6 +180,7 @@ class App {
     this.inBattle = false;
     if (party) this.takeBack(bs.battle);
     if (result === 'victory') {
+      const newGround = !G.state.cleared[stageId]; // this world had not beaten this realm before (a veteran hero may have, elsewhere)
       const r = this.sm.battleRewards(bs.battle, cell);
       this.syncHeroNow();
       this.setMine('sum', true);
@@ -175,10 +190,14 @@ class App {
       if (guest) { bs.waitForHost?.(); return; } // the host's next scene takes the guest on
       if (enc.kind === 'boss') {
         this.sm.leave();
-        await this.toWorldMap();
-        if (stageId === 6 && r.first) await epilogue(this); // the Abyss falls: the story's first ending, and a door behind it
-        if (stageId === STAGES.length && r.first) await epilogue(this, true);
-        else if (r.first) banner(t('New Realm Unlocked'), STAGE_BY_ID[Math.min(STAGES.length, stageId + 1)].name, 'victory', 2200);
+        const last = stageId === STAGES.length;
+        if (!newGround || last) { // a realm beaten again, or the very last one: back to the world map
+          await this.toWorldMap();
+          if (r.first && last) await epilogue(this, true);
+          return;
+        }
+        if (stageId === 6 && r.first) { await this.toWorldMap(); await epilogue(this); } // the Abyss falls: the story's first ending, and a door behind it
+        await this.travelTo(stageId, stageId + 1); // the road to the next realm; no stage to choose
         return;
       }
     } else {
@@ -297,10 +316,14 @@ class App {
         Object.assign(st, { unlocked: w.unlocked || 1, cleared: w.cleared || {}, run: w.run || null, seenIntro: w.seenIntro || {}, nextBuff: w.nextBuff || null });
         if (st.run) { st.run.cleared = st.run.cleared || {}; st.run.seen = st.run.seen || {}; st.run.shop = st.run.shop || {}; }
         this.closeGuestModals(); this.syncParty();
-        if (m.s === 'explore') await transition(() => { this.disposeScene(); clearScreens(); this.leaveDiorama(); this.scene = new ExploreScene(this, m.stageId, { spectator: true }); this.scene.build(); });
-        else await this.menuScreen(() => { guestWaitScreen(this, t('The host is choosing the next stage…')); audio.music('world'); });
+        const lift = this.lift; this.lift = null; // the journey picture, if it is still covering the screen
+        const build = () => { this.disposeScene(); clearScreens(); this.leaveDiorama(); this.scene = new ExploreScene(this, m.stageId, { spectator: true }); this.scene.build(); };
+        if (m.s === 'explore' && lift) { build(); await sleep(120); await lift(this.world); }
+        else if (m.s === 'explore') await transition(build);
+        else { await this.menuScreen(() => { guestWaitScreen(this, t('The host is choosing the next stage…')); audio.music('world'); }); lift?.(); }
         break;
       }
+      case 'travel': this.closeGuestModals(); document.querySelector('.rc-wait')?.remove(); audio.music('world'); this.lift = await travelScene(m.a, m.b); break; // the host's scene message follows it and lifts the picture
       case 'walk': if (sc) await sc.walk(m.path); break;
       // treasure and resources: every player gets their own share
       case 'loot': {

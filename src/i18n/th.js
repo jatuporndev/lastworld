@@ -1045,4 +1045,5 @@ export const TH = {
   'EXP': 'EXP', 'Skill Point': 'แต้มสกิล', 'Fully restored': 'ฟื้นฟูเต็ม', 'HP restored': 'ฟื้นฟู HP', 'HP lost': 'เสีย HP',
   '{name} next battle': '{name} ในการต่อสู้ครั้งหน้า', 'New card': 'การ์ดใหม่', 'Before': 'ก่อน', 'Upgraded to +{n}': 'อัปเกรดเป็น +{n}',
   'Sound': 'เสียง', 'Off': 'ปิด',
+  'Leaving {stage}': 'ออกเดินทางจาก{stage}',
 };
