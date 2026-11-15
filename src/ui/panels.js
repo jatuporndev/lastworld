@@ -10,7 +10,7 @@ import { CONSUMABLES, MATERIALS, RECIPES, BASES, ITEM_RARITY, makeEquipment } fr
 import { QUESTS } from '../data/events.js';
 import { Net } from '../net/firebase.js';
 import { Coop } from '../net/coop.js';
-import { itemPic, openModal, cardEl, itemTip, heroSprite, bar, btn, icon, toast, toggleFullscreen, confirmBox, dragPiece } from './components.js';
+import { itemPic, openModal, cardEl, itemTip, heroSprite, bar, btn, icon, toast, toggleFullscreen, confirmBox, dragPiece, volumeRow } from './components.js';
 
 const TABS = [['hero', 'Heroes', 'crown'], ['equip', 'Bag', 'bag'], ['deck', 'Deck', 'book'], ['forge', 'Forge', 'anvil'], ['system', 'System', 'star']];
 let sel = 0; // selected hero index
@@ -210,9 +210,9 @@ function questTab(render) {
 // ───── System ─────
 function systemTab(render, app, modal) {
   const st = G.state;
-  const slider = (label, key) => h('label.slider', h('span', label), h('input', { type: 'range', min: 0, max: 100, value: Math.round(st.settings[key] * 100), oninput: (e) => { st.settings[key] = e.target.value / 100; audio.setVolumes(st.settings.music, st.settings.sfx); touch(); } }));
+  const vol = (label, ic, key, ping) => volumeRow(label, ic, () => st.settings[key], (v) => { st.settings[key] = v; audio.setVolumes(st.settings.music, st.settings.sfx); touch(); }, ping);
   return h('div.tab-system',
-    h('div.sec-title', t('Settings')), slider(t('Music'), 'music'), slider(t('Sound Effects'), 'sfx'),
+    h('div.sec-title', t('Settings')), vol(t('Music'), 'orb', 'music'), vol(t('Sound Effects'), 'bolt', 'sfx', 'coin'),
     h('div.row', h('span', t('Language')), btn('ภาษาไทย', () => setLang('th'), { cls: 'small' + (LANG === 'th' ? ' primary' : '') }), btn('English', () => setLang('en'), { cls: 'small' + (LANG === 'en' ? ' primary' : '') })),
     h('div.row', btn(t('Toggle Fullscreen'), toggleFullscreen, { iconName: 'star' }), btn(t('Save Now'), async () => { await app.saveNow(); toast(t('Game saved'), 'good'); })),
     h('div.sec-title', t('Account')), h('p.note', Net.label()),

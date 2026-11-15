@@ -1044,4 +1044,5 @@ export const TH = {
   'When the world broke, this sea stayed where it was and the ground fell away beneath it. There is no shore left to walk on: the party takes to small boats, and whatever lives here comes up out of the water to meet them.': 'เมื่อโลกแตก ทะเลนี้ยังอยู่ที่เดิมแต่พื้นดินข้างใต้ร่วงหายไป ไม่เหลือฝั่งให้เดิน ปาร์ตี้ต้องลงเรือลำเล็ก และทุกสิ่งที่อาศัยอยู่ที่นี่จะโผล่ขึ้นจากน้ำมาหา',
   'EXP': 'EXP', 'Skill Point': 'แต้มสกิล', 'Fully restored': 'ฟื้นฟูเต็ม', 'HP restored': 'ฟื้นฟู HP', 'HP lost': 'เสีย HP',
   '{name} next battle': '{name} ในการต่อสู้ครั้งหน้า', 'New card': 'การ์ดใหม่', 'Before': 'ก่อน', 'Upgraded to +{n}': 'อัปเกรดเป็น +{n}',
+  'Sound': 'เสียง', 'Off': 'ปิด',
 };

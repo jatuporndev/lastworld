@@ -11,7 +11,7 @@ import { MONSTERS } from '../data/monsters.js';
 import { UNIQUES } from '../data/items.js';
 import { CARDS } from '../data/cards.js';
 import { Net } from '../net/firebase.js';
-import { ui, btn, icon, openModal, heroSprite, monsterSprite, cardEl, toast, toggleFullscreen, confirmBox, bar, bagButton, questButton } from './components.js';
+import { ui, btn, icon, openModal, heroSprite, monsterSprite, cardEl, toast, toggleFullscreen, confirmBox, bar, bagButton, questButton, volumeRow } from './components.js';
 import { openMenu, openQuests } from './panels.js';
 import { coopModal, inviteFriends } from './coopUI.js';
 import { Coop } from '../net/coop.js';
@@ -21,6 +21,15 @@ function mount(el) { ui().querySelectorAll('.screen').forEach((s) => s.remove())
 export function clearScreens() { ui().querySelectorAll('.screen, .battle-hud, .explore-hud').forEach((s) => s.remove()); }
 
 // ───────── Title ─────────
+// Settings from the title screen: how loud the music and the sounds are, and the language. Saved when the slip is closed.
+export function settingsModal(app) {
+  const S = G.profile.settings; let changed = false; const vol = (label, ic, key, ping) => volumeRow(label, ic, () => S[key], (v) => { S[key] = v; changed = true; audio.setVolumes(S.music, S.sfx); }, ping);
+  openModal(h('div.settings',
+    h('div.sec-title', t('Sound')), vol(t('Music'), 'orb', 'music'), vol(t('Sound Effects'), 'bolt', 'sfx', 'coin'),
+    h('div.sec-title', t('Language')), h('div.row', btn('ภาษาไทย', () => setLang('th'), { cls: 'small' + (LANG === 'th' ? ' primary' : '') }), btn('English', () => setLang('en'), { cls: 'small' + (LANG === 'en' ? ' primary' : '') }))),
+  { title: t('Settings'), cls: 'narrow', onClose: () => { if (changed) app.saveNow({ gap: 60000 }); } }); // nothing is written unless a level moved
+}
+
 export function titleScreen(app) {
   const P = G.profile; const L = P.last || {};
   const lastChar = P.chars[L.char]; const lastWorld = P.worlds[L.world];
@@ -41,9 +50,10 @@ export function titleScreen(app) {
         item(t('Play with Friends'), () => coopModal(app), { disabled: !Net.online }))),
     h('div.ts-top',
       shortcut(t(Net.online && Net.user ? 'Account' : 'Sign In'), 'book', () => app.openAuth(() => app.toTitle(true))),
+      shortcut(t('Settings'), 'wrench', () => settingsModal(app)),
       shortcut(t('Fullscreen'), 'flag', toggleFullscreen),
       shortcut(LANG === 'th' ? 'English' : 'ภาษาไทย', 'star', () => setLang(LANG === 'th' ? 'en' : 'th'))),
-    h('div.title-foot', h('span.net' + (Net.online && Net.user ? '.on' : ''), Net.label()), h('span', 'v1.1 · Three.js · Firebase')));
+    h('div.title-foot', h('span.net' + (Net.online && Net.user ? '.on' : ''), Net.label()), h('span', 'v1.1')));
   // the board sits to the right of the menu
   app.world.focus({ x: -4.6, z: 0.6, size: 13 }, 700);
   return mount(el);

@@ -214,6 +214,20 @@ export function confirmBox(title, text, yes = t('Confirm'), no = t('Cancel')) {
   });
 }
 
+// A volume setting as a row of ten pips: press or drag along them to set the level; pressing the lit first pip mutes.
+// `get()` returns 0..1, `set(v)` stores it. `ping` names a sound played on each change, so the level can be heard.
+export function volumeRow(label, ic, get, set, ping = null) {
+  const pips = Array.from({ length: 10 }, () => h('i')); const num = h('b.vol-n');
+  const paint = () => { const n = Math.round(get() * 10); pips.forEach((p, i) => p.classList.toggle('on', i < n)); num.textContent = n ? n * 10 + '%' : t('Off'); };
+  const bar = h('div.vol', ...pips);
+  const at = (e, press) => { const r = bar.getBoundingClientRect(); let n = Math.max(0, Math.min(10, Math.ceil(((e.clientX - r.left) / r.width) * 10))); const was = Math.round(get() * 10);
+    if (press && n === 1 && was === 1) n = 0; if (n === was) return; set(n / 10); paint(); if (ping) audio.sfx(ping); };
+  bar.addEventListener('pointerdown', (e) => { audio.init(); bar.setPointerCapture?.(e.pointerId); at(e, true); const move = (ev) => at(ev, false); const up = () => { bar.removeEventListener('pointermove', move); bar.removeEventListener('pointerup', up); bar.removeEventListener('pointercancel', up); };
+    bar.addEventListener('pointermove', move); bar.addEventListener('pointerup', up); bar.addEventListener('pointercancel', up); });
+  paint();
+  return h('div.vol-row', icon(ic, '#3a2a20', 24), h('span', label), bar, num);
+}
+
 export function toast(text, cls = '') {
   let host = document.getElementById('toasts');
   if (!host) { host = h('div#toasts'); document.getElementById('game').appendChild(host); }

@@ -567,6 +567,24 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .modal.boss-modal { box-shadow: 0 0.35em 0 var(--accent), 0 0.9em 2em rgba(0, 0, 0, 0.4); }
 .modal.auth-modal { background: var(--paper); }
 .modal small, .wm-detail small, .ps-col small { color: var(--dim-d); }
+/* a volume setting: ten pips to press or drag along, lit in the coin colour up to the level */
+.vol-row { display: flex; align-items: center; gap: 0.8em; margin: 0.6em 0; } .vol-row > span { width: 8.5em; font-family: var(--f-head); } .vol-row > .icon { flex: none; }
+.vol { display: flex; gap: 0.28em; padding: 0.45em 0; cursor: pointer; touch-action: none; } .vol i { width: 1.3em; height: 2em; border-radius: 0.25em; background: var(--paper3); pointer-events: none; }
+.vol i.on { background: var(--coin); box-shadow: 0 0.16em 0 rgba(0, 0, 0, 0.25); } .vol-n { width: 3em; text-align: right; font-family: var(--f-head); font-weight: 600; color: var(--dim-d); }
+/* a boss's entrance: black bars close in like a film, the board plays the scene, and the name is struck across the screen */
+.cine { position: absolute; inset: 0; z-index: 58; overflow: hidden; }
+.cine-bar { position: absolute; left: 0; right: 0; height: 11%; background: #07060a; transition: transform 0.45s ease; }
+.cine-bar.top { top: 0; transform: translateY(-101%); } .cine-bar.bottom { bottom: 0; transform: translateY(101%); } .cine.in .cine-bar { transform: none; }
+.cine-card { position: absolute; left: 6%; bottom: 16%; max-width: 62%; text-align: left; visibility: hidden; pointer-events: none; transition: opacity 0.35s; }
+.cine-card.show { visibility: visible; } .cine-card.out { opacity: 0; }
+.cine-rank { font-family: var(--f-head); font-weight: 600; font-size: 1.05em; letter-spacing: 0.26em; color: var(--coin); text-shadow: var(--tshadow); }
+.cine-name { font-family: var(--f-head); font-weight: 700; font-size: 4.6em; line-height: 1.08; color: var(--scene); text-shadow: 0 0.06em 0 rgba(0, 0, 0, 0.6), var(--tshadow); }
+.cine-stroke { height: 0.5em; margin: 0.25em 0 0.6em; background: var(--el); border-radius: 0.2em 0.7em 0.25em 0.6em; transform-origin: left; box-shadow: 0 0.2em 0 rgba(0, 0, 0, 0.45); }
+.cine-quote { min-height: 2.8em; max-width: 30em; font-size: 1.35em; font-style: italic; line-height: 1.35; color: var(--scene); text-shadow: var(--tshadow); }
+.cine-card.show .cine-rank { animation: cineRank 0.3s ease-out both; } .cine-card.show .cine-name { animation: cineName 0.42s cubic-bezier(0.2, 1.3, 0.4, 1) both; } .cine-card.show .cine-stroke { animation: cineStroke 0.36s cubic-bezier(0.3, 0.9, 0.3, 1) 0.22s both; }
+@keyframes cineRank { from { opacity: 0; transform: translateY(0.6em); } }
+@keyframes cineName { from { opacity: 0; transform: translateX(-1.3em) skewX(-12deg) scale(1.18); } }
+@keyframes cineStroke { from { transform: scaleX(0); } }
 /* what the party just got: tokens, gear and cards dropped on the table one by one, with no window around them */
 .modal.reveal { background: none; box-shadow: none; min-width: 0; width: auto; max-width: 96vw; overflow: visible; text-align: center; animation: none; }
 .modal.reveal .modal-title { justify-content: center; text-align: center; padding: 0 0 0.15em; font-size: 2.2em; font-weight: 700; color: var(--coin); text-shadow: var(--tshadow); animation: rvTitle 0.3s ease-out both; }
@@ -980,6 +998,7 @@ html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent
   .wm-screen { padding: 0.5em 0.9em; gap: 0.5em; } .wm-top { gap: 0.8em; } .wm-top h2 { font-size: 1.3em; } .wm-actions .btn { padding: 0.45em 0.7em; font-size: 0.9em; }
   .wm-detail { flex-basis: 23em; padding: 0.6em 0.8em; } .wm-d-head h3 { font-size: 1.3em; } .wm-pin { width: 3em; height: 3em; }
   /* modals and the hero menu */
+  .cine-name { font-size: 3.1em; } .cine-quote { font-size: 1.1em; min-height: 2.4em; } .cine-card { bottom: 15%; max-width: 74%; }
   .modal.reveal .modal-title { font-size: 1.7em; } .modal.reveal .card { font-size: 0.78em; } .rv-was .card { font-size: 0.64em; } .rv-token { width: 4.4em; height: 4.4em; } .rv-row { margin: 0.9em 0 1.2em; gap: 1em 1.2em; }
   .modal { max-width: 96vw; max-height: 96vh; min-width: 0; } .modal.menu-modal { width: 96vw; height: 96vh; } .modal.narrow { width: min(34em, 94vw); } .modal.wide, .modal.rewards-modal { width: min(62em, 96vw); }
   .menu { gap: 0.6em; } .menu-side { width: 9.5em; } .tab { padding: 0.45em 0.6em; }

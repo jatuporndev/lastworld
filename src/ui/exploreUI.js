@@ -393,7 +393,7 @@ export function lootModal(title, r, { view = false } = {}) {
   Object.entries(r.mats || {}).forEach(([id, n]) => pieces.push({ k: 'mat', id, n }));
   (r.cons || []).forEach((id) => pieces.push({ k: 'cons', id }));
   (r.items || []).forEach((item) => pieces.push({ k: 'item', item }));
-  (r.cards || []).forEach((id) => pieces.push({ k: 'card', id, lv: G.state.cards[id]?.lv || 0 }));
+  (r.cards || []).forEach((id) => pieces.push({ k: 'card', id, lv: G.state?.cards[id]?.lv || 0 }));
   return reveal({ title, pieces, button: t(view ? 'OK' : 'Take'), view });
 }
 
