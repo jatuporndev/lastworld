@@ -384,6 +384,10 @@ const SCENE = {
   a_quiver(c, P, R) { MO.quiver(c, P, R, 300, 360, 1, 0.3); halo(c, P, 360, 150, 220, 0.4); },
   a_double(c, P, R, card) { PIC.arrow(c, P, R, card, 250, 350, 0.82); PIC.arrow(c, P, R, card, 350, 270, 0.82); halo(c, P, 460, 150, 220, 0.5); },
   // the forge
+  b_mortar(c, P, R) { MO.speed(c, P, R, 436, 120, -1.05, 8, 170, 110); disc(c, 462, 84, 48, P.hot); disc(c, 462, 84, 24, P.core); halo(c, P, 462, 84, 230, 0.55);
+    at(c, 280, 420, 0.42, () => { c.fillStyle = steel(c, -70, 0, 70, 0); c.beginPath(); c.roundRect(-72, -260, 144, 300, 44); c.fill(); c.fillStyle = '#2a3148'; c.fillRect(-88, -274, 176, 46); c.fillStyle = P.mid; c.fillRect(-88, -236, 176, 10); });
+    poly(c, [[110, 450], [450, 450], [496, 530], [70, 530]], '#3c4866'); poly(c, [[110, 450], [450, 450], [456, 466], [104, 466]], P.mid);
+    for (const x of [140, 430]) { disc(c, x, 530, 58, '#2a3148'); disc(c, x, 530, 22, P.mid); } },
   b_wall(c, P, R) { MO.barricade(c, P, 300, 310, 1); halo(c, P, 300, 300, 330, 0.25); },
   b_masterwork(c, P, R) { rays(c, P, R, 300, 190, 14, 0.24); use(c, P, R, 'anvil', 300, 420, 0.8); MO.blade(c, P, 300, 250, 0.72); MO.twinkle(c, 300, 30, 16, P.core); MO.twinkle(c, 440, 150, 9, P.core); MO.twinkle(c, 150, 190, 11, P.core); },
   b_whetstone(c, P, R) { disc(c, 240, 360, 196, IRON); disc(c, 240, 360, 180, lin(c, 80, 200, 400, 520, ['#b8b0a0', '#6a6258', '#3a342c'])); for (const r of [140, 100, 60]) { c.strokeStyle = 'rgba(0,0,0,0.25)'; c.lineWidth = 5; c.beginPath(); c.arc(240, 360, r, 0, TAU); c.stroke(); } disc(c, 240, 360, 26, IRON); MO.blade(c, P, 430, 270, 0.72, -1.25); sparks(c, P, R, 350, 210, 34, 170); halo(c, P, 350, 210, 200, 0.6); },

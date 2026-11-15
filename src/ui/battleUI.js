@@ -121,7 +121,7 @@ export class BattleScene {
   // Every effect sheet this fight may need: the heroes' decks, each monster's attacks (and what it can hatch or call), items.
   fxSheets() {
     const out = [...ALWAYS_SHEETS, ...fxSheetsFor({ cat: 'attack', el: 'fire', proj: 'fire' })]; // (the bomb and the turret)
-    for (const u of this.battle.units) if (u.cards) for (const pile of [u.cards.draw, u.cards.hand]) for (const inst of pile) out.push(...fxSheetsFor(inst.card));
+    for (const u of this.battle.units) if (u.cards) for (const pile of [u.cards.draw, u.cards.hand]) for (const inst of pile) { out.push(...fxSheetsFor(inst.card)); if (inst.card.fx.some((f) => f.id === 'mortar')) out.push(...fxSheetsFor({ cat: 'attack', el: 'earth', shape: 'area', size: 1 })); }
     const ids = new Set([...this.battle.units.filter((u) => u.def).map((u) => u.monsterId), ...(this.stage.pool || [])]);
     for (const id of ids) { // (a Set also walks the ids added while it is being walked)
       const m = MONSTERS[id]; if (!m) continue; (m.hatch || []).forEach((x) => ids.add(x));

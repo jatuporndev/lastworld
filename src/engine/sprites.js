@@ -579,6 +579,19 @@ function PAINTERS_INIT() {
       if (view === 'side') wing(1);
     },
 
+    // A mortar: a stubby barrel tilted at the sky on a wheeled plate. It squats when it fires.
+    mortar(ctx, L, view, p, f, anim) {
+      const kick = anim === 'attack' ? [0, 3, 7, 3][f] : 0; const s = view === 'back' ? -1 : 1;
+      rrect(ctx, -21, -11, 42, 11, 3, grad(ctx, -11, 0, shade(L.c1, 0.2), L.c2));
+      [-1, 1].forEach((k) => { ellipse(ctx, k * 15, -5, 7, 7, L.c2, OUT, 2); ellipse(ctx, k * 15, -5, 2.5, 2.5, L.accent); });
+      ctx.save(); ctx.translate(0, -12 + kick); ctx.rotate(s * 0.5);
+      rrect(ctx, -11, -34, 22, 37, 6, grad(ctx, -34, 3, '#c0c8d0', '#5a6068'));
+      rrect(ctx, -13, -38, 26, 8, 3, L.c1);
+      ctx.restore();
+      if (anim === 'attack' && f === 2) glowCircle(ctx, s * 21, -50, 18, '#ffd060', 1);
+      else if (anim === 'attack' && f === 3) glowCircle(ctx, s * 26, -60, 10, '#c9c2b0', 0.6);
+    },
+
     turret(ctx, L, view, p, f, anim) {
       [-1, 0, 1].forEach((s) => { ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(s * 18, 0); path(ctx, null, OUT, 6); ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(s * 18, 0); path(ctx, null, L.c2, 3); });
       rrect(ctx, -14, -38, 28, 20, 5, grad(ctx, -38, -18, shade(L.c1, 0.3), L.c2));

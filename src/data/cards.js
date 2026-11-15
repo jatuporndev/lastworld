@@ -45,12 +45,12 @@ add([
   { id: 'k_charge', cls: 'knight', name: 'Charge', cat: 'movement', icon: 'boot', cost: 2, cd: 2, range: 4, fx: [{ t: 'dash' }, { t: 'dmg', v: 1, s: 'atk' }, { t: 'push', v: 1 }] },
   { id: 'k_bash', cls: 'knight', name: 'Shield Bash', cat: 'attack', icon: 'shield', cd: 1, combo: { after: 'defense', bonus: { status: { st: 'stun', n: 1 } } }, fx: [{ t: 'dmg', v: 0, s: 'atk', fromBlock: 0.6 }] },
   { id: 'k_taunt', cls: 'knight', name: 'Challenging Roar', cat: 'special', icon: 'roar', tg: 'self', shape: 'burst', size: 2, cd: 2, fx: [{ t: 'taunt' }, { t: 'block', v: 1, self: true }] },
-  { id: 'k_whirl', cls: 'knight', name: 'Whirlwind', cat: 'attack', icon: 'whirl', tg: 'self', shape: 'burst', size: 1, cost: 2, cd: 2, fx: [{ t: 'dmg', v: 1, s: 'atk' }] },
+  { id: 'k_whirl', cls: 'knight', name: 'Whirlwind', cat: 'attack', icon: 'whirl', tg: 'self', shape: 'burst', size: 1, cost: 2, cd: 2, fx: [{ t: 'dmg', v: 1, s: 'atk', guard: 1 }] },
   { id: 'k_rally', cls: 'knight', name: 'Rally', cat: 'buff', icon: 'banner', tg: 'self', shape: 'burst', size: 2, cd: 3, allies: true, fx: [{ t: 'status', st: 'strength', n: 2 }] },
   { id: 'k_vow', cls: 'knight', name: "Guardian's Vow", cat: 'defense', icon: 'shield', tg: 'ally', range: 3, cd: 2, fx: [{ t: 'block', v: 3 }] },
   { id: 'k_advance', cls: 'knight', name: 'Advance', cat: 'movement', icon: 'boot', tg: 'hex', range: 2, cost: 0, cd: 1, fx: [{ t: 'move', v: 2 }] },
   { id: 'k_valor', charge: true, cls: 'knight', name: 'Valor Strike', cat: 'attack', icon: 'sword', rarity: 'rare', cost: 2, cd: 2, el: 'holy', fx: [{ t: 'dmg', v: 2, s: 'atk' }] },
-  { id: 'k_ironwill', cls: 'knight', name: 'Iron Will', cat: 'buff', icon: 'heart', rarity: 'rare', tg: 'self', cost: 0, cd: 3, fx: [{ t: 'cleanse' }, { t: 'status', st: 'regen', n: 3 }] },
+  { id: 'k_ironwill', cls: 'knight', name: 'Iron Will', cat: 'buff', icon: 'heart', rarity: 'rare', tg: 'self', cost: 0, cd: 3, fx: [{ t: 'cleanse' }, { t: 'status', st: 'thorns', n: 3 }] },
   { id: 'k_earthsplit', cls: 'knight', name: 'Earthsplitter', cat: 'attack', icon: 'quake', rarity: 'epic', shape: 'line', size: 4, cost: 3, cd: 3, mp: 6, el: 'earth', tg: 'any', fx: [{ t: 'dmg', v: 2, s: 'atk' }, { t: 'status', st: 'stun', n: 1 }] },
 ]);
 
@@ -75,15 +75,15 @@ add([
   { id: 'a_quick', cls: 'archer', name: 'Quick Shot', cat: 'attack', icon: 'arrow', range: 4, proj: 'arrow', fx: [{ t: 'dmg', v: 1, s: 'atk' }] },
   { id: 'a_aimed', charge: true, cls: 'archer', name: 'Aimed Shot', cat: 'attack', icon: 'eye', range: 6, cost: 2, cd: 1, proj: 'arrow', fx: [{ t: 'dmg', v: 2, s: 'atk', crit: 25 }] },
   { id: 'a_volley', cls: 'archer', name: 'Volley', cat: 'attack', icon: 'arrows', range: 5, shape: 'area', size: 1, tg: 'any', cost: 2, cd: 2, fx: [{ t: 'dmg', v: 0, s: 'atk' }] },
-  { id: 'a_pierce', cls: 'archer', name: 'Piercing Arrow', cat: 'attack', icon: 'arrow', shape: 'line', size: 5, tg: 'any', range: 1, cost: 2, cd: 2, el: 'wind', fx: [{ t: 'dmg', v: 1, s: 'atk' }] },
+  { id: 'a_pierce', cls: 'archer', name: 'Piercing Arrow', cat: 'attack', icon: 'arrow', shape: 'line', size: 5, tg: 'any', range: 1, cost: 2, cd: 2, el: 'wind', fx: [{ t: 'dmg', v: 1, s: 'atk', far: { d: 3, v: 2 } }] },
   { id: 'a_roll', cls: 'archer', name: 'Evasive Roll', cat: 'movement', icon: 'boot', tg: 'hex', range: 2, cd: 1, fx: [{ t: 'move', v: 2 }, { t: 'block', v: 1, self: true }] },
   { id: 'a_mark', cls: 'archer', name: "Hunter's Mark", cat: 'special', icon: 'eye', range: 6, cost: 0, cd: 2, fx: [{ t: 'status', st: 'mark', n: 1 }, { t: 'status', st: 'vulnerable', n: 2 }] },
   { id: 'a_windstep', cls: 'archer', name: 'Wind Step', cat: 'buff', icon: 'wind', tg: 'self', cd: 2, el: 'wind', fx: [{ t: 'status', st: 'haste', n: 2 }, { t: 'draw', v: 1 }] },
   { id: 'a_poison', cls: 'archer', name: 'Venom Arrow', cat: 'attack', icon: 'arrow', range: 5, cd: 1, el: 'poison', proj: 'arrow', fx: [{ t: 'dmg', v: 0, s: 'atk' }, { t: 'status', st: 'poison', n: 3 }] },
   { id: 'a_blank', cls: 'archer', name: 'Point Blank', cat: 'attack', icon: 'arrow', range: 1, cd: 1, fx: [{ t: 'dmg', v: 2, s: 'atk' }, { t: 'push', v: 2 }] },
-  { id: 'a_snare', cls: 'archer', name: 'Snare Trap', cat: 'special', icon: 'trap', rarity: 'rare', range: 4, cd: 2, fx: [{ t: 'status', st: 'root', n: 2 }, { t: 'dmg', v: 0, s: 'atk' }] },
+  { id: 'a_snare', cls: 'archer', name: 'Snare Trap', cat: 'special', icon: 'trap', rarity: 'rare', range: 4, cd: 2, fx: [{ t: 'dmg', v: 0, s: 'atk' }, { t: 'status', st: 'root', n: 2 }, { t: 'status', st: 'mark', n: 1 }] },
   { id: 'a_focus', cls: 'archer', name: 'Focus', cat: 'buff', icon: 'eye', rarity: 'rare', tg: 'self', cd: 2, fx: [{ t: 'status', st: 'strength', n: 2 }, { t: 'draw', v: 1 }] },
-  { id: 'a_storm', cls: 'archer', name: 'Storm of Arrows', cat: 'attack', icon: 'arrows', rarity: 'epic', range: 5, shape: 'area', size: 2, tg: 'any', cost: 3, mp: 8, cd: 4, el: 'wind', fx: [{ t: 'dmg', v: 1, s: 'atk' }] },
+  { id: 'a_storm', cls: 'archer', name: 'Storm of Arrows', cat: 'attack', icon: 'arrows', rarity: 'epic', range: 5, shape: 'area', size: 2, tg: 'any', cost: 3, mp: 8, cd: 4, el: 'wind', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'mark', n: 1 }] },
 ]);
 
 // ───────── ASSASSIN ─────────
@@ -159,7 +159,7 @@ add([
   // knight
   { id: 'k_cleave', cls: 'knight', name: 'Cleave', cat: 'attack', icon: 'sword', shape: 'line', size: 2, tg: 'any', cd: 1, fx: [{ t: 'dmg', v: 1, s: 'atk' }] },
   { id: 'k_riposte', cls: 'knight', name: 'Riposte', cat: 'attack', icon: 'sword', cd: 1, combo: { after: 'defense', bonus: { dmg: 3 } }, fx: [{ t: 'dmg', v: 1, s: 'atk' }] },
-  { id: 'k_bulwark', cls: 'knight', name: 'Bulwark', cat: 'defense', icon: 'shield', rarity: 'rare', tg: 'self', cost: 2, cd: 3, fx: [{ t: 'block', v: 4 }, { t: 'status', st: 'regen', n: 2 }] },
+  { id: 'k_bulwark', cls: 'knight', name: 'Bulwark', cat: 'defense', icon: 'shield', rarity: 'rare', tg: 'self', cost: 2, cd: 3, fx: [{ t: 'block', v: 4 }, { t: 'status', st: 'fortify', n: 1 }] },
   { id: 'k_radiant', cls: 'knight', name: 'Radiant Blade', cat: 'attack', icon: 'sword', rarity: 'rare', cd: 2, el: 'holy', fx: [{ t: 'dmg', v: 2, s: 'atk' }, { t: 'status', st: 'weak', n: 2 }] },
   { id: 'k_stomp', cls: 'knight', name: 'War Stomp', cat: 'special', icon: 'quake', tg: 'self', shape: 'burst', size: 1, cd: 2, el: 'earth', fx: [{ t: 'dmg', v: 0, s: 'atk' }, { t: 'status', st: 'root', n: 1 }] },
   { id: 'k_shieldslam', cls: 'knight', name: 'Shield Slam', cat: 'attack', icon: 'shield', cost: 2, cd: 2, fx: [{ t: 'dmg', v: 1, s: 'atk', spendBlock: true }] },
@@ -183,11 +183,11 @@ add([
   { id: 'a_flame', cls: 'archer', name: 'Flame Arrow', cat: 'attack', icon: 'arrow', range: 5, cd: 1, el: 'fire', proj: 'arrow', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'burn', n: 2 }] },
   { id: 'a_longshot', cls: 'archer', name: 'Long Shot', cat: 'attack', icon: 'arrow', range: 7, cd: 1, proj: 'arrow', fx: [{ t: 'dmg', v: 0, s: 'atk', far: { d: 4, v: 3 } }] },
   { id: 'a_quiver', cls: 'archer', name: 'Full Quiver', cat: 'attack', icon: 'arrows', rarity: 'rare', range: 5, cost: 2, cd: 2, proj: 'arrow', fx: [{ t: 'dmg', v: 0, s: 'atk', perHand: 1 }] },
-  { id: 'a_double', cls: 'archer', name: 'Double Shot', cat: 'attack', icon: 'arrows', range: 4, cd: 1, proj: 'arrow', fx: [{ t: 'dmg', v: 0, s: 'atk', hits: 2 }] },
+  { id: 'a_double', cls: 'archer', name: 'Double Shot', cat: 'attack', icon: 'arrows', range: 4, cd: 1, proj: 'arrow', fx: [{ t: 'dmg', v: 0, s: 'atk', hits: 2, keepMark: true }] },
   { id: 'a_disengage', cls: 'archer', name: 'Disengage', cat: 'movement', icon: 'boot', tg: 'hex', range: 3, cd: 2, fx: [{ t: 'move', v: 3 }, { t: 'status', st: 'haste', n: 1, self: true }] },
   { id: 'a_camo', cls: 'archer', name: 'Camouflage', cat: 'defense', icon: 'leaf', tg: 'self', cd: 3, fx: [{ t: 'status', st: 'stealth', n: 1 }, { t: 'draw', v: 1 }] },
   { id: 'a_concuss', cls: 'archer', name: 'Concussive Shot', cat: 'attack', icon: 'arrow', rarity: 'rare', range: 4, cd: 2, proj: 'arrow', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'stun', n: 1 }] },
-  { id: 'a_headshot', charge: true, cls: 'archer', name: 'Headshot', cat: 'attack', icon: 'eye', rarity: 'epic', range: 7, cost: 3, cd: 3, proj: 'arrow', fx: [{ t: 'dmg', v: 3, s: 'atk', crit: 40 }] },
+  { id: 'a_headshot', charge: true, cls: 'archer', name: 'Headshot', cat: 'attack', icon: 'eye', rarity: 'epic', range: 7, cost: 3, cd: 3, proj: 'arrow', fx: [{ t: 'dmg', v: 3, s: 'atk', crit: 40, ifStatus: { sts: ['mark'], v: 3 } }] },
   { id: 'a_firerain', cls: 'archer', name: 'Rain of Fire', cat: 'attack', icon: 'arrows', rarity: 'epic', range: 5, shape: 'area', size: 2, tg: 'any', cost: 3, mp: 8, cd: 4, el: 'fire', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'burn', n: 2 }] },
   // assassin
   { id: 's_hamstring', cls: 'assassin', name: 'Hamstring', cat: 'attack', icon: 'dagger', cd: 1, fx: [{ t: 'dmg', v: 0, s: 'atk' }, { t: 'status', st: 'root', n: 1 }, { t: 'status', st: 'bleed', n: 2 }] },
@@ -220,6 +220,7 @@ add([
   { id: 'b_whetstone', cls: 'blacksmith', name: 'Whetstone', cat: 'buff', icon: 'anvil', tg: 'self', cost: 0, cd: 3, fx: [{ t: 'status', st: 'strength', n: 2 }, { t: 'draw', v: 1 }] },
   { id: 'b_shrapnel', cls: 'blacksmith', name: 'Shrapnel Blast', cat: 'attack', icon: 'flame', tg: 'self', shape: 'burst', size: 1, cost: 2, cd: 2, el: 'fire', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'bleed', n: 2 }] },
   { id: 'b_anvildrop', cls: 'blacksmith', name: 'Anvil Drop', cat: 'attack', icon: 'anvil', rarity: 'rare', range: 3, shape: 'area', size: 1, tg: 'any', cost: 2, cd: 2, el: 'earth', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'weak', n: 2 }] },
+  { id: 'b_mortar', cls: 'blacksmith', name: 'Deploy Mortar', cat: 'special', icon: 'turret', rarity: 'rare', tg: 'hex', range: 2, cost: 2, cd: 4, el: 'earth', fx: [{ t: 'summon', id: 'mortar' }] },
   { id: 'b_meteorhammer', charge: true, cls: 'blacksmith', name: 'Meteor Hammer', cat: 'attack', icon: 'hammer', rarity: 'epic', cost: 3, mp: 6, cd: 4, el: 'fire', fx: [{ t: 'dmg', v: 3, s: 'atk' }, { t: 'status', st: 'burn', n: 3 }, { t: 'push', v: 2 }] },
   // any class
   { id: 'n_catchbreath', cls: 'any', name: 'Catch Breath', cat: 'buff', icon: 'heart', rarity: 'rare', tg: 'self', cd: 3, fx: [{ t: 'cool', v: 1 }, { t: 'heal', v: 1 }] },
@@ -252,7 +253,7 @@ export function cardStats(id, level = 0) {
   c.name = base.name + '+'.repeat(level);
   c.fx.forEach((f) => {
     if (['dmg', 'block', 'heal'].includes(f.t) && f.v != null) f.v += f.hits ? 1 : level >= 3 ? 2 : 1;
-    if (f.t === 'status' && level >= 2 && !['stun', 'frozen', 'mark', 'stealth'].includes(f.st)) f.n += 1;
+    if (f.t === 'status' && level >= 2 && !['stun', 'frozen', 'mark', 'stealth', 'fortify'].includes(f.st)) f.n += 1;
     if (['draw', 'mp'].includes(f.t) && level >= 2) f.v += f.t === 'mp' ? 2 : 0;
   });
   if (level >= 3 && c.cd > 0) c.cd -= 1;
@@ -263,6 +264,7 @@ export function upgradeCost(card, level) {
   return { gold: 40 * (level + 1) * r, shards: 8 * (level + 1) * r };
 }
 
+const SUMMON_TEXT = { turret: 'Build a Turret that fires each round.', barricade: 'Raise an Iron Barricade (8 HP).', mortar: 'Build a Mortar that shells a group of enemies each round. It cannot aim at enemies next to it.' };
 const STAT_NAMES = { atk: 'ATK', matk: 'MATK', def: 'DEF' };
 export const STATUS_INFO = {
   burn: { name: 'Burn', color: '#ff7a33', icon: '🔥', desc: 'Takes damage equal to stacks at turn start; stacks decay by 1.', debuff: true },
@@ -280,6 +282,8 @@ export const STATUS_INFO = {
   regen: { name: 'Regen', color: '#7fe0a0', icon: '✚', desc: 'Heals stacks HP at turn start; decays by 1.' },
   haste: { name: 'Haste', color: '#9af0ff', icon: '»', desc: '+2 movement while active.' },
   stealth: { name: 'Stealth', color: '#9a8ab0', icon: '◐', desc: '+50% evasion. Breaks when you attack.' },
+  fortify: { name: 'Fortify', color: '#9fc8ff', icon: '⛨', desc: 'Your Block is not lost at the start of your next turn.' },
+  thorns: { name: 'Thorns', color: '#d9a441', icon: '✴', desc: 'Enemies that hit you from the next hex take 1 damage per stack. Ends at your next turn.' },
 };
 
 // ───────── dice ─────────
@@ -326,6 +330,8 @@ export function describeCard(card, unit = null) {
         if (f.perStatus) s += t(f.perStatus.consume ? ', +{n} per {st} on the target (removes it)' : ', +{n} per {st} on the target', { n: f.perStatus.v, st: STATUS_INFO[f.perStatus.st].name });
         if (f.perHand) s += t(', +{n} per card in your hand', { n: f.perHand });
         if (f.wounded) s += t(', +{n} per quarter of your HP missing', { n: f.wounded });
+        if (f.guard) s += t(', +{n} Block per enemy hit', { n: f.guard });
+        if (f.keepMark) s += t(', every hit gets the Marked bonus');
         if (f.far) s += t(', +{n} from {d} hexes or more', { n: f.far.v, d: f.far.d });
         if (f.alone) s += t(', +{n} if no other enemy stands next to the target', { n: f.alone });
         if (f.spendBlock) s += t(', spends all your Block: +1 each');
@@ -336,7 +342,7 @@ export function describeCard(card, unit = null) {
       }
       case 'block': parts.push(t(f.self ? 'Gain {v} Block.' : 'Grant {v} Block.', { v: dice?.color === 'green' ? withDice(flat(f, unit)) : flat(f, unit) })); break;
       case 'heal': parts.push(t(f.self ? 'Heal yourself {v} HP.' : 'Heal {v} HP.', { v: dice?.color === 'green' ? withDice(flat(f, unit)) : flat(f, unit) })); break;
-      case 'status': parts.push(t(f.self ? 'Gain {st}.' : STATUS_INFO[f.st].debuff ? 'Apply {st}.' : 'Grant {st}.', { st: `${STATUS_INFO[f.st].name}${['stun', 'frozen', 'mark', 'stealth'].includes(f.st) ? '' : ' ' + f.n}` })); break;
+      case 'status': parts.push(t(f.self ? 'Gain {st}.' : STATUS_INFO[f.st].debuff ? 'Apply {st}.' : 'Grant {st}.', { st: `${STATUS_INFO[f.st].name}${['stun', 'frozen', 'mark', 'stealth', 'fortify'].includes(f.st) ? '' : ' ' + f.n}` })); break;
       case 'move': parts.push(t('Move up to {n} hexes.', { n: f.v })); break;
       case 'teleport': parts.push(t('Teleport to a hex within {n}.', { n: card.range })); break;
       case 'dash': parts.push(t('Dash next to an enemy within {n}.', { n: card.range })); break;
@@ -347,7 +353,7 @@ export function describeCard(card, unit = null) {
       case 'mp': parts.push(t('Restore {n} MP.', { n: f.v })); break;
       case 'cleanse': parts.push(t('Remove all debuffs.')); break;
       case 'taunt': parts.push(t('Taunt nearby enemies.')); break;
-      case 'summon': parts.push(t(f.id === 'turret' ? 'Build a Turret that fires each round.' : 'Raise an Iron Barricade (8 HP).')); break;
+      case 'summon': parts.push(t(SUMMON_TEXT[f.id])); break;
       case 'revive': parts.push(t('Revive fallen allies at {n}% HP.', { n: f.pct * 100 })); break;
       case 'selfdmg': parts.push(t('Lose {n} HP.', { n: f.v })); break;
       case 'spread': parts.push(t('Spread its {st} to enemies next to it.', { st: f.sts.map((x) => STATUS_INFO[x].name).join(' / ') })); break;

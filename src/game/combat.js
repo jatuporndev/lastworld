@@ -18,7 +18,7 @@ const FOOT = {
   3: [[0, 0], [1, 0], [0, 1]],
   7: [[0, 0], ...Hex.DIRS],
 };
-const NO_STACK = ['stun', 'frozen', 'mark', 'stealth', 'taunt'];
+const NO_STACK = ['stun', 'frozen', 'mark', 'stealth', 'taunt', 'fortify'];
 export { DICE } from '../data/cards.js';
 
 // Builds the battle board from the stage's hand-designed layouts (see data/stages.js).
@@ -225,7 +225,8 @@ export class Battle {
 
   async takeTurn(u) {
     this.current = u;
-    u.block = 0;
+    if (u.status.fortify) delete u.status.fortify; else u.block = 0; // Fortify carries the Block into this turn
+    delete u.status.thorns;
     await this.emit('turnStart', { unit: u });
     await this.tickStart(u);
     if (!u.alive || this.checkEnd()) return;
@@ -568,10 +569,12 @@ export class Battle {
               if (f.alone && !this.alliesOf(v).some((x) => x !== v && x.alive && this.dist(x, v) <= 1)) raw += f.alone;
               if (spent) { raw += spent; spent = 0; } // Block or MP paid into the blow: once, on the first hit
               if (f.execute && v.hp / v.maxHp <= f.execute) raw *= 2;
-              const res = await this.hit(u, v, { raw, el: card.el, critBonus: f.crit || 0, forceCrit: diceFirst && dice.crit, drain: f.drain, aoe: card.shape !== 'single', tags: comboCat && firstDmg ? ['Combo!'] : [] });
+              const res = await this.hit(u, v, { raw, el: card.el, critBonus: f.crit || 0, forceCrit: diceFirst && dice.crit, drain: f.drain, keepMark: f.keepMark, aoe: card.shape !== 'single', tags: comboCat && firstDmg ? ['Combo!'] : [] });
               if (res.evaded) evaded.add(v);
             }
           }
+          if (f.keepMark) for (const v of tgts) delete v.status.mark; // the Mark served every hit of this card, and is gone after it
+          if (f.guard) { const n = tgts.filter((v) => !evaded.has(v)).length * f.guard; if (n) await this.addBlock(u, n); }
           firstDmg = false; break;
         }
         case 'block': for (const v of tgts) await this.addBlock(v, Math.round(f.v + (dice?.supBonus || 0))); break;
@@ -667,6 +670,22 @@ export class Battle {
   }
 
   async constructAct(u) {
+    if (u.monsterId === 'mortar') {
+      // a shell lobbed over walls at the spot that catches the most enemies; anything in the next hex is too close to aim at
+      let best = null;
+      for (const e of this.enemies()) {
+        const d = this.dist(u, e); if (d < 2 || d > 6) continue;
+        const c = this.nearestCell(u, e); const n = this.enemies().filter((o) => this.distCells([c], this.cellsOf(o)) <= 1).length;
+        if (!best || n > best.n || (n === best.n && d < best.d)) best = { c, n, d };
+      }
+      if (!best) return;
+      const cells = Hex.spiral(best.c, 1).filter((h) => this.cell(h));
+      const victims = this.enemies().filter((v) => this.cellsOf(v).some((c) => cells.some((x) => Hex.hexEq(x, c))));
+      u.facing = Hex.directionTo(u, best.c);
+      await this.emit('cast', { unit: u, card: { name: t('Mortar Shell'), el: 'earth', cat: 'attack', shape: 'area', size: 1 }, cells, targets: victims, target: best.c });
+      for (const v of victims) await this.hit(u, v, { raw: Math.max(1, Math.round(u.stats.atk * 0.75)), el: 'earth', noEvade: true, aoe: true, tags: [] });
+      return;
+    }
     if (u.monsterId !== 'turret') return;
     const foe = this.enemies().filter((e) => this.dist(u, e) <= 4).sort((a, b) => this.dist(u, a) - this.dist(u, b))[0];
     if (!foe) return;
@@ -736,7 +755,7 @@ export class Battle {
     if (combo) { tags.push(combo + '!'); if (src.side === 'hero') this.combos++; }
     // crit / mark / vulnerable
     let crit = !!o.forceCrit || this.rng.chance((src.stats.crit + (o.critBonus || 0)) / 100);
-    if (tgt.status.mark) { crit = true; dmg *= 1.5; delete tgt.status.mark; }
+    if (tgt.status.mark) { crit = true; dmg *= 1.5; if (!o.keepMark) delete tgt.status.mark; }
     if (crit) dmg *= 1.5 + (P.critDmg || 0);
     if (tgt.status.vulnerable) dmg *= 1.25;
     // defense
@@ -746,7 +765,8 @@ export class Battle {
     if (res.dealt > 0) {
       const ls = (P.lifesteal || 0) + (o.drain || 0);
       if (ls && src.alive) await this.heal(src, src, Math.max(1, res.dealt * ls), true);
-      if (tgt.passives.thorns && src.alive && !o.aoe && this.dist(src, tgt) <= 1) await this.applyDamage(null, src, tgt.passives.thorns, { el: 'neutral', dot: true, tags: ['Thorns'] });
+      const thorns = (tgt.passives.thorns || 0) + (tgt.status.thorns?.n || 0);
+      if (thorns && src.alive && !o.aoe && this.dist(src, tgt) <= 1) await this.applyDamage(tgt, src, thorns, { el: 'neutral', dot: true, tags: ['Thorns'] });
       if (P.onHitStatus && tgt.alive) await this.addStatus(src, tgt, P.onHitStatus.st, P.onHitStatus.n);
     }
     for (const fn of post) if (tgt.alive) await fn();
