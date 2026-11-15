@@ -1,10 +1,10 @@
 // UI System — shared widgets: cards, sprite portraits, modals, toasts, tooltips, transitions.
-import { h, sleep } from '../core/util.js';
+import { h, sleep, fmt } from '../core/util.js';
 import { t } from '../core/i18n.js';
 import { audio } from '../core/audio.js';
 import { getSheet, drawFrame, iconCanvas, FRAMES } from '../engine/sprites.js';
 import { CARDS, cardStats, describeCard, ELEMENTS, CATEGORIES, RARITY, STATUS_INFO, DICE_NAME, diceLabel } from '../data/cards.js';
-import { ITEM_RARITY, STAT_LABEL } from '../data/items.js';
+import { ITEM_RARITY, STAT_LABEL, CONSUMABLES, MATERIALS } from '../data/items.js';
 import { cardArt, itemArt } from './cardArt.js';
 import { CLASSES, heroLook } from '../data/classes.js';
 import { MONSTERS } from '../data/monsters.js';
@@ -168,6 +168,44 @@ export function openModal(content, { cls = '', closable = true, onClose = null, 
   requestAnimationFrame(() => (box.querySelector('[autofocus]') || box.querySelector('.modal-body input, .modal-body .btn.primary'))?.focus({ preventScroll: true }));
   return { el: box, wrap, close, body: box.querySelector('.modal-body') };
 }
+// ───── reveal: what the party just got, laid on the table as game pieces (tokens, gear, cards), with no window ─────
+// A piece is { k: 'gold' | 'shards' | 'exp', n } · { k: 'sp' } · { k: 'mat', id, n } · { k: 'cons', id } · { k: 'item', item } ·
+// { k: 'card', id } · { k: 'upgrade', id, lv } (lv = the new level) · { k: 'heal' | 'hurt', pct } · { k: 'mp', n } · { k: 'buff', st, n }.
+const token = (pic, big, label, cls = '') => h('div.rv-piece', h('div.rv-token' + cls, pic, big != null ? h('b', big) : null), h('div.rv-label', label));
+const INK = '#3a2a20';
+export function pieceEl(p) {
+  switch (p.k) {
+    case 'gold': return token(icon('coin', '#b07a10', 46), '+' + fmt(p.n), t('Gold'));
+    case 'shards': return token(icon('gem', '#2f7f9a', 46), '+' + fmt(p.n), t('Shards'));
+    case 'exp': return token(icon('star', '#b07a10', 46), '+' + fmt(p.n), t('EXP'));
+    case 'sp': return token(icon('book', INK, 46), '+1', t('Skill Point'));
+    case 'heal': return token(icon('cross', '#1f8f86', 46), p.pct >= 1 ? null : '+' + Math.round(p.pct * 100) + '%', p.pct >= 1 ? t('Fully restored') : t('HP restored'));
+    case 'hurt': return token(icon('skull', '#d9482f', 46), '-' + Math.round(p.pct * 100) + '%', t('HP lost'), '.bad');
+    case 'mp': return token(icon('drop', '#2f6fb0', 46), '+' + p.n, 'MP');
+    case 'buff': { const info = STATUS_INFO[p.st]; return info ? token(h('span.rv-glyph', info.icon), '+' + p.n, t('{name} next battle', { name: info.name })) : null; }
+    case 'mat': { const m = MATERIALS[p.id]; return m ? token(itemPic('gem', m.color, 52), '×' + p.n, m.name) : null; }
+    case 'cons': { const c = CONSUMABLES[p.id]; return c ? token(itemPic(c.icon, c.color, 52), null, c.name) : null; }
+    case 'item': { const r = ITEM_RARITY[p.item.rarity];
+      return h('div.rv-piece', h('div.rv-token.gear', { style: { '--rar': r.color }, 'data-tip-html': itemTip(p.item) }, itemPic(p.item.icon, r.color, 56)), h('div.rv-label', p.item.name), h('div.rv-sub', `${r.name} · ${t(p.item.type)}`)); }
+    case 'card': return CARDS[p.id] ? h('div.rv-piece.rv-card', cardEl(p.id, p.lv || 0), h('div.rv-label', t('New card'))) : null;
+    case 'upgrade': return CARDS[p.id] ? h('div.rv-piece.rv-up',
+      h('div.rv-was', cardEl(p.id, p.lv - 1), h('div.rv-label', t('Before'))),
+      h('div.rv-arrow', '➜'),
+      h('div.rv-now', cardEl(p.id, p.lv), h('div.rv-label', t('Upgraded to +{n}', { n: p.lv })))) : null;
+    default: return null;
+  }
+}
+// Shows the pieces one after another and waits for the button. `view`: a co-op guest's copy, which may be closed freely.
+export function reveal({ title, text = null, pieces = [], button = t('Continue'), view = false }) {
+  return new Promise((res) => {
+    const els = pieces.map(pieceEl).filter(Boolean);
+    els.forEach((el, i) => { const at = 160 + i * 130; el.style.setProperty('--d', at + 'ms'); if (i < 6) setTimeout(() => { if (el.isConnected) audio.sfx(el.matches('.rv-card, .rv-up') ? 'draw' : 'coin'); }, at); });
+    const up = els.find((el) => el.matches('.rv-up')); if (up) setTimeout(() => { if (up.isConnected) audio.sfx('buff'); }, parseInt(up.style.getPropertyValue('--d'), 10) + 620);
+    const m = openModal(h('div.rv', text ? h('p.rv-text', text) : null, els.length ? h('div.rv-row', ...els) : null,
+      h('div.row.center', btn(button, () => m.close(), { cls: 'primary' }))), { title, closable: view, cls: 'reveal' + (view ? ' coop-view' : ''), onClose: res });
+  });
+}
+
 export function topModal() { const all = ui().querySelectorAll('.modal-wrap:not(.closing)'); return all[all.length - 1] || null; }
 
 export function confirmBox(title, text, yes = t('Confirm'), no = t('Cancel')) {

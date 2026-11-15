@@ -255,35 +255,37 @@ export class StageManager {
   }
   // returns { msg, gains:[], fight }
   resolveChoice(c, choice) {
-    const st = G.state; const rng = new RNG(); const s = this.stage; const gains = [];
+    const st = G.state; const rng = new RNG(); const s = this.stage; const gains = []; const pieces = []; // gains: words (older co-op clients); pieces: what the reveal lays out
     if (choice.cost?.gold) st.gold -= choice.cost.gold;
     if (choice.cost?.item) { st.inv.cons[choice.cost.item]--; if (st.inv.cons[choice.cost.item] <= 0) delete st.inv.cons[choice.cost.item]; }
     let o = choice.out;
     if (o.chance != null && !rng.chance(o.chance)) o = o.fail || { msg: t('Nothing happens.') };
     const scale = Math.pow(1.5, s.id - 1);
-    if (o.gold) { const g = Math.round(o.gold * scale); st.gold += g; gains.push(t('+{n} Gold', { n: g })); }
-    if (o.shards) { st.shards += o.shards + s.id * 3; gains.push(t('+{n} Shards', { n: o.shards + s.id * 3 })); }
-    if (o.exp) { const e = Math.round(o.exp * scale); myHeroes().forEach((h) => grantExp(h, e)); gains.push(t('+{n} EXP', { n: e })); }
-    if (o.healPct) healParty(o.healPct, 0, false);
-    if (o.fullHeal) healParty(1, 1, true);
+    if (o.gold) { const g = Math.round(o.gold * scale); st.gold += g; gains.push(t('+{n} Gold', { n: g })); pieces.push({ k: 'gold', n: g }); }
+    if (o.shards) { st.shards += o.shards + s.id * 3; gains.push(t('+{n} Shards', { n: o.shards + s.id * 3 })); pieces.push({ k: 'shards', n: o.shards + s.id * 3 }); }
+    if (o.exp) { const e = Math.round(o.exp * scale); myHeroes().forEach((h) => grantExp(h, e)); gains.push(t('+{n} EXP', { n: e })); pieces.push({ k: 'exp', n: e }); }
+    if (o.healPct) { healParty(o.healPct, 0, false); pieces.push({ k: 'heal', pct: o.healPct }); }
+    if (o.fullHeal) { healParty(1, 1, true); pieces.push({ k: 'heal', pct: 1 }); }
     if (o.mp) myHeroes().forEach((h) => { h.mp = Math.min(computeStats(h).mp, h.mp + o.mp); });
+    if (o.mp) pieces.push({ k: 'mp', n: o.mp });
     if (o.dmgPct) myHeroes().forEach((h) => { if (h.hp > 0) h.hp = Math.max(1, h.hp - Math.round(computeStats(h).hp * o.dmgPct)); });
-    if (o.buff) { st.nextBuff = o.buff; }
-    if (o.skillPoint) { myHeroes().forEach((h) => { h.skillPoints += 1; }); gains.push(t('+1 Skill Point (all heroes)')); }
-    if (o.item === 'random-equip') { const it = this.rollEquip(rng, 2, 'rare'); addItem(it); gains.push(it.name); }
-    else if (o.item) { addConsumable(o.item); gains.push(CONSUMABLES[o.item].name); }
-    if (o.card) { const id = this.rollCards(rng, 1, o.card === 'rare' ? 'rare' : 'common')[0]; addCard(id); gains.push(t('Card: {name}', { name: CARDS[id].name })); }
-    if (o.mat) { s.mats.forEach((m) => { addMaterial(m, 2); gains.push(t('2× {name}', { name: MATERIALS[m].name })); }); }
+    if (o.dmgPct) pieces.push({ k: 'hurt', pct: o.dmgPct });
+    if (o.buff) { st.nextBuff = o.buff; pieces.push({ k: 'buff', st: o.buff.st, n: o.buff.n }); }
+    if (o.skillPoint) { myHeroes().forEach((h) => { h.skillPoints += 1; }); gains.push(t('+1 Skill Point (all heroes)')); pieces.push({ k: 'sp' }); }
+    if (o.item === 'random-equip') { const it = this.rollEquip(rng, 2, 'rare'); addItem(it); gains.push(it.name); pieces.push({ k: 'item', item: it }); }
+    else if (o.item) { addConsumable(o.item); gains.push(CONSUMABLES[o.item].name); pieces.push({ k: 'cons', id: o.item }); }
+    if (o.card) { const id = this.rollCards(rng, 1, o.card === 'rare' ? 'rare' : 'common')[0]; addCard(id); gains.push(t('Card: {name}', { name: CARDS[id].name })); pieces.push({ k: 'card', id, lv: st.cards[id]?.lv || 0 }); }
+    if (o.mat) { s.mats.forEach((m) => { addMaterial(m, 2); gains.push(t('2× {name}', { name: MATERIALS[m].name })); pieces.push({ k: 'mat', id: m, n: 2 }); }); }
     if (o.upgrade) {
       const ids = Object.keys(st.cards).filter((id) => st.cards[id].lv < MAX_CARD_LEVEL && myHeroes().some((h) => h.deck.includes(id)));
-      if (ids.length) { const id = rng.pick(ids); st.cards[id].lv++; progress('upgrade', 1); gains.push(t('{name} upgraded to +{n}', { name: CARDS[id].name, n: st.cards[id].lv })); }
+      if (ids.length) { const id = rng.pick(ids); st.cards[id].lv++; progress('upgrade', 1); gains.push(t('{name} upgraded to +{n}', { name: CARDS[id].name, n: st.cards[id].lv })); pieces.push({ k: 'upgrade', id, lv: st.cards[id].lv }); }
     }
     progress('events', 1);
     if (!o.fight) this.markCleared(c);
     touch();
     // effects on heroes, replayed by co-op guests on their own characters
     const party = { healPct: o.healPct, fullHeal: o.fullHeal, mp: o.mp, dmgPct: o.dmgPct, exp: o.exp ? Math.round(o.exp * scale) : 0, skillPoint: o.skillPoint };
-    return { msg: o.msg || '', gains, fight: !!o.fight, party };
+    return { msg: o.msg || '', gains, pieces, fight: !!o.fight, party };
   }
 
   leave() { G.state.run = null; touch(); }

@@ -11,7 +11,7 @@ import { CLASSES, heroLook } from '../data/classes.js';
 import { MONSTERS } from '../data/monsters.js';
 import { CARDS } from '../data/cards.js';
 import { CONSUMABLES, MATERIALS } from '../data/items.js';
-import { itemPic, ui, openModal, btn, icon, toast, cardEl, itemEl, monsterSprite, heroSprite, bar, banner, bagButton, questButton } from './components.js';
+import { itemPic, ui, openModal, btn, icon, toast, cardEl, itemEl, reveal, monsterSprite, heroSprite, bar, banner, bagButton, questButton } from './components.js';
 import { openMenu, openQuests } from './panels.js';
 import { Coop } from '../net/coop.js';
 import { bus } from '../core/util.js';
@@ -233,8 +233,8 @@ export class ExploreScene {
   // Guests: read-only view of an event the host resolved.
   eventView(m) {
     if (m.cell) this.clearNode(this.sm.cell(m.cell));
-    openModal(h('div.event', h('div.big-icon', icon(m.icon, '#e8d8a8', 72)), h('p.event-text', m.text), h('p.event-text', h('b', m.choice)), h('p.event-text', m.msg), h('div.gains', ...(m.gains || []).map((g) => h('div.gain', g)))),
-      { title: m.title, cls: 'narrow event-modal coop-view' });
+    // the host's outcome, as the host saw it; an older host sends words only
+    reveal({ title: m.title, text: [m.choice, m.msg, m.pieces ? null : (m.gains || []).join(' · ')].filter(Boolean).join(' — '), pieces: m.pieces || [], button: t('OK'), view: true });
   }
 
   // Guests: a read-only copy of the window the host has open (camp, merchant, an event's choices), until the host is done.
@@ -293,7 +293,7 @@ export class ExploreScene {
   restPrompt(c) {
     return new Promise((res) => {
       const m = openModal(h('div.confirm', h('div.big-icon', icon('camp', '#7fe08a', 72)), h('p', t('A sheltered campsite. The fire is still warm. Resting restores 60% HP and MP to the whole party and revives the fallen. The site can be used once.')),
-        h('div.row.center', btn(t('Not now'), () => { this.share('note', { close: true }); m.close(); res(); }), btn(t('Rest'), () => { this.sm.rest(c); this.share('rest', { cell: { q: c.q, r: c.r } }); audio.sfx('heal'); this.clearNode(c); toast(t('The party is rested'), 'good'); m.close(); res(); }, { cls: 'primary' }))), { title: t('Rest Site'), closable: false, cls: 'narrow' });
+        h('div.row.center', btn(t('Not now'), () => { this.share('note', { close: true }); m.close(); res(); }), btn(t('Rest'), () => { this.sm.rest(c); this.share('rest', { cell: { q: c.q, r: c.r } }); audio.sfx('heal'); this.clearNode(c); m.close(); reveal({ title: t('Rest Site'), text: t('The party is rested'), pieces: [{ k: 'heal', pct: 0.6 }, { k: 'mp', n: '60%' }] }).then(res); }, { cls: 'primary' }))), { title: t('Rest Site'), closable: false, cls: 'narrow' });
     });
   }
 
@@ -325,11 +325,13 @@ export class ExploreScene {
       body.replaceChildren(h('div.big-icon', icon(ev.icon, '#e8d8a8', 72)), h('p.event-text', ev.text),
         h('div.choices', ...ev.choices.map((ch) => btn(ch.label, async () => {
           const out = this.sm.resolveChoice(c, ch);
-          this.share('event', { title: ev.title, icon: ev.icon, text: ev.text, choice: ch.label, msg: out.msg, gains: out.gains, out: out.party, cell: out.fight ? null : { q: c.q, r: c.r } });
+          this.share('event', { title: ev.title, icon: ev.icon, text: ev.text, choice: ch.label, msg: out.msg, gains: out.gains, pieces: out.pieces, out: out.party, cell: out.fight ? null : { q: c.q, r: c.r } });
           audio.sfx(out.fight ? 'boss' : out.gains.length ? 'chest' : 'click');
-          body.replaceChildren(h('div.big-icon', icon(ev.icon, '#e8d8a8', 72)), h('p.event-text', out.msg), h('div.gains', ...out.gains.map((g) => h('div.gain', g))),
-            h('div.row.center', btn(t(out.fight ? 'To battle!' : 'Continue'), async () => { m.close(); if (out.fight) await this.app.startBattle(this.sm.ambush(), c); else this.clearNode(c); res(); }, { cls: 'primary' })));
-          this.refreshHud();
+          // the choice window closes and the outcome is laid on the table
+          m.close(); this.refreshHud();
+          await reveal({ title: ev.title, text: out.msg, pieces: out.pieces, button: t(out.fight ? 'To battle!' : 'Continue') });
+          if (out.fight) await this.app.startBattle(this.sm.ambush(), c); else this.clearNode(c);
+          res();
         }, { disabled: !this.sm.canChoose(ch), cls: 'choice' }))));
     });
   }
@@ -381,13 +383,18 @@ function lootRows(r) {
   return rows;
 }
 
+// Treasure and gathered resources: the pieces are laid out on the table.
 export function lootModal(title, r, { view = false } = {}) {
   if (view) title = t(title);
-  return new Promise((res) => {
-    const m = openModal(h('div.rewards', h('div.loot-list', ...lootRows(r)), (r.items || []).length ? h('div.item-list', ...r.items.map((it) => itemEl(it))) : null,
-      (r.cards || []).length ? h('div.card-grid.center', ...r.cards.map((id) => cardEl(id, 0, { small: true }))) : null,
-      h('div.row.center', btn(t(view ? 'OK' : 'Take'), () => { m.close(); res(); }, { cls: 'primary' }))), { title, closable: view, cls: 'narrow' + (view ? ' coop-view' : ''), onClose: res });
-  });
+  const pieces = [];
+  if (r.gold) pieces.push({ k: 'gold', n: r.gold });
+  if (r.shards) pieces.push({ k: 'shards', n: r.shards });
+  if (r.exp) pieces.push({ k: 'exp', n: r.exp });
+  Object.entries(r.mats || {}).forEach(([id, n]) => pieces.push({ k: 'mat', id, n }));
+  (r.cons || []).forEach((id) => pieces.push({ k: 'cons', id }));
+  (r.items || []).forEach((item) => pieces.push({ k: 'item', item }));
+  (r.cards || []).forEach((id) => pieces.push({ k: 'card', id, lv: G.state.cards[id]?.lv || 0 }));
+  return reveal({ title, pieces, button: t(view ? 'OK' : 'Take'), view });
 }
 
 export function rewardsModal(r, kind, { view = false, summary = null } = {}) {
