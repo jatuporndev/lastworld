@@ -350,3 +350,6 @@ export function blinkFx(w, pos, color) { const g = pos.clone(); decal(w, 'circle
 // A critical hit and a monster's last breath, for the battle screen.
 export const critFx = (w, pos) => play(w, 'hit_crit', pos, { order: 35 });
 export const poofFx = (w, pos, s = 1) => play(w, 'poof', pos, { s, order: 35 });
+
+// The building blocks, for scenes staged outside a card (a boss's entrance).
+export { spr as fxSprite, decal as fxDecal, bit as fxBit };

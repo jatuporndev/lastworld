@@ -7,6 +7,7 @@ import { t } from '../core/i18n.js';
 const tr = t; // for scopes with a local variable named t
 import { audio } from '../core/audio.js';
 import { elColor } from '../engine/renderer.js';
+import { bossIntro } from './bossIntro.js';
 import { castVfx, dashFx, blinkFx, critFx, poofFx, fxSheetsFor, ALWAYS_SHEETS } from '../engine/vfx.js';
 import { preloadSheets, releaseSheets } from '../engine/pixfx.js';
 import { Battle, DICE } from '../game/combat.js';
@@ -626,12 +627,8 @@ export class BattleScene {
     switch (type) {
       case 'start': {
         if (b.kind === 'boss') {
-          const boss = b.units.find((u) => u.rank === 'mvp'); const bp = pos(boss, 0);
-          audio.sfx('boss');
-          await w.focus({ x: bp.x, z: bp.z + 0.5, size: 10 }, 900);
-          audio.sfx('roar'); w.shake(0.5, 900); w.ring(bp, elColor(boss.el), 5, 900); w.playOnce(boss.uid, 'cast');
-          await banner(boss.name, `“${boss.def.quote}”`, 'boss', 2600);
-          await w.focus(this.view, 800);
+          const boss = b.units.find((u) => u.rank === 'mvp');
+          if (boss) await bossIntro(this, boss); // the entrance scene (bossIntro.js)
         } else await banner(t(b.kind === 'mini' ? 'Mini Boss' : 'Battle'), b.enemies().map((e) => e.name).filter((n, i, a) => a.indexOf(n) === i).join(' · '), b.kind === 'mini' ? 'mini' : '', 1100);
         break;
       }
