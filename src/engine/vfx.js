@@ -153,7 +153,7 @@ const PROJ = { fire: 'firebolt', ice: 'icelance', arrow: 'arrow', holy: 'orb_hol
 const MELEE = { sword: 'slash', dagger: 'flurry', hammer: 'smash', mace: 'smash', anvil: 'smash', wrench: 'smash', quake: 'smash', shield: 'hit_blunt', boot: 'thrust', skull: 'reap' };
 const AREA = { fire: 'blast', ice: 'frostnova', earth: 'dirt', wind: 'hit_wind', shadow: 'darkblast', holy: 'holypillar', poison: 'spores', arcane: 'hit_arcane', neutral: 'slam' };
 const BURST = { fire: 'blast', ice: 'frostnova', earth: 'slam', wind: 'hit_wind', shadow: 'darkblast', holy: 'hit_holy', poison: 'spores', arcane: 'hit_arcane', neutral: 'slam' };
-const BEAM = { holy: 'beam_holy', wind: 'beam_wind' };
+const BEAM = { holy: 'beam_holy', wind: 'beam_wind', fire: 'beam_fire', ice: 'beam_ice', shadow: 'beam_shadow', poison: 'beam_poison' };
 const SUPPORT = { heal: 'heal', block: 'shield', smoke: 'smoke', summon: 'portal', boon: 'hit_arcane', revive: 'revive', buff: 'bless' };
 // drawn round their own middle, so they go on the target's chest; every other picture stands on the floor
 const CHEST = new Set(['shatter', 'overload', 'shieldslam', 'sunder', 'ambush', 'mark', 'hit_fire', 'hit_ice', 'hit_shadow', 'hit_arcane', 'hit_spark', 'hit_crit', 'hit_blunt', 'zap', 'slash', 'slash2', 'flurry', 'claw', 'thrust', 'reap', 'poof']);
@@ -173,6 +173,7 @@ const OWN = {
   k_ironwill: { main: 'regen' }, p_renew: { main: 'regen' }, p_lifebloom: { main: 'regen' }, n_breath: { main: 'regen' },
   m_surge: { main: 'surge' }, s_adrenaline: { main: 'surge' }, b_overcharge: { main: 'surge' },
   n_insight: { main: 'cards' }, p_prayer: { main: 'cards' }, a_camo: { main: 'smoke' },
+  b_molten: { main: 'smash' },
   a_double: { n: 2 }, a_quiver: { n: 3 }, a_headshot: { impact: 'hit_crit' }, a_concuss: { impact: 'hit_blunt' }, a_longshot: { impact: 'hit_wind' },
 };
 
@@ -184,24 +185,28 @@ export function fxPlan(card, monster = false, hostile = card.cat === 'attack') {
   const has = (...ts) => (card.fx || []).some((f) => ts.includes(f.t));
   const status = (...ss) => (card.fx || []).some((f) => f.t === 'status' && ss.includes(f.st));
   const magic = card.cat !== 'attack' || (card.proj && !plain) || card.mp > 0 || (aoe && card.shape !== 'burst') || (monster && el !== 'neutral' && (card.proj || aoe));
-  const P = { el, aoe, magic: !!magic, plain, charge: magic ? CHARGE[plain ? 'neutral' : el] || 'charge_arcane' : null, mode: 'melee', main: null, proj: null, impact: null, extra: null };
+  // the glow in the hand is the colour of the magic; a card with no magic in it is wound up with no glow at all
+  const glow = CHARGE[plain ? 'neutral' : el] || (monster || el !== 'neutral' || card.mp > 0 || card.cls === 'mage' ? 'charge_arcane' : card.cls === 'priest' ? 'charge_holy' : null);
+  const P = { el, aoe, magic: !!magic, plain, charge: magic ? glow : null, mode: 'melee', main: null, proj: null, impact: null, extra: null };
   if (!hostile) {
     // (monster actions and items come as bare cards without an fx list: their category says what they are)
     P.mode = 'support';
     P.kind = card.kind || (card.icon === 'smoke' ? 'smoke' : has('heal', 'revive') ? (has('revive') ? 'revive' : 'heal') : has('block') ? 'block' : has('summon') ? 'summon' : has('draw', 'energy', 'mp') ? 'boon' : !card.fx && card.cat === 'defense' ? 'block' : 'buff');
     P.main = SUPPORT[P.kind]; if (aoe && P.kind === 'heal') P.extra = 'heal_area';
+    if (card.cat === 'movement' && P.kind === 'buff') P.main = has('teleport') ? (el === 'shadow' ? 'hit_shadow' : 'hit_arcane') : 'haste'; // a step is speed, not a blessing
   } else if (aoe) {
     P.mode = card.shape;
     if (card.pattern) { P.mode = 'pattern'; P.impact = IMPACT[el] || 'hit_spark'; } // a marked pattern: every marked hex is struck, spreading out from the caster
     else if (card.shape === 'area') {
       if (card.icon === 'meteor') P.main = el === 'holy' ? 'starfall' : 'meteor';
-      else if (card.icon === 'arrows') { P.proj = 'arrow'; P.impact = 'hit_spark'; }
+      else if (card.icon === 'arrows') { P.proj = 'arrow'; P.impact = el === 'neutral' ? 'hit_spark' : IMPACT[el]; }
       else if (el === 'fire') { P.proj = 'fireball'; P.main = 'blast'; }
       else P.main = AREA[el] || 'slam';
     } else if (card.shape === 'line') {
       if (card.icon === 'bolt') { P.main = 'beam_wind'; P.impact = 'zap'; }
       else if (el === 'earth' || card.icon === 'quake') P.impact = 'hit_earth';
-      else if (card.icon === 'arrow') { P.proj = 'arrow'; P.impact = 'hit_spark'; }
+      else if (card.icon === 'arrow') { P.proj = 'arrow'; P.impact = el === 'neutral' ? 'hit_spark' : IMPACT[el]; }
+      else if (card.icon === 'sword' && !card.mp) { P.impact = 'slash'; P.magic = false; P.charge = null; } // a sweep of the blade, not a ray
       else { P.main = BEAM[el] || 'beam_arcane'; P.impact = el === 'holy' ? 'hit_spark' : IMPACT[el]; }
     } else if (card.shape === 'cone') {
       if (el === 'ice') P.main = 'breath_ice'; else P.impact = IMPACT[el];
@@ -254,9 +259,9 @@ export async function castVfx(w, d) {
 
   // beat 1 · the wind-up: a spell gathers in the hand while the caster sinks into it, then lets go
   if (P.magic) {
-    audio.sfx('magic');
+    if (P.charge) audio.sfx('magic');
     const hand = aim ? from.clone().add(screenDir(w, screenAngle(w, from, aim), 0.35 * sc)) : from.clone().add(V(0, 0.5 * sc, 0));
-    play(w, P.charge, hand, { s: sc, ms: 400, loop: true, fadeIn: 0.2, fadeOut: 0.12, order: 34 });
+    if (P.charge) play(w, P.charge, hand, { s: sc, ms: 400, loop: true, fadeIn: 0.2, fadeOut: 0.12, order: 34 });
     await w.gather(u.uid, 380);
     w.release(u.uid, P.mode === 'support' ? null : aim);
   }
@@ -276,7 +281,7 @@ export async function castVfx(w, d) {
       sweep(26, P.impact, { s: 0.8 }, 26); await tween(Math.min(700, order.length * 26) + 80, () => {});
     } else if (card.shape === 'area') {
       if (P.proj === 'arrow') { // a volley falls on every cell
-        order.slice(0, 10).forEach((c, i) => after(i * 45, () => { const p = chest(c); fly(w, 'arrow', p.clone().add(V(-1.6 + R(0.6), 7, -0.6)), p, { ms: 230 }).then(() => land('hit_spark', c, { s: 0.8 })); }));
+        order.slice(0, 10).forEach((c, i) => after(i * 45, () => { const p = chest(c); fly(w, 'arrow', p.clone().add(V(-1.6 + R(0.6), 7, -0.6)), p, { ms: 230 }).then(() => land(P.impact, c, { s: 0.8 })); }));
         audio.sfx('arrow'); await tween(Math.min(10, order.length) * 45 + 230, () => {});
       } else {
         if (P.proj) { audio.sfx(EL_SFX[el] || 'magic'); await fly(w, P.proj, from, origin, { s: big ? 1.5 : 1.2, arc: 1.1 }); } // lobbed, where a bolt flies straight

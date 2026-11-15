@@ -437,6 +437,7 @@ const beam = (name, C) => fx(name, { w: 240, h: 70, ox: 12, oy: 35, dur: 0.6, px
   if (t < 0.4) { p.diamond(2, 0, 7 * (1 - off) + 2, C[4]); p.ink = false; p.diamond(2, 0, 4 * (1 - off) + 1, WHITE); p.ink = true; }
 });
 beam('beam_arcane', RAMP.arcane); beam('beam_holy', RAMP.holy); beam('beam_wind', VOLT);
+beam('beam_fire', RAMP.fire); beam('beam_ice', RAMP.ice); beam('beam_shadow', RAMP.shadow); beam('beam_poison', RAMP.poison);
 fx('breath_ice', { w: 190, h: 90, ox: 12, oy: 45, dur: 1.2, px: 0.034 }, () => (p, t) => {
   const C = RAMP.ice, on = seg(t, 0, 0.15), off = seg(t, 0.85, 1.2), L = 170 * out(on);
   p.each(0, -40, L, 40, (x, y) => { const sp = 6 + x * 0.2; if (Math.abs(y) < sp) p.add(x, y, C[3], 0.45 * (1 - Math.abs(y) / sp) * (1 - off) * Math.min(1, (L - x) / 30)); });

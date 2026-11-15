@@ -1005,6 +1005,8 @@ export const TH = {
   'The Last World is the first of many again.': 'โลกใบสุดท้ายกลับเป็นใบแรกของอีกมากมาย',
   '{name} will not face you yet. Defeat {n} more monster group(s) in this stage first.': '{name} ยังไม่ยอมออกมาสู้ ต้องปราบมอนสเตอร์ในด่านนี้อีก {n} กลุ่มก่อน',
   'A seal guards {boss}. Defeat {mini} to break it.': 'มีผนึกคุ้มกัน{boss}อยู่ ต้องปราบ{mini}เพื่อทำลายผนึก',
+  'Defeat {n} more monster group(s)': 'ชนะมอนสเตอร์อีก {n} กลุ่ม',
+  'Defeat {mini} first': 'ต้องชนะ {mini} ก่อน',
   'Sealed': 'ถูกผนึก',
   'Objective: defeat {n} monster group(s) to draw out {mini}': 'เป้าหมาย: ปราบมอนสเตอร์ {n} กลุ่มเพื่อล่อ{mini}ออกมา',
   'Objective: defeat {mini} to break the seal on {boss}': 'เป้าหมาย: ปราบ{mini}เพื่อทำลายผนึกของ{boss}',

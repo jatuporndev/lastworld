@@ -74,6 +74,8 @@ export class ExploreScene {
     const boss = left.find((c) => c.node.type === 'boss');
     const bossName = MONSTERS[this.stage.boss].name;
     const mini = left.find((c) => c.node.type === 'mini'); const need = mini ? sm.sealOf(mini) : null; const miniName = MONSTERS[this.stage.mini[0]].name;
+    // a boss that cannot be fought yet wears its chains on the map, with the reason under it
+    for (const c of left) if (c.node.type === 'mini' || c.node.type === 'boss') { const s = sm.sealOf(c); this.world.setSeal(Hex.key(c.q, c.r), !s ? null : s.kind === 'groups' ? t('Defeat {n} more monster group(s)', { n: s.left }) : t('Defeat {mini} first', { mini: miniName })); }
     this.el.obj.textContent = !boss ? t('{boss} has been defeated', { boss: bossName })
       : need ? t('Objective: defeat {n} monster group(s) to draw out {mini}', { n: need.left, mini: miniName })
         : mini ? t('Objective: defeat {mini} to break the seal on {boss}', { mini: miniName, boss: bossName })

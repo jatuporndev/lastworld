@@ -518,8 +518,37 @@ export class World {
     this.markers.set(key, { grp, s, glow, baseY: s.position.y, phase: Math.random() * 6, big });
   }
   showMarker(key) { const m = this.markers.get(key); if (m) m.grp.visible = true; }
+  // A sealed boss token: crossed chains and a padlock over it, and a few words underneath saying what opens it.
+  // text = null takes the seal off (the chains snap and fall away).
+  setSeal(key, text) {
+    const m = this.markers.get(key); if (!m || (m.seal?.text || null) === (text || null)) return;
+    const spr = (map, order) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map, transparent: true, depthWrite: false, depthTest: false, toneMapped: false, fog: false })); s.renderOrder = order; return s; };
+    if (!text) { // broken
+      const old = m.seal; m.seal = null; m.s.material.color.setScalar(1);
+      const size = m.s.scale.x;
+      tween(520, (e) => { old.chain.material.opacity = 1 - e; old.label.material.opacity = 1 - e; old.chain.scale.setScalar(size * 1.3 * (1 + e * 0.7)); old.chain.material.rotation = e * 0.5; }, Ease.outCubic)
+        .then(() => { m.grp.remove(old.chain, old.label); old.chain.material.map.dispose(); old.chain.material.dispose(); old.label.material.map.dispose(); old.label.material.dispose(); });
+      for (let i = 0; i < 12; i++) this.particle(m.s.position, { color: 0xd8dce8, size: 0.16, life: 520, vel: new THREE.Vector3((Math.random() - 0.5) * 4, 1 + Math.random() * 3, (Math.random() - 0.5) * 4), gravity: 9, add: false });
+      return;
+    }
+    const label = () => { const c = document.createElement('canvas'); c.width = 768; c.height = 96; const g = c.getContext('2d'); g.font = '600 46px Mitr, "Noto Sans Thai", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round'; g.lineWidth = 10; g.strokeStyle = 'rgba(20,14,10,0.92)'; g.strokeText(text, 384, 50, 740); g.fillStyle = '#fbf3df'; g.fillText(text, 384, 50, 740); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; };
+    if (m.seal) { m.seal.label.material.map.dispose(); m.seal.label.material.map = label(); m.seal.text = text; return; }
+    const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
+    const chain = (rot) => { g.save(); g.translate(128, 128); g.rotate(rot); for (let i = -4; i <= 4; i++) { const flat = i % 2 === 0; g.lineWidth = 9; g.strokeStyle = '#1a1420'; g.beginPath(); g.ellipse(i * 26, 0, 19, flat ? 12 : 5, 0, 0, 7); g.stroke(); g.lineWidth = 5; g.strokeStyle = flat ? '#e8ecf4' : '#8e98b0'; g.beginPath(); g.ellipse(i * 26, 0, 19, flat ? 12 : 5, 0, 0, 7); g.stroke(); } g.restore(); };
+    chain(0.62); chain(-0.62);
+    g.lineWidth = 20; g.strokeStyle = '#1a1420'; g.beginPath(); g.arc(128, 112, 24, Math.PI, 0); g.lineTo(152, 130); g.moveTo(104, 112); g.lineTo(104, 130); g.stroke();
+    g.lineWidth = 11; g.strokeStyle = '#dfe4ee'; g.beginPath(); g.arc(128, 112, 24, Math.PI, 0); g.lineTo(152, 130); g.moveTo(104, 112); g.lineTo(104, 130); g.stroke();
+    g.fillStyle = '#1a1420'; g.beginPath(); g.roundRect(84, 122, 88, 72, 12); g.fill(); g.fillStyle = '#f2b632'; g.beginPath(); g.roundRect(90, 128, 76, 60, 8); g.fill(); g.fillStyle = '#ffe08a'; g.fillRect(94, 131, 68, 10);
+    g.fillStyle = '#3a2a20'; g.beginPath(); g.arc(128, 152, 9, 0, 7); g.fill(); g.fillRect(124, 154, 8, 20);
+    const ct = new THREE.CanvasTexture(c); ct.colorSpace = THREE.SRGBColorSpace;
+    const ch = spr(ct, 21), lb = spr(label(), 22); const size = m.s.scale.x;
+    ch.scale.setScalar(size * 1.3); lb.scale.set(size * 3.6, size * 0.45, 1);
+    m.grp.add(ch, lb); m.seal = { chain: ch, label: lb, text }; m.s.material.color.setScalar(0.55);
+    ch.scale.setScalar(size * 2.4); tween(380, (e) => ch.scale.setScalar(size * (2.2 - 0.9 * e)), Ease.outBack); // the chains pull tight
+  }
   removeMarker(key) {
     const m = this.markers.get(key); if (!m) return; this.markers.delete(key);
+    if (m.seal) this.setSeal(key, null);
     tween(350, (e) => { m.s.material.opacity = 1 - e; m.glow.material.opacity = 0.55 * (1 - e); m.grp.position.y = e * 0.8; }).then(() => this.markerGroup.remove(m.grp));
   }
 
@@ -667,7 +696,7 @@ export class World {
     }
     this.sun.position.copy(this.cam.target).add(SUN_OFFSET); this.sun.target.position.copy(this.cam.target); this.sun.target.updateMatrixWorld();
     this.table.position.x = Math.round(this.cam.target.x / 12) * 12; this.table.position.z = Math.round(this.cam.target.z / 12) * 12;
-    for (const m of this.markers.values()) { const y = m.baseY + Math.sin(T * 2 + m.phase) * 0.12; m.s.position.y = y; m.glow.position.y = y; m.glow.material.opacity = 0.4 + Math.sin(T * 3 + m.phase) * 0.2; }
+    for (const m of this.markers.values()) { const y = m.baseY + Math.sin(T * 2 + m.phase) * 0.12; m.s.position.y = y; m.glow.position.y = y; m.glow.material.opacity = (m.seal ? 0.5 : 1) * (0.4 + Math.sin(T * 3 + m.phase) * 0.2); if (m.seal) { m.seal.chain.position.set(m.s.position.x, y, m.s.position.z); m.seal.chain.material.rotation = Math.sin(T * 1.6 + m.phase) * 0.05; m.seal.label.position.set(m.s.position.x, y - m.s.scale.x * 0.92, m.s.position.z); } }
     // particles
     const dts = dt / 1000;
     for (let i = this.particles.length - 1; i >= 0; i--) {
