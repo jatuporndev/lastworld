@@ -2,7 +2,7 @@
 import { h, fmt } from '../core/util.js';
 import { t, LANG, setLang } from '../core/i18n.js';
 import { audio } from '../core/audio.js';
-import { G, myHeroes, touch, deckCount, usedCopies, canAddToDeck, canRemoveFromDeck, tryUpgradeCard, spareCopy, tryDismantle, equipItem, unequip, sellItem, useConsumable, questStatus, claimQuest, progress, addItem } from '../game/state.js';
+import { G, myHeroes, touch, usedCopies, canAddToDeck, canRemoveFromDeck, tryUpgradeCard, spareCopy, tryDismantle, equipItem, unequip, sellItem, useConsumable, questStatus, claimQuest, progress, addItem } from '../game/state.js';
 import { computeStats, attributes, canLearn, learnSkill, canEquip, clampVitals } from '../game/character.js';
 import { CLASSES, SKILL_TREES, STAT_INFO, expToNext } from '../data/classes.js';
 import { CARDS, RARITY, MAX_CARD_LEVEL, upgradeCost, DECK_MIN, DECK_MAX } from '../data/cards.js';
@@ -138,24 +138,27 @@ function equipTab(render) {
 // ───── Deck builder + card upgrades ─────
 function deckTab(render) {
   const st = G.state; const hero = myHeroes()[sel];
-  const deckIds = [...new Set(hero.deck)].sort((a, b) => CARDS[a].cost - CARDS[b].cost || a.localeCompare(b));
+  // every copy is laid out as its own card, so what is held can be read at a glance without counting numbers
+  const deckIds = [...hero.deck].sort((a, b) => CARDS[a].cost - CARDS[b].cost || a.localeCompare(b));
   const pool = Object.keys(st.cards).filter((id) => CARDS[id] && (CARDS[id].cls === 'any' || CARDS[id].cls === hero.cls)).sort((a, b) => CARDS[a].cost - CARDS[b].cost || a.localeCompare(b));
-  const deckCard = (id) => { const el = cardEl(id, st.cards[id]?.lv || 0, { small: true, count: deckCount(hero, id) });
+  const deckCard = (id) => { const el = cardEl(id, st.cards[id]?.lv || 0, { small: true });
     const take = () => { if (!canRemoveFromDeck(hero)) { toast(t('A deck needs at least {n} cards', { n: DECK_MIN }), 'bad'); audio.sfx('error'); return; } hero.deck.splice(hero.deck.indexOf(id), 1); touch(); audio.sfx('close'); render(); };
     el.onclick = take;
     dragPiece(el, { ghost: () => cardEl(id, st.cards[id]?.lv || 0, { small: true }), onDrop: (zone) => { if (zone === 'pool') take(); } });
     return el; };
   const poolCard = (id) => { const c = st.cards[id]; const free = c.n - usedCopies(id); const card = CARDS[id]; const cost = upgradeCost(card, c.lv);
-    const el = cardEl(id, c.lv, { small: true, count: free });
+    const el = cardEl(id, c.lv, { small: true });
     const put = () => { if (canAddToDeck(hero, id)) { hero.deck.push(id); touch(); audio.sfx('place'); render(); } else { audio.sfx('error'); toast(hero.deck.length >= DECK_MAX ? t('Deck is full ({n})', { n: DECK_MAX }) : t('No free copies'), 'bad'); } };
     el.onclick = put;
     dragPiece(el, { ghost: () => cardEl(id, c.lv, { small: true }), onDrop: (zone) => { if (zone === 'deck') put(); } });
     if (free <= 0) el.classList.add('dim');
     return h('div.pool-item', el); };
+  // the collection shows one card per free copy; a card whose copies are all in decks stays as one greyed card
+  const poolCards = pool.flatMap((id) => Array.from({ length: Math.max(1, st.cards[id].n - usedCopies(id)) }, () => poolCard(id)));
   return h('div.tab-deck', heroPicker(render),
     h('div.deck-cols',
       h('div.deck-col', h('div.sec-title', t("{name}'s Deck", { name: hero.name }), h('span.points' + (hero.deck.length < DECK_MIN ? '.has' : ''), t('{n} / {max} cards (min {min})', { n: hero.deck.length, max: DECK_MAX, min: DECK_MIN }))), h('div.card-grid.scroll', { 'data-drop': 'deck' }, ...deckIds.map(deckCard))),
-      h('div.deck-col', h('div.sec-title', t('Collection'), h('span.points', t('Drag or click a card to move it'))), h('div.card-grid.scroll', { 'data-drop': 'pool' }, ...pool.map(poolCard)))));
+      h('div.deck-col', h('div.sec-title', t('Collection'), h('span.points', t('Drag or click a card to move it'))), h('div.card-grid.scroll', { 'data-drop': 'pool' }, ...poolCards))));
 }
 
 // ───── Forge: craft equipment (cards are found, never made) ─────
