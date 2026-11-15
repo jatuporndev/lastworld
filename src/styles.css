@@ -865,6 +865,37 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .choice-view { padding: 0.45em 0.8em; margin: 0.25em 0; background: var(--paper2); border-radius: var(--radius); color: var(--ink-d); text-align: left; }
 /* co-op: a friend has their bag open */
 .bag-tag { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); display: flex; align-items: center; gap: 0.3em; padding: 0.15em 0.6em; background: var(--paper); color: var(--ink-d); border-radius: var(--radius); box-shadow: 0 0.2em 0 rgba(0, 0, 0, 0.3); font-family: var(--f-head); font-size: 0.8em; white-space: nowrap; }
+/* co-op ready check: every player is a paper token; a stamp lands on it when they are ready */
+.rc-party { display: flex; justify-content: center; gap: 0.9em; flex-wrap: wrap; margin: 0.9em 0 0.3em; }
+.rc-p { --pc: var(--coin); position: relative; width: 8.6em; padding: 0.6em 0.4em 0.5em; display: flex; flex-direction: column; align-items: center; gap: 0.1em; background: var(--paper2); border-radius: var(--radius); box-shadow: 0 0.25em 0 rgba(0, 0, 0, 0.22); color: var(--ink-d); }
+.rc-p.ready { background: #fff8e6; box-shadow: 0 0.25em 0 var(--accent2); }
+.rc-face { width: 4.2em; height: 4.2em; border-radius: 50%; overflow: hidden; background: var(--paper3); box-shadow: 0 0 0 0.2em var(--pc); margin-bottom: 0.25em; } .rc-face canvas { width: 100%; height: 100%; display: block; }
+.rc-name { font-family: var(--f-head); font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .rc-name small { font-weight: 400; color: var(--dim-d); }
+.rc-st { font-size: 0.8em; color: var(--dim-d); white-space: nowrap; } .rc-p.ready .rc-st { color: var(--accent2); }
+.rc-stamp { position: absolute; top: 0.5em; right: -0.5em; padding: 0 0.45em; font-family: var(--f-head); font-weight: 700; font-size: 0.85em; letter-spacing: 0.06em; color: var(--accent2); background: #fff8e6; border-radius: 0.3em; box-shadow: 0 0 0 0.14em var(--accent2); transform: rotate(12deg); animation: stampIn 0.25s ease-out both; }
+@keyframes stampIn { 0% { transform: rotate(12deg) scale(2.4); opacity: 0; } 100% { transform: rotate(12deg) scale(1); opacity: 1; } }
+.rc-count { margin: 0.5em 0 0.7em; font-family: var(--f-head); color: var(--dim-d); } .rc-count.all { color: var(--accent2); font-weight: 600; }
+.modal.ready-modal { width: min(44em, 94vw); }
+/* the same call as a slip at the top of the screen, for a guest who has their bag open */
+#rc-slip { position: absolute; left: 50%; top: 0.7em; transform: translateX(-50%); z-index: 85; display: flex; align-items: center; gap: 0.7em; padding: 0.45em 0.7em 0.45em 0.9em; background: var(--paper); color: var(--ink-d); border-radius: var(--radius); box-shadow: 0 0.3em 0 var(--accent); font-family: var(--f-head); white-space: nowrap; animation: slipIn 0.25s ease-out; }
+@keyframes slipIn { 0% { transform: translate(-50%, -150%); } 100% { transform: translate(-50%, 0); } }
+#rc-slip .btn { margin: 0; } .rc-ok { color: var(--accent2); }
+/* after a battle: who the party is still waiting for */
+.rc-wait { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 30; text-align: center; padding: 0.9em 1.2em 1em; background: var(--paper); border-radius: 0.6em; box-shadow: 0 0.35em 0 rgba(0, 0, 0, 0.28); animation: modalIn 0.2s ease-out; }
+.rc-wait-t { font-family: var(--f-head); font-size: 1.15em; color: var(--ink-d); } .rc-wait .rc-party { margin-bottom: 0; }
+/* a guest waiting for the host between stages: a paper slip with the party on it, not a loading screen */
+.cw-box { gap: 0.5em; padding: 1.1em 1.6em 1.2em; background: var(--paper); border: 0; border-radius: 0.6em; box-shadow: 0 0.35em 0 rgba(0, 0, 0, 0.28); color: var(--ink-d); animation: modalIn 0.2s ease-out; }
+.cw-box h2 { margin: 0; color: var(--ink-d); font-size: 1.35em; font-weight: 600; } .cw-room { display: flex; align-items: center; gap: 0.35em; font-family: var(--f-head); font-size: 0.85em; letter-spacing: 0.08em; color: var(--dim-d); } .cw-room .icon { filter: none; }
+.cw-box .cw-dots { display: inline-flex; gap: 0.25em; margin: 0 0 0 0.4em; vertical-align: middle; } .cw-box .cw-dots i { width: 0.3em; height: 0.3em; background: var(--accent); }
+.cw-box .rc-party { margin: 0.5em 0 0.6em; } .cw-box .btn { color: var(--ink-d); text-shadow: none; } .cw-box .btn:hover:not(:disabled) { color: var(--accent); }
+/* after a battle: what each hero did, as three bars */
+.bsum { display: grid; grid-template-columns: max-content repeat(3, minmax(0, 1fr)); gap: 0.3em 1em; align-items: center; padding: 0.6em 1em 0.7em; background: var(--paper2); border-radius: var(--radius); color: var(--ink-d); }
+.bsum-h { display: flex; align-items: center; gap: 0.3em; font-family: var(--f-head); font-size: 0.8em; color: var(--dim-d); } .bsum-h .icon { filter: none; }
+.bsum-who { display: flex; align-items: center; gap: 0.5em; font-family: var(--f-head); font-weight: 600; white-space: nowrap; }
+.bsum-face { width: 2.4em; height: 2.4em; border-radius: 50%; overflow: hidden; background: var(--paper3); box-shadow: 0 0 0 0.14em var(--pc); } .bsum-face canvas { width: 100%; height: 100%; display: block; }
+.bsum-v { display: flex; align-items: center; gap: 0.5em; } .bsum-v b { min-width: 2.2em; text-align: right; font-family: var(--f-head); font-weight: 600; } .bsum-v.top b { color: var(--accent); }
+.modal .bsum-bar, .bsum-bar { flex: 1; height: 0.6em; background: var(--paper3); border-radius: 1em; overflow: hidden; } .bsum-bar i { display: block; height: 100%; border-radius: 1em; transform-origin: left; animation: bsumGrow 0.5s ease-out both; }
+@keyframes bsumGrow { 0% { transform: scaleX(0); } 100% { transform: scaleX(1); } }
 /* items are small paintings, like the cards: no tint, a frame in the rarity colour */
 .icon.pic, .cell .icon.pic, .modal .item-icon .icon.pic, .wm-detail .item-icon .icon.pic { filter: none; border-radius: 0.3em; box-shadow: 0 0 0 0.1em var(--rar, var(--paper3)), 0 0.15em 0 rgba(0, 0, 0, 0.3); }
 .cell .icon.pic { width: 3.1em; height: 3.1em; } .cell.dim .icon.pic { opacity: 0.4; } .item-icon .icon.pic { width: 100%; height: 100%; } .item-icon { width: 3em; height: 3em; } .cell:has(.pic) .cell-rar { display: none; }
@@ -957,4 +988,6 @@ html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent
 }
 @media (hover: none) and (orientation: landscape) and (max-height: 560px) {
   .hand .card:hover:not(.selected) { transform: translateY(calc(1.6em + var(--lift, 0px))) rotate(var(--rot, 0deg)); }
+  /* co-op tokens and the battle summary sit closer together */
+  .rc-p { width: 7.4em; padding: 0.4em 0.3em; } .rc-face { width: 3.2em; height: 3.2em; } .rc-party { gap: 0.6em; margin-top: 0.5em; } .bsum { gap: 0.2em 0.6em; padding: 0.4em 0.6em; } #rc-slip .btn { min-height: 2.6em; }
 }

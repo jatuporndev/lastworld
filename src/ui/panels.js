@@ -20,8 +20,8 @@ export function openMenu(app, tab = 'hero') {
   sel = Math.max(0, Math.min(sel, myHeroes().length - 1));
   const body = h('div.menu-body'); const tabs = h('div.menu-tabs'); const res = h('div.menu-res');
   const root = h('div.menu', h('div.menu-side', tabs, res), body);
-  const m = openModal(root, { cls: 'menu-modal', title: t("Adventurer's Journal"), onClose: () => Coop.send({ t: 'bag', on: 0 }) });
-  Coop.send({ t: 'bag', on: 1 });
+  const m = openModal(root, { cls: 'menu-modal', title: t("Adventurer's Journal"), onClose: () => app.setMine('bag', false) });
+  app.setMine('bag', true);
   if (tab === 'quests') tab = 'hero';
   let shown = null;
   const render = () => {

@@ -31,7 +31,7 @@ export const CLASSES = {
   },
   priest: {
     name: 'Priest', title: 'Voice of the Last Light', role: 'Healer / Support', element: 'holy', move: 3,
-    base: { str: 3, agi: 4, vit: 6, int: 8, dex: 4 },
+    base: { str: 3, agi: 2, vit: 8, int: 8, dex: 4 },
     color: '#e0c060', desc: 'Heals, shields and blesses allies while smiting the undead with holy light. Can resurrect the fallen.',
     weaponTypes: ['staff', 'mace'], armorTypes: ['robe'],
     look: { body: 'humanoid', armor: '#f0ead8', armor2: '#c9bfa0', cloth: '#d9b04a', skin: '#f1c9a5', hair: '#e0b860', helm: 'circlet', weapon: 'mace', offhand: 'book', robe: true, cape: '#e8d8a8' },

@@ -61,6 +61,7 @@ export class Battle {
     this.board = generateBoard(stage, kind, this.rng, board);
     this.units = []; this.round = 0; this.order = []; this.current = null; this.result = null;
     this.inv = inv; this.combos = 0; this.kills = []; this.log = [];
+    this.tally = {}; // per unit: damage dealt and taken, healing done (a turret's shots count for its builder)
     // MVP arenas with nests: a lone hero faces slower nests that keep one hatchling each
     const heads = party.filter((h) => h.hp > 0).length;
     this.nestCap = heads >= 2 ? 2 : 1; this.nestSlow = heads >= 2 ? 0 : 1;
@@ -194,7 +195,8 @@ export class Battle {
       for (const u of this.order) {
         if (this.result) break;
         if (!u.alive) continue;
-        await this.takeTurn(u);
+        // one broken turn must never stop the fight for everyone: it is reported, and the next unit acts
+        try { await this.takeTurn(u); } catch (e) { console.error('[battle] turn failed', u.name, e); this.busy = false; this._endTurn = null; }
         this.checkEnd();
       }
       this.checkEnd();
@@ -443,7 +445,7 @@ export class Battle {
     for (let i = 0; i < plan.length; i++) {
       const e = plan[i];
       u.slotsUsed += e.inst.card.cost + (e.extra || 0);
-      if (u.alive && !this.result) await this.resolveCard(u, e, i);
+      if (u.alive && !this.result) try { await this.resolveCard(u, e, i); } catch (err) { console.error('[battle] card failed', e.inst.id, err); }
       u.cards.spend(e.inst);
       await this.emit('cardSpent', { unit: u, inst: e.inst, slot: u.slotsUsed - 1 });
       this.checkEnd();
@@ -473,14 +475,16 @@ export class Battle {
     this.busy = true; u.itemUsed = true;
     inv.cons[id]--; if (inv.cons[id] <= 0) delete inv.cons[id];
     await this.emit('item', { unit: u, id });
+    try {
     if (use.healPct) await this.heal(u, u, Math.round(u.maxHp * use.healPct), true);
     if (use.mp) { u.mp = Math.min(u.maxMp, u.mp + use.mp); await this.emit('text', { unit: u, text: `+${use.mp} MP`, color: '#6aa8ff' }); }
     if (use.cleanse) this.cleanse(u);
     if (use.block) await this.addBlock(u, use.block);
     if (use.bomb) {
-      const t = this.enemies().sort((a, b) => this.dist(u, a) - this.dist(u, b))[0];
-      if (t) { await this.emit('cast', { unit: u, card: { name: t('Alchemist Bomb'), el: 'fire', proj: 'fire', cat: 'attack' }, cells: this.cellsOf(t), targets: [t], target: this.nearestCell(u, t) }); await this.applyDamage(u, t, use.bomb, { el: 'fire', tags: [] }); }
+      const foe = this.enemies().sort((a, b) => this.dist(u, a) - this.dist(u, b))[0];
+      if (foe) { await this.emit('cast', { unit: u, card: { name: t('Alchemist Bomb'), el: 'fire', proj: 'fire', cat: 'attack' }, cells: this.cellsOf(foe), targets: [foe], target: this.nearestCell(u, foe) }); await this.applyDamage(u, foe, use.bomb, { el: 'fire', tags: [] }); }
     }
+    } catch (err) { console.error('[battle] item failed', id, err); }
     this.busy = false;
     this._afterAction(u);
     return true;
@@ -664,12 +668,12 @@ export class Battle {
 
   async constructAct(u) {
     if (u.monsterId !== 'turret') return;
-    const t = this.enemies().filter((e) => this.dist(u, e) <= 4).sort((a, b) => this.dist(u, a) - this.dist(u, b))[0];
-    if (!t) return;
-    const tc = this.nearestCell(u, t);
+    const foe = this.enemies().filter((e) => this.dist(u, e) <= 4).sort((a, b) => this.dist(u, a) - this.dist(u, b))[0];
+    if (!foe) return;
+    const tc = this.nearestCell(u, foe);
     u.facing = Hex.directionTo(u, tc);
-    await this.emit('cast', { unit: u, card: { name: t('Arc Shot'), el: 'fire', proj: 'fire', cat: 'attack' }, cells: [tc], targets: [t], target: tc });
-    await this.hit(u, t, { raw: u.stats.atk, el: 'fire', noEvade: true, tags: [] });
+    await this.emit('cast', { unit: u, card: { name: t('Arc Shot'), el: 'fire', proj: 'fire', cat: 'attack' }, cells: [tc], targets: [foe], target: tc });
+    await this.hit(u, foe, { raw: u.stats.atk, el: 'fire', noEvade: true, tags: [] });
   }
 
   // ───────── dice ─────────
@@ -753,7 +757,8 @@ export class Battle {
     if (!tgt.alive) return { dealt: 0 };
     let blocked = 0;
     if (tgt.block > 0 && !dot) { blocked = Math.min(tgt.block, dmg); tgt.block -= blocked; dmg -= blocked; }
-    tgt.hp = Math.max(0, tgt.hp - dmg);
+    const before = tgt.hp; tgt.hp = Math.max(0, tgt.hp - dmg);
+    this.count(src, 'dealt', before - tgt.hp); this.count(tgt, 'taken', before - tgt.hp);
     const killed = tgt.hp <= 0;
     await this.emit('hit', { src, tgt, dmg, blocked, crit, el, tags, dot, combo, killed });
     if (killed) await this.kill(tgt, src);
@@ -780,11 +785,17 @@ export class Battle {
     }
   }
 
+  count(u, k, v) {
+    if (!u || !(v > 0)) return;
+    const id = u.construct && u.owner ? u.owner : u.uid;
+    const row = (this.tally[id] ||= { dealt: 0, taken: 0, healed: 0 }); row[k] += v;
+  }
+
   async heal(src, tgt, amount, quiet = false) {
     if (!tgt.alive) return;
     let v = amount * (1 + (src?.passives?.healPct || 0));
     v = Math.round(Math.min(tgt.maxHp - tgt.hp, v));
-    tgt.hp += v;
+    tgt.hp += v; this.count(src, 'healed', v);
     if (v > 0 || !quiet) await this.emit('heal', { src, tgt, amount: v });
   }
 

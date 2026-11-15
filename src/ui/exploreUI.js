@@ -42,6 +42,7 @@ export class ExploreScene {
     const p = Hex.toWorld(run.pos.q, run.pos.r);
     w.focus({ x: p.x, z: p.z, size: 12.5, offY: 0, yaw: 0, minWidth: 15 }, 0);
     this.buildHud(); this.bind();
+    Object.keys(this.app.pst).forEach((id) => this.showStatus(id));
     audio.music('explore');
   }
 
@@ -185,8 +186,9 @@ export class ExploreScene {
           await this.retreat(); break;
         }
         const enc = sm.encounterFor(c);
-        this.share('enc', { enc: { kind: enc.kind, enemies: enc.enemies }, name: node.name });
-        const go = await this.encounterPrompt(enc, node);
+        const rid = Coop.active && Coop.partyIds().length > 1 ? 1 + Math.floor(Math.random() * 1e9) : 0; // with friends: everyone says "ready" first
+        this.share('enc', { enc: { kind: enc.kind, enemies: enc.enemies }, name: node.name, rid });
+        const go = await (rid ? this.readyCheck(enc, node, rid) : this.encounterPrompt(enc, node));
         if (go) await this.app.startBattle(enc, c); else { this.share('note', { text: 'The host retreated.', close: true }); await this.retreat(); }
         break;
       }
@@ -219,11 +221,12 @@ export class ExploreScene {
     this.nameTags?.forEach((a) => w.detach(a));
     this.nameTags = party.map((hero, i) => w.attach(h('div.unit-label.foot', h('div.ul-foot', h('div.ul-name', { style: hero.owner ? { color: Coop.colorOf(hero.owner) } : null }, hero.name))), () => w.unitPos('party' + i, 0)));
   }
-  // Co-op: a small slip over a friend's head while they have their bag open, so nobody wonders why they stand still.
-  showBag(id, on) {
+  // Co-op: a small slip over a friend's head while they read the spoils of the last fight or have their bag open,
+  // so nobody wonders why they stand still.
+  showStatus(id) {
     this.bagTags ||= new Map(); const w = this.world; w.detach(this.bagTags.get(id)); this.bagTags.delete(id);
-    const uid = this.bagUnit(id); if (!on || !uid) return;
-    this.bagTags.set(id, w.attach(h('div.ping-label', h('div.bag-tag', icon('bag', '#3a2a20', 16), t('Looking in the bag'))), () => w.unitPos(uid, 2.1)));
+    const s = this.app.pst[id] || {}; const uid = this.bagUnit(id); if (id === Coop.me || !uid || !(s.sum || s.bag)) return;
+    this.bagTags.set(id, w.attach(h('div.ping-label', h('div.bag-tag', icon(s.sum ? 'chest' : 'bag', '#3a2a20', 16), t(s.sum ? 'Collecting rewards' : 'Looking in the bag'))), () => w.unitPos(uid, 2.1)));
   }
   bagUnit(id) { const i = G.state.party.findIndex((x) => x.owner === id); return i < 0 ? null : 'party' + i; }
   share(type, data) { if (Coop.isHost) Coop.send({ t: type, ...data }); }
@@ -242,18 +245,48 @@ export class ExploreScene {
     else if (m.kind === 'event') openModal(h('div.event', h('div.big-icon', icon(m.icon, '#e8d8a8', 72)), h('p.event-text', m.text), h('div.choices', ...(m.choices || []).map((c) => h('div.choice-view', c))), wait('The host is choosing…')), { title: m.title, cls: 'narrow event-modal coop-view' });
   }
 
-  // `view`: a guest's read-only copy, shown while the host decides
-  encounterPrompt(enc, node, view = false) {
+  encounterPrompt(enc, node) {
     return new Promise((res) => {
       const boss = enc.kind === 'boss';
       if (boss) audio.sfx('boss');
-      const counts = {}; enc.enemies.forEach((id) => { counts[id] = (counts[id] || 0) + 1; });
-      const m = openModal(h('div.enc',
-        h('div.enc-row', ...Object.entries(counts).map(([id, n]) => { const d = MONSTERS[id];
-          return h('div.enc-mon' + (d.rank !== 'normal' ? '.big' : ''), monsterSprite(id, { size: d.rank === 'mvp' ? 200 : d.rank === 'mini' ? 150 : 110, anim: 'idle' }), h('div.enc-name', d.name, n > 1 ? ` ×${n}` : ''), h('div.enc-sub', `Lv ${d.level}${d.weak.length ? ' · ' + t('Weak: ') + d.weak.map((e) => ELEMENTS[e].name).join(', ') : ''}`)); })),
-        boss ? h('p.enc-quote', `“${MONSTERS[enc.enemies[0]].quote}”`) : null,
-        view ? h('p.note.center', t('The host is deciding whether to fight…')) : h('div.row.center', btn(t('Retreat'), () => { m.close(); res(false); }), btn(t(boss ? 'Challenge the MVP' : 'Fight'), () => { m.close(); res(true); }, { cls: 'primary' }))),
-      { title: boss ? t('MVP Boss') : node.name, closable: false, cls: [boss ? 'boss-modal' : '', view ? 'coop-view' : ''].filter(Boolean).join(' ') });
+      const m = openModal(h('div.enc', ...encHead(enc),
+        h('div.row.center', btn(t('Retreat'), () => { m.close(); res(false); }), btn(t(boss ? 'Challenge the MVP' : 'Fight'), () => { m.close(); res(true); }, { cls: 'primary' }))),
+      { title: boss ? t('MVP Boss') : node.name, closable: false, cls: boss ? 'boss-modal' : '' });
+    });
+  }
+
+  // Co-op: before a fight every player says they are ready. The host's window decides (and may start without waiting);
+  // a guest's is the same window with one button. A guest who has their own window open (the bag) gets a slip at the
+  // top of the screen instead, so nothing covers what they are doing.
+  readyCheck(enc, node, rid) {
+    const app = this.app; const host = Coop.isHost; const boss = enc.kind === 'boss';
+    return new Promise((res) => {
+      if (boss) audio.sfx('boss');
+      let m = null, slip = null, done = false, go = null;
+      const isReady = (id) => app.pst[id]?.rdy === rid;
+      const end = (v) => { if (done) return; done = true; offs.forEach((off) => off()); clearInterval(watch); clearTimeout(go); slip?.remove(); if (m?.wrap.isConnected) m.close(); res(v); };
+      const ready = () => { audio.sfx('buff'); app.setMine('rdy', rid); };
+      const body = h('div.enc');
+      const render = () => {
+        if (done) return;
+        const ids = Coop.partyIds(); const mine = isReady(Coop.me); const left = ids.filter((id) => !isReady(id)).length;
+        body.replaceChildren(...encHead(enc), partyTiles(app, isReady),
+          h('p.rc-count' + (left ? '' : '.all'), left ? t('Waiting for {n} player(s)…', { n: left }) : t('Everyone is ready!')),
+          host ? h('div.row.center', btn(t('Retreat'), () => end(false)), mine ? btn(t('Start without waiting'), () => end(true), { cls: 'small' }) : btn(t(boss ? 'Challenge the MVP' : 'Ready to fight'), ready, { cls: 'primary' }))
+            : h('div.row.center', mine ? h('p.note.center', t('Waiting for the others…')) : btn(t('Ready'), ready, { cls: 'primary' })));
+        slip?.replaceChildren(icon(boss ? 'crown' : 'sword', '#d9482f', 22), h('span', t('{host} is about to fight {name}', { host: Coop.nameOf(Coop.hostId), name: node.name })),
+          mine ? h('b.rc-ok', '✔ ' + t('Ready')) : btn(t('Ready'), ready, { cls: 'small primary' }));
+        if (host && !left && !go) go = setTimeout(() => end(true), 800); // a beat to see the last stamp land
+      };
+      const open = () => { m = openModal(body, { title: boss ? t('MVP Boss') : node.name, closable: false, cls: ['ready-modal', boss ? 'boss-modal' : '', host ? '' : 'coop-view'].filter(Boolean).join(' ') }); };
+      if (!host && ownModalOpen()) { slip = h('div#rc-slip'); document.getElementById('game').appendChild(slip); } else open();
+      const offs = [bus.on('coop:state', render), bus.on('coop:players', render)];
+      // the host moving on takes a guest's window (or slip) away; closing the bag turns the slip into the window
+      const watch = setInterval(() => {
+        if ((m && !m.wrap.isConnected) || (slip && !slip.isConnected)) end(false);
+        else if (slip && !ownModalOpen()) { slip.remove(); slip = null; open(); render(); }
+      }, 300);
+      render();
     });
   }
 
@@ -302,6 +335,41 @@ export class ExploreScene {
   }
 }
 
+// The monsters of an encounter, drawn in a row (with the MVP's words under it).
+function encHead(enc) {
+  const counts = {}; enc.enemies.forEach((id) => { counts[id] = (counts[id] || 0) + 1; });
+  return [h('div.enc-row', ...Object.entries(counts).map(([id, n]) => { const d = MONSTERS[id];
+    return h('div.enc-mon' + (d.rank !== 'normal' ? '.big' : ''), monsterSprite(id, { size: d.rank === 'mvp' ? 200 : d.rank === 'mini' ? 150 : 110, anim: 'idle' }), h('div.enc-name', d.name, n > 1 ? ` ×${n}` : ''), h('div.enc-sub', `Lv ${d.level}${d.weak.length ? ' · ' + t('Weak: ') + d.weak.map((e) => ELEMENTS[e].name).join(', ') : ''}`)); })),
+  enc.kind === 'boss' ? h('p.enc-quote', `“${MONSTERS[enc.enemies[0]].quote}”`) : null].filter(Boolean);
+}
+
+// Is a window of the player's own open (the bag, the quest list)? Read-only copies of the host's windows do not count.
+export const ownModalOpen = () => [...document.querySelectorAll('.modal-wrap:not(.closing) > .modal')].some((m) => !m.classList.contains('coop-view'));
+
+// Co-op: every player as a paper token with what they are doing under it. `isReady` stamps the ones who are ready;
+// without it the token says who has finished with the spoils.
+export function partyTiles(app, isReady = null, label = null) {
+  return h('div.rc-party', ...Coop.partyIds().map((id) => {
+    const hero = G.state.party.find((x) => x.owner === id); const s = app.pst[id] || {}; const ok = isReady ? isReady(id) : !label && !s.sum;
+    return h('div.rc-p' + (ok ? '.ready' : ''), { style: { '--pc': Coop.colorOf(id) } },
+      h('div.rc-face', hero ? heroSprite(hero, { size: 96, zoom: 1.5, oy: 0.3 }) : null),
+      h('div.rc-name', Coop.nameOf(id), id === Coop.me ? h('small', ' (' + t('You') + ')') : null),
+      h('div.rc-st', s.sum ? t('Collecting rewards') : s.bag ? t('Looking in the bag') : label ? label(id) : isReady ? t(ok ? 'Ready' : 'Not ready yet') : t('Done')),
+      ok && isReady ? h('div.rc-stamp', t('READY')) : null);
+  }));
+}
+
+// After a battle: what each hero did. The longest bar in a column is that column's best.
+export function battleSummary(battle) {
+  const rows = battle.units.filter((u) => u.hero).map((u) => ({ u, ...(battle.tally[u.uid] || { dealt: 0, taken: 0, healed: 0 }) }));
+  const cols = [['dealt', 'Damage dealt', 'sword', 'var(--accent)'], ['taken', 'Damage taken', 'shield', '#806b54'], ['healed', 'Healing done', 'cross', 'var(--accent2)']];
+  const max = {}; cols.forEach(([k]) => { max[k] = Math.max(1, ...rows.map((r) => r[k])); });
+  return h('div.bsum', h('div.bsum-h'), ...cols.map(([, label, ic]) => h('div.bsum-h', icon(ic, '#806b54', 16), t(label))),
+    ...rows.flatMap((r) => [
+      h('div.bsum-who', h('div.bsum-face', { style: { '--pc': r.u.hero.owner ? Coop.colorOf(r.u.hero.owner) : 'transparent' } }, heroSprite(r.u.hero, { size: 64, zoom: 1.5, oy: 0.3 })), h('span', r.u.name)),
+      ...cols.map(([k, , , c]) => h('div.bsum-v' + (rows.length > 1 && r[k] > 0 && r[k] === max[k] ? '.top' : ''), h('div.bsum-bar', h('i', { style: { width: Math.round((r[k] / max[k]) * 100) + '%', background: c } })), h('b', String(r[k]))))]));
+}
+
 // ───── loot / rewards ─────
 function lootRows(r) {
   const rows = [];
@@ -322,7 +390,7 @@ export function lootModal(title, r, { view = false } = {}) {
   });
 }
 
-export function rewardsModal(r, kind, { view = false } = {}) {
+export function rewardsModal(r, kind, { view = false, summary = null } = {}) {
   return new Promise((res) => {
     const body = h('div.rewards');
     const m = openModal(body, { title: t(kind === 'boss' ? 'MVP Defeated!' : 'Spoils of Battle'), closable: view, cls: 'rewards-modal' + (view ? ' coop-view' : ''), onClose: res });
@@ -333,6 +401,7 @@ export function rewardsModal(r, kind, { view = false } = {}) {
       h('div.row.center', btn(t('Skip (+8 shards)'), () => { G.state.shards += 8; touch(); finish(); }, { cls: 'small' }))) : h('div.row.center', btn(t('Continue'), finish, { cls: 'primary' }));
     body.replaceChildren(
       h('div.loot-list', ...lootRows(r)),
+      summary,
       r.levelUps.length ? h('div.levelups', ...r.levelUps.map((l) => h('div.levelup', heroSprite(l.hero, { size: 72, zoom: 1.3, oy: 0.15, anim: 'cast' }), h('div', h('b', t('{name} reached Level {lv}!', { name: l.hero.name, lv: l.hero.level })), h('small', t('+{n} stat points', { n: l.levels * 3 }) + (l.hero.skillPoints ? t(' · skill points available') : '')))))) : null,
       r.items.length ? h('div.item-list', ...r.items.map((it) => itemEl(it, { tag: it.unique ? t('UNIQUE') : null }))) : null,
       r.fixedCards.length ? h('div.card-grid.center', ...r.fixedCards.map((id) => { const el = cardEl(id, 0); el.classList.add('reward-glow'); return el; })) : null,

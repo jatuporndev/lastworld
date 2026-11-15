@@ -14,7 +14,7 @@ import { MONSTERS } from './data/monsters.js';
 import { STAGE_BY_ID, STAGES } from './data/stages.js';
 import { initTooltips, transition, toast, openModal, btn, topModal, banner } from './ui/components.js';
 import { titleScreen, playScreen, charCreateScreen, worldMapScreen, authModal, clearScreens, epilogue } from './ui/screens.js';
-import { ExploreScene, rewardsModal, stageIntro, lootModal } from './ui/exploreUI.js';
+import { ExploreScene, rewardsModal, stageIntro, lootModal, battleSummary, ownModalOpen } from './ui/exploreUI.js';
 import { BattleScene } from './ui/battleUI.js';
 import { Coop } from './net/coop.js';
 import { coopBadge, guestWaitScreen } from './ui/coopUI.js';
@@ -27,6 +27,7 @@ class App {
     this.sm = new StageManager();
     this.scene = null; this.diorama = false; this.saveTimer = null;
     this.inBattle = false; this.guestQ = Promise.resolve();
+    this.pst = {}; // co-op: what each player is doing right now (bag open, reading the spoils, ready for a fight)
   }
 
   async boot() {
@@ -167,7 +168,9 @@ class App {
     if (result === 'victory') {
       const r = this.sm.battleRewards(bs.battle, cell);
       this.syncHeroNow();
-      await rewardsModal(r, enc.kind);
+      this.setMine('sum', true);
+      await rewardsModal(r, enc.kind, { summary: battleSummary(bs.battle) });
+      this.setMine('sum', false);
       await this.saveNow({ gap: enc.kind === 'boss' ? 0 : 3 * 60000 });
       if (guest) { bs.waitForHost?.(); return; } // the host's next scene takes the guest on
       if (enc.kind === 'boss') {
@@ -181,9 +184,11 @@ class App {
     } else {
       const d = this.sm.onDefeat();
       this.syncHeroNow();
-      await new Promise((res) => { const m = openModal(h('div.confirm', h('p', t('Your party was defeated and carried back to the entrance of {stage}. You lost {gold} gold and {exp} EXP. The heroes recover to half strength — cleared encounters stay cleared.', { stage: stage.name, gold: d.lost, exp: d.exp })), h('div.row.center', btn(t('Rise Again'), () => { m.close(); res(); }, { cls: 'primary' }))), { title: t('Defeat'), closable: false, cls: 'narrow' }); });
+      this.setMine('sum', true);
+      await new Promise((res) => { const m = openModal(h('div.confirm', h('p', t('Your party was defeated and carried back to the entrance of {stage}. You lost {gold} gold and {exp} EXP. The heroes recover to half strength — cleared encounters stay cleared.', { stage: stage.name, gold: d.lost, exp: d.exp })), battleSummary(bs.battle), h('div.row.center', btn(t('Rise Again'), () => { m.close(); res(); }, { cls: 'primary' }))), { title: t('Defeat'), closable: false, cls: 'rewards-modal' }); });
+      this.setMine('sum', false);
       await this.saveNow({ gap: 3 * 60000 });
-      if (guest) return;
+      if (guest) { bs.waitForHost?.(); return; }
     }
     await transition(() => { this.disposeScene(); clearScreens(); this.scene = new ExploreScene(this, stageId); this.scene.build(); });
     this.hostScene();
@@ -208,13 +213,19 @@ class App {
   bindCoop() {
     bus.on('coop:players', () => { coopBadge(this); if (!this.inBattle) this.syncParty(); });
     bus.on('coop:join', (id) => { toast(t('{name} joined the room', { name: Coop.nameOf(id) }), 'good'); if (!this.inBattle) this.hostScene(); });
-    bus.on('coop:left', () => toast(t('A player left the room')));
+    bus.on('coop:left', (id) => { toast(t('A player left the room')); delete this.pst[id]; bus.emit('coop:state', id); });
     bus.on('coop:closed', (why) => this.onRoomClosed(why));
     bus.on('coop:msg', (m) => {
       if (m.t === 'b') { (Coop.bbuf ||= []).push(m); return; } // battle commands go to the battle scene
-      if (m.t === 'bag') { this.scene?.showBag?.(m.from, !!m.on); return; } // any player: "I have my bag open"
+      if (m.t === 'st') { (this.pst[m.from] ||= {})[m.k] = m.on || false; this.scene?.showStatus?.(m.from); bus.emit('coop:state', m.from); return; } // any player: "this is what I am doing"
       if (Coop.isGuest && m.from === Coop.hostId) this.guestQ = this.guestQ.then(() => this.guestHandle(m)).catch((e) => console.error('[co-op]', e));
     });
+  }
+  // Tell the room what I am doing: 'bag' (journal open), 'sum' (reading the spoils), 'rdy' (ready for fight number …).
+  setMine(k, on) {
+    if (!Coop.active) return;
+    (this.pst[Coop.me] ||= {})[k] = on || false;
+    Coop.send({ t: 'st', k, on: on || 0 }); this.scene?.showStatus?.(Coop.me); bus.emit('coop:state', Coop.me);
   }
   // Rebuild the party from the room: host first, then guests by join time. My own hero stays the real object.
   syncParty() {
@@ -274,7 +285,7 @@ class App {
     document.querySelectorAll('.modal-wrap').forEach((w) => w.remove());
     await this.menuScreen(() => { titleScreen(this); audio.music('title'); });
   }
-  closeGuestModals() { document.querySelectorAll('.modal.coop-view').forEach((m) => (m.closest('.modal-wrap') || m).remove()); }
+  closeGuestModals() { document.querySelectorAll('.modal.coop-view').forEach((m) => (m.closest('.modal-wrap') || m).remove()); document.getElementById('rc-slip')?.remove(); }
   // Guests replay the host's stream in order (walks and battles take time, so each waits for the last).
   async guestHandle(m) {
     if (!Coop.isGuest || !G.state) return;
@@ -295,7 +306,9 @@ class App {
       case 'loot': {
         const c = cellOf(m.cell); if (!sc || !c || this.sm.isCleared(c)) break;
         const r = m.kind === 'treasure' ? this.sm.openTreasure(c) : this.sm.gatherResource(c);
-        sc.clearNode(c); audio.sfx('chest'); lootModal(m.kind === 'treasure' ? 'Treasure Cache' : 'Resources Gathered', r, { view: true });
+        sc.clearNode(c); audio.sfx('chest');
+        const title = m.kind === 'treasure' ? 'Treasure Cache' : 'Resources Gathered';
+        if (ownModalOpen()) toast(t('{title}: your share is in the bag', { title: t(title) }), 'good'); else lootModal(title, r, { view: true });
         break;
       }
       case 'rest': { this.closeGuestModals(); const c = cellOf(m.cell); this.healMine(0.6, 0.6, true); if (sc && c) { this.sm.markCleared(c); sc.clearNode(c); } audio.sfx('heal'); toast(t('The party is rested'), 'good'); break; }
@@ -312,12 +325,13 @@ class App {
         });
         touch();
         const c = cellOf(m.cell); if (sc && c) { this.sm.markCleared(c); sc.clearNode(c); }
-        this.closeGuestModals(); sc?.eventView?.(m);
+        this.closeGuestModals();
+        if (ownModalOpen()) toast([m.title, m.msg].filter(Boolean).join(' — ')); else sc?.eventView?.(m);
         break;
       }
       case 'note': if (m.close) this.closeGuestModals(); if (m.text) toast(t(m.text, m.vars || {})); break;
-      case 'view': this.closeGuestModals(); sc?.hostView?.(m); break;
-      case 'enc': this.closeGuestModals(); sc?.encounterPrompt(m.enc, { name: m.name }, true); break;
+      case 'view': this.closeGuestModals(); if (!ownModalOpen()) sc?.hostView?.(m); break;
+      case 'enc': this.closeGuestModals(); sc?.readyCheck(m.enc, { name: m.name }, m.rid); break;
       case 'battle': {
         this.closeGuestModals();
         st.nextBuff = m.nextBuff || null;

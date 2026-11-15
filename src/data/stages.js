@@ -147,13 +147,13 @@ export const STAGES = [
     tiles: { d: 'dune', c: 'canyon', k: 'cactus', q: 'quicksand', o: 'oasis', p: 'palm', a: 'oasisgrass', x: 'rock' },
     boards: {
       skirmish: [
-        [ // Canyon Run — a long, narrow gorge
-          'ccccc.....ccccc.....cc ',
-          'h...cc.d....c..d..k..e ',
-          'h.d.....cc.....cc...e. ',
-          'h..k.cc..d..q..c..d..e ',
-          'cc.....ccc.d.....cc.Be ',
-          '  ccc....cccc..k..ccc  ',
+        [ // Canyon Run — a narrow gorge
+          'ccccc..ccc.....cc ',
+          'h...cc.c..d..k..e ',
+          'h.d......c.....e. ',
+          'h..k.ccq..c..d..e ',
+          'cc...d......cc.Be ',
+          '  ccc..c..k..ccc  ',
         ],
         [ // The Oasis — healing banks and palm cover around the pool
           '        ..d..        ',

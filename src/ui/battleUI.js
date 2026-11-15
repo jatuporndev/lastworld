@@ -20,6 +20,7 @@ import { MONSTERS } from '../data/monsters.js';
 import { Coop } from '../net/coop.js';
 import { bus } from '../core/util.js';
 import { cardArt } from './cardArt.js';
+import { partyTiles } from './exploreUI.js';
 import { itemPic, ui, cardEl, unitSprite, statusChips, bar, btn, icon, toast, banner, openModal, diceChip, die } from './components.js';
 
 // A monster attack reads as its dice plus the fixed bonus: drawn dice on the board, words in a sentence.
@@ -270,9 +271,9 @@ export class BattleScene {
   }
 
   // Co-op: a small slip over a friend's head while they have their bag open, so nobody wonders why they stand still.
-  showBag(id, on) {
+  showStatus(id) {
     this.bagTags ||= new Map(); const w = this.world; w.detach(this.bagTags.get(id)); this.bagTags.delete(id);
-    const uid = this.bagUnit(id); if (!on || !uid) return;
+    const uid = this.bagUnit(id); if (id === Coop.me || !this.app.pst[id]?.bag || !uid) return;
     this.bagTags.set(id, w.attach(h('div.ping-label', h('div.bag-tag', icon('bag', '#3a2a20', 16), t('Looking in the bag'))), () => w.unitPos(uid, 2.1)));
   }
   bagUnit(id) { return this.battle.units.find((u) => u.alive && u.hero?.owner === id)?.uid || null; }
@@ -378,7 +379,13 @@ export class BattleScene {
     this.setHint();
   }
 
-  waitForHost() { if (this.el) { this.el.hint.textContent = tr('Waiting for the host…'); this.el.hint.classList.add('on'); } }
+  // Co-op, after my own spoils: who the party is still waiting for, so the still screen does not look stuck.
+  waitForHost() {
+    if (!this.el) return;
+    const box = h('div.rc-wait'); const draw = () => box.replaceChildren(h('div.rc-wait-t', tr(Coop.partyIds().some((id) => this.app.pst[id]?.sum) ? 'Waiting for the others to collect their rewards…' : 'Waiting for the host…')), partyTiles(this.app));
+    (this._offs ||= []).push(bus.on('coop:state', draw), bus.on('coop:players', draw), () => box.remove());
+    draw(); ui().appendChild(box);
+  }
   setHint() {
     const u = this.hero(); let t = '';
     if (u && this.coop && !this.canControl(u)) t = tr("{player}'s turn — wait for them…", { player: this.ownerName(u) });

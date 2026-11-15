@@ -9,6 +9,7 @@ import { Net } from '../net/firebase.js';
 import { Coop } from '../net/coop.js';
 import { ui, btn, icon, openModal, heroSprite, toast } from './components.js';
 import { newWorldModal } from './screens.js';
+import { partyTiles } from './exploreUI.js';
 
 const ERR = {
   offline: 'Online play needs the Firebase connection. Check your internet and the game settings.',
@@ -118,12 +119,17 @@ export function coopBadge(app) {
 // ───────── guest waiting screen ─────────
 export function guestWaitScreen(app, text) {
   ui().querySelectorAll('.screen').forEach((s) => s.remove());
+  // a paper slip on the table: the room, the party as tokens, and what everyone is waiting for
+  const party = h('div');
   const el = h('div.screen.coop-wait',
-    h('div.cw-box', h('div.auth-crest', h('div.auth-crest-ring'), icon('banner', '#f6d98a', 46)),
-      h('h2', text), h('p', t('Room {code} · Host: {name}', { code: Coop.code, name: Coop.nameOf(Coop.hostId) })),
-      h('div.cw-dots', h('i'), h('i'), h('i')),
-      h('div.row.center', btn(t('Party Room'), () => lobbyModal(app), { cls: 'ghost' }), btn(t('Leave Room'), () => app.leaveCoop(), { cls: 'ghost' }))));
+    h('div.cw-box', h('div.cw-room', icon('banner', '#806b54', 18), t('Room {code}', { code: Coop.code })),
+      h('h2', text.replace(/[….]+$/, ''), h('span.cw-dots', h('i'), h('i'), h('i'))), party,
+      h('div.row.center', btn(t('Party Room'), () => lobbyModal(app)), btn(t('Leave Room'), () => app.leaveCoop()))));
+  const draw = () => { if (!el.isConnected) { offs.forEach((off) => off()); return; }
+    party.replaceChildren(G.state?.party?.length ? partyTiles(app, null, (id) => { const hero = G.state.party.find((x) => x.owner === id); return id === Coop.hostId ? t('Host') : hero ? `${CLASSES[hero.cls].name} Lv ${hero.level}` : '…'; }) : ''); };
   ui().appendChild(el);
+  const offs = [bus.on('coop:players', draw), bus.on('coop:state', draw)];
+  draw();
   return el;
 }
 
