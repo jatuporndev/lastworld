@@ -28,6 +28,7 @@ const pw = (i) => t('{n} dice', { n: i.dice || 1 }) + ' +' + i.power;
 const pwEl = (i) => [...die(i.dice || 1), '+' + i.power + (i.hits > 1 ? '×' + i.hits : '')];
 const INTENT_ICON = { strike: 'sword', shoot: 'arrow', aoe: 'meteor', guard: 'shield', buff: 'star', heal: 'cross', summon: 'skull', wait: 'orb' };
 
+const VOLLEY_RIDERS = new Set(['status', 'heal', 'block', 'text']); // small notes that ride along with an area blow
 const DEAL_GAP = 130, DEAL_FLY = 620; // ms between two cards dealt, and how long one flies (matches drawCard in styles.css)
 export class BattleScene {
   constructor(app, { stage, enc, seed = Date.now(), party = null }) {
@@ -604,7 +605,22 @@ export class BattleScene {
   }
 
   // ───────── view: battle event handler ─────────
+  // An area blow lands on everyone at the same moment: its hits, misses and deaths are shown without waiting for
+  // one another, and the fight moves on only when the last of them has played out.
   async handle(type, d) {
+    const now = performance.now(); const open = this.volleyEnd > now;
+    const loose = d && ((d.together && (type === 'hit' || type === 'miss' || (type === 'death' && d.unit.rank !== 'mvp'))) || (open && VOLLEY_RIDERS.has(type)));
+    if (loose) {
+      const fell = type === 'death';
+      this.volleyEnd = Math.max(this.volleyEnd || 0, now + (fell ? 700 : 280));
+      (fell ? sleep(140) : Promise.resolve()).then(() => this.showEvent(type, d)).catch((e) => console.error('[battle view]', type, e));
+      return;
+    }
+    if (this.volleyEnd) { const wait = this.volleyEnd - now; this.volleyEnd = 0; if (wait > 0) await sleep(wait); }
+    return this.showEvent(type, d);
+  }
+
+  async showEvent(type, d) {
     const w = this.world, b = this.battle;
     const pos = (u, up = 1) => w.unitPos(u.uid, up);
     switch (type) {

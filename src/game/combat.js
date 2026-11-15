@@ -569,7 +569,7 @@ export class Battle {
               if (f.alone && !this.alliesOf(v).some((x) => x !== v && x.alive && this.dist(x, v) <= 1)) raw += f.alone;
               if (spent) { raw += spent; spent = 0; } // Block or MP paid into the blow: once, on the first hit
               if (f.execute && v.hp / v.maxHp <= f.execute) raw *= 2;
-              const res = await this.hit(u, v, { raw, el: card.el, critBonus: f.crit || 0, forceCrit: diceFirst && dice.crit, drain: f.drain, keepMark: f.keepMark, aoe: card.shape !== 'single', tags: comboCat && firstDmg ? ['Combo!'] : [] });
+              const res = await this.hit(u, v, { raw, el: card.el, critBonus: f.crit || 0, forceCrit: diceFirst && dice.crit, drain: f.drain, keepMark: f.keepMark, aoe: card.shape !== 'single', together: card.shape !== 'single' && (f.hits || 1) === 1, tags: comboCat && firstDmg ? ['Combo!'] : [] });
               if (res.evaded) evaded.add(v);
             }
           }
@@ -683,7 +683,7 @@ export class Battle {
       const victims = this.enemies().filter((v) => this.cellsOf(v).some((c) => cells.some((x) => Hex.hexEq(x, c))));
       u.facing = Hex.directionTo(u, best.c);
       await this.emit('cast', { unit: u, card: { name: t('Mortar Shell'), el: 'earth', cat: 'attack', shape: 'area', size: 1 }, cells, targets: victims, target: best.c });
-      for (const v of victims) await this.hit(u, v, { raw: Math.max(1, Math.round(u.stats.atk * 0.75)), el: 'earth', noEvade: true, aoe: true, tags: [] });
+      for (const v of victims) await this.hit(u, v, { raw: Math.max(1, Math.round(u.stats.atk * 0.75)), el: 'earth', noEvade: true, aoe: true, together: true, tags: [] });
       return;
     }
     if (u.monsterId !== 'turret') return;
@@ -730,7 +730,7 @@ export class Battle {
     if (!o.noEvade) {
       let eva = tgt.stats.eva + (tgt.status.stealth ? 50 : 0);
       if (tgt.status.stun || tgt.status.frozen || tgt.status.root || tgt.construct) eva = 0;
-      if (this.rng.chance(eva / 100)) { await this.emit('miss', { src, tgt }); return { dmg: 0, evaded: true }; }
+      if (this.rng.chance(eva / 100)) { await this.emit('miss', { src, tgt, together: o.together }); return { dmg: 0, evaded: true }; }
     }
     let dmg = o.raw; const el = o.el || 'neutral';
     const P = src?.passives || {};
@@ -761,7 +761,7 @@ export class Battle {
     // defense
     const tdef = tgt.size === 1 ? (this.terrain(tgt)?.def || 0) : 0;
     dmg = Math.max(1, Math.round(dmg) - tgt.stats.def - tdef); // DEF is flat armour; a hit always does at least 1
-    const res = await this.applyDamage(src, tgt, dmg, { el, crit, tags, combo });
+    const res = await this.applyDamage(src, tgt, dmg, { el, crit, tags, combo, together: o.together });
     if (res.dealt > 0) {
       const ls = (P.lifesteal || 0) + (o.drain || 0);
       if (ls && src.alive) await this.heal(src, src, Math.max(1, res.dealt * ls), true);
@@ -773,15 +773,15 @@ export class Battle {
     return { dmg: res.dealt, crit };
   }
 
-  async applyDamage(src, tgt, dmg, { el = 'neutral', crit = false, tags = [], dot = false, combo = null } = {}) {
+  async applyDamage(src, tgt, dmg, { el = 'neutral', crit = false, tags = [], dot = false, combo = null, together = false } = {}) {
     if (!tgt.alive) return { dealt: 0 };
     let blocked = 0;
     if (tgt.block > 0 && !dot) { blocked = Math.min(tgt.block, dmg); tgt.block -= blocked; dmg -= blocked; }
     const before = tgt.hp; tgt.hp = Math.max(0, tgt.hp - dmg);
     this.count(src, 'dealt', before - tgt.hp); this.count(tgt, 'taken', before - tgt.hp);
     const killed = tgt.hp <= 0;
-    await this.emit('hit', { src, tgt, dmg, blocked, crit, el, tags, dot, combo, killed });
-    if (killed) await this.kill(tgt, src);
+    await this.emit('hit', { src, tgt, dmg, blocked, crit, el, tags, dot, combo, killed, together });
+    if (killed) await this.kill(tgt, src, together);
     else if (tgt.rank === 'mvp' && tgt.phase === 1 && tgt.hp <= tgt.maxHp * 0.5) {
       tgt.phase = 2; this.cleanse(tgt); tgt.block += Math.round(tgt.maxHp * 0.08);
       tgt.intent = null;
@@ -792,10 +792,11 @@ export class Battle {
     return { dealt: dmg, killed };
   }
 
-  async kill(u, src) {
+  // together: the blow fell on several units at once, so the view shows them falling at once too
+  async kill(u, src, together = false) {
     u.alive = false; u.status = {}; u.block = 0; u.intent = null;
     if (u.side === 'enemy') this.kills.push(u);
-    await this.emit('death', { unit: u, src });
+    await this.emit('death', { unit: u, src, together });
     // constructs die with their owner
     if (u.hero) for (const c of this.units) if (c.alive && c.owner === u.uid) await this.kill(c, null);
     // the brood scatters when its MVP falls (no spoils for those)
@@ -868,7 +869,7 @@ export class Battle {
     await this.emit('cast', { unit: u, card: { name: it.name, el: it.el || u.el, cat: 'attack', shape: it.shape, size: it.size, big: true, pattern: !!it.fixed }, cells, targets: victims, target: origin, monster: true });
     const roll = this.monsterRoll(u); // one roll for the whole area
     for (const v of victims) {
-      const res = await this.hit(u, v, { raw: this.intentPower(u, it) + roll, el: it.el || 'neutral', aoe: true, tags: ['🎲 ' + roll] });
+      const res = await this.hit(u, v, { raw: this.intentPower(u, it) + roll, el: it.el || 'neutral', aoe: true, together: true, tags: ['🎲 ' + roll] });
       if (!res.evaded && it.status && v.alive) await this.addStatus(u, v, it.status.st, it.status.n);
     }
   }
