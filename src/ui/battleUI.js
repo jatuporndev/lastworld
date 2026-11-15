@@ -28,6 +28,7 @@ const pw = (i) => t('{n} dice', { n: i.dice || 1 }) + ' +' + i.power;
 const pwEl = (i) => [...die(i.dice || 1), '+' + i.power + (i.hits > 1 ? '×' + i.hits : '')];
 const INTENT_ICON = { strike: 'sword', shoot: 'arrow', aoe: 'meteor', guard: 'shield', buff: 'star', heal: 'cross', summon: 'skull', wait: 'orb' };
 
+const DEAL_GAP = 130, DEAL_FLY = 620; // ms between two cards dealt, and how long one flies (matches drawCard in styles.css)
 export class BattleScene {
   constructor(app, { stage, enc, seed = Date.now(), party = null }) {
     this.app = app; this.world = app.world; this.stage = stage; this.enc = enc;
@@ -332,6 +333,10 @@ export class BattleScene {
     E.energy.replaceChildren(h('div.eo-num', u.energy), h('div.eo-label', t('ENERGY')), h('div.eo-pips', ...Array.from({ length: Math.max(u.stats.energy, u.energy) }, (_, i) => h('i' + (i < u.energy ? '.on' : '')))));
     // hand
     const n = u.cards.hand.length;
+    // cards just drawn fly in from the draw pile one after another; the flight survives a re-render of the hand
+    const now = performance.now(); const flying = this.flying || (this.flying = new Map()); const fliers = [];
+    drawn.forEach((inst, i) => flying.set(inst, now + i * DEAL_GAP));
+    for (const [inst, at] of flying) if (now > at + DEAL_FLY || !u.cards.hand.includes(inst)) flying.delete(inst);
     E.hand.replaceChildren(...u.cards.hand.map((inst, i) => {
       const el = cardEl(inst.id, inst.lv, { unit: u });
       const why = active ? this.battle.whyNot(u, inst) : null;
@@ -339,7 +344,7 @@ export class BattleScene {
       if (!active) el.addEventListener('click', () => { const on = el.classList.contains('peeked'); E.hand.querySelectorAll('.peeked').forEach((x) => x.classList.remove('peeked')); if (!on) el.classList.add('peeked'); }); // touch: tap to lift a card and read it
       if (why) { el.classList.add('unplayable'); el.dataset.tip = why; }
       if (this.pending?.inst === inst) el.classList.add('selected');
-      if (drawn.includes(inst)) { el.classList.add('drawn'); el.style.animationDelay = drawn.indexOf(inst) * 90 + 'ms'; }
+      if (flying.has(inst)) { el.classList.add('drawn'); el.style.animationDelay = Math.round(flying.get(inst) - now) + 'ms'; fliers.push(el); el.addEventListener('animationend', (e) => { if (e.target === el) el.classList.remove('drawn'); }); }
       const mid = (n - 1) / 2; el.style.setProperty('--rot', (i - mid) * 3 + 'deg'); el.style.setProperty('--lift', Math.abs(i - mid) * 5 + 'px'); el.style.zIndex = 10 + i;
       el.appendChild(h('div.card-key', i + 1));
       el.addEventListener('pointerdown', (e) => this.cardDown(e, inst, el));
@@ -372,6 +377,10 @@ export class BattleScene {
     E.cool.replaceChildren(...(u.cards.cooldown.length ? u.cards.cooldown.map((e) => h('div.cool-card', { onclick: piles, style: { '--el': ELEMENTS[e.inst.card.el].color, '--art': `url(${cardArt(e.inst.id)})` }, 'data-tip': t('{name} — ready in {n} round(s)', { name: e.inst.card.name, n: e.left }) }, icon(e.inst.card.icon, '#fff', 22), h('b', e.left))) : [h('div.cool-empty', '—')]),
       h('div.pile.discard', { onclick: piles, 'data-tip': t('Discard pile {n} — click to look', { n: u.cards.discard.length }) }, h('span', String(u.cards.discard.length)), h('small', t('DISCARD'))),
       h('div.pile', { onclick: piles, 'data-tip': t('Draw pile {n} — click to look', { n: u.cards.draw.length }) }, h('span', String(u.cards.draw.length)), h('small', t('DECK'))));
+    if (fliers.length) { // where the flight starts: the middle of the draw pile, measured from each card's place in the hand
+      const pile = E.cool.querySelector('.pile:not(.discard)').getBoundingClientRect(); const box = E.hand.getBoundingClientRect();
+      if (pile.width) for (const el of fliers) { el.style.setProperty('--fx', Math.round(pile.left + pile.width / 2 - (box.left + el.offsetLeft + el.offsetWidth / 2)) + 'px'); el.style.setProperty('--fy', Math.round(pile.top + pile.height / 2 - (box.top + el.offsetTop + el.offsetHeight / 2)) + 'px'); }
+    }
     E.whose.textContent = !active && u ? (cur && !this.canControl(u) ? t("{name}'s hand", { name: u.name }) : t('Your hand')) : '';
     E.exec.disabled = !active || !u.plan.length; E.end.disabled = !active; E.undo.disabled = !active || !u.plan.length;
     const cons = Object.values(this.consOf(u)).reduce((s, v) => s + v, 0);
@@ -623,7 +632,7 @@ export class BattleScene {
       case 'heroTurn': {
         audio.sfx('turn'); this.inspect = d.unit; this.inputOn = false; // enabled by inputReady() once the battle waits for input
         if (this.coop) toast(this.canControl(d.unit) ? tr('Your turn — {name}', { name: d.unit.name }) : tr("{player}'s turn — {name}", { player: this.ownerName(d.unit), name: d.unit.name }), this.canControl(d.unit) ? 'good' : '');
-        d.drawn.forEach((_, i) => setTimeout(() => audio.sfx('draw'), i * 90));
+        d.drawn.forEach((_, i) => setTimeout(() => audio.sfx('draw'), i * DEAL_GAP));
         this.renderHand(d.drawn); this.syncAll(); this.refreshBoard();
         break;
       }
@@ -721,7 +730,7 @@ export class BattleScene {
         this.syncAll(); break;
       }
       case 'intent': case 'intentDone': { this.syncLabel(d.unit); this.refreshTelegraph(); if (this.inspect === d.unit) this.renderInfo(); break; }
-      case 'cardSpent': case 'draw': { if (d.drawn) d.drawn.forEach((_, i) => setTimeout(() => audio.sfx('draw'), i * 90)); this.renderHand(d.drawn || []); this.syncAll(); break; }
+      case 'cardSpent': case 'draw': { if (d.drawn) d.drawn.forEach((_, i) => setTimeout(() => audio.sfx('draw'), i * DEAL_GAP)); this.renderHand(d.drawn || []); this.syncAll(); break; }
       case 'item': { audio.sfx('heal'); w.floatText(pos(d.unit, 2.2), CONSUMABLES[d.id].name, 'card-name'); await sleep(200); break; }
       case 'end': {
         this.inputOn = false; this.renderHand(); w.clearLayers(); w.setTurnRing(null);

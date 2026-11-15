@@ -333,7 +333,6 @@ html:lang(th) .logo-sub { font-size: 1.05em; }
 .hand .card { margin: 0 -0.6em; transform: translateY(calc(3.1em + var(--lift, 0px))) rotate(var(--rot, 0deg)); transform-origin: 50% 120%; }
 .hand .card:hover { transform: translateY(-1.2em) scale(1.22); z-index: 50 !important; box-shadow: 0 0 1.6em var(--elg), 0 0.6em 1.4em rgba(0, 0, 0, 0.8); } .hand .card:hover .card-key { opacity: 1; }
 .hand .card.unplayable { filter: grayscale(0.75) brightness(0.62); } .hand .card.selected { transform: translateY(-2em) scale(1.15); box-shadow: 0 0 2em #ffe27a; z-index: 60 !important; border-color: #ffe27a; }
-.hand .card.drawn { animation: drawCard 0.45s cubic-bezier(0.2, 1.1, 0.4, 1) both; } @keyframes drawCard { from { transform: translate(34em, 3em) rotate(40deg) scale(0.4); opacity: 0; } }
 .hand .card.drag-src { opacity: 0.25; }
 .card.drag-ghost { position: absolute; left: 0; top: 0; z-index: 85; pointer-events: none; margin: 0; transition: none; box-shadow: 0 1em 2.5em rgba(0, 0, 0, 0.8), 0 0 2em var(--elg); transform-origin: 50% 50%; }
 .b-right { flex: 0 0 21em; display: flex; flex-direction: column; align-items: flex-end; gap: 0.6em; }
@@ -626,7 +625,13 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .float-text.card-name { background: var(--paper); color: var(--ink-d); border: 0; border-radius: 0.3em; }
 .dice-tray.thump { animation: trayThump 0.22s ease-out; } @keyframes trayThump { 30% { transform: translate(-50%, -48%) scale(1.05); } }
 .dice-tray.done .ds-total { animation: totalPop 0.42s cubic-bezier(0.2, 1.7, 0.4, 1); } @keyframes totalPop { from { transform: scale(0.4); opacity: 0; } }
-.hand .card.drawn { animation-timing-function: cubic-bezier(0.2, 1.3, 0.4, 1); }
+/* a drawn card leaves the draw pile face down, turns over in the air and drops into the hand */
+.hand .card.drawn { animation: drawCard 0.62s cubic-bezier(0.3, 0.7, 0.3, 1) both; }
+.hand .card.drawn::after { content: ''; position: absolute; inset: 0; z-index: 9; border-radius: inherit; background: var(--paper2); box-shadow: inset 0 0 0 0.3em var(--paper), inset 0 0 0 0.42em var(--paper3); opacity: 0; animation: drawBack 0.62s linear both; animation-delay: inherit; }
+@keyframes drawCard { 0% { transform: translate(var(--fx, 34em), var(--fy, 3em)) rotate(24deg) scale(0.26); opacity: 0; } 10% { opacity: 1; }
+  50% { transform: translate(calc(var(--fx, 34em) * 0.42), calc(var(--fy, 3em) * 0.42 - 4.5em)) rotate(10deg) scale(0.02, 0.8); opacity: 1; }
+  86% { transform: translateY(calc(2.2em + var(--lift, 0px))) rotate(var(--rot, 0deg)) scale(1.06); } }
+@keyframes drawBack { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .screen-fx, .battle-hud.danger::after { display: none; } }
 
 /* roll log: plain small lines above the bottom-right controls, newest at the bottom, older ones fading */
