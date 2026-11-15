@@ -115,7 +115,7 @@ export const TH = {
   'Cancel': 'ยกเลิก',
   // equipment types
   sword: 'ดาบ', mace: 'คทา', staff: 'ไม้เท้า', bow: 'ธนู', dagger: 'มีดสั้น', hammer: 'ค้อน',
-  heavy: 'เกราะหนัก', light: 'เกราะเบา', robe: 'เสื้อคลุม', ring: 'แหวน', amulet: 'สร้อยคอ', boots: 'รองเท้า',
+  heavy: 'เกราะหนัก', light: 'เกราะเบา', robe: 'เสื้อคลุม', amulet: 'สร้อยคอ', boots: 'รองเท้า',
   weapon: 'อาวุธ', armor: 'ชุดเกราะ', accessory: 'เครื่องประดับ',
 
   // ───────── card text ─────────
@@ -383,7 +383,7 @@ export const TH = {
   'Arc Shot': 'ยิงประกายไฟ',
   'Weak!': 'แพ้ทาง!',
   'Resist': 'ต้านทาน',
-  'Thorns': 'หนามสะท้อน',
+  
   'Melt!': 'หลอมละลาย!',
   'Quench!': 'ดับไฟ!',
   'Shatter!': 'แตกกระจาย!',
@@ -591,7 +591,7 @@ export const TH = {
   'Momentum': 'แรงส่ง', '+1 Movement.': 'เดิน +1',
   'Champion': 'แชมเปียน', '+1 Action Slot per turn.': 'ช่องแอ็กชัน +1 ต่อเทิร์น',
   'Pyromancy': 'วิชาเพลิง', 'Burn you apply has +1 stack.': 'เผาไหม้ที่คุณติดให้ +1 สแต็ก',
-  'Searing Mind': 'จิตแผดเผา', '+1 MATK.': '+1 MATK',
+  'Searing Mind': 'จิตแผดเผา', 
   'Archmage': 'อาร์คเมจ',
   'Cryomancy': 'วิชาน้ำแข็ง', 'Chill you apply has +1 stack.': 'หนาวเหน็บที่คุณติดให้ +1 สแต็ก',
   'Mana Well': 'บ่อมานา', '+15 Max MP, +2 MP regen per round.': '+15 MP สูงสุด, ฟื้นฟู MP +2 ต่อรอบ',
@@ -696,7 +696,7 @@ export const TH = {
   'Costs 2. Blocks LOS. Thorns deal 1 damage at turn end.': 'ใช้แต้มเดิน 2 บังแนวสายตา หนามสร้างความเสียหาย 1 เมื่อจบเทิร์น',
   'Costs 3. Roots units that end a turn here.': 'ใช้แต้มเดิน 3 ผู้ที่จบเทิร์นที่นี่จะถูกตรึง',
   'Ending a turn here inflicts Chill 1.': 'จบเทิร์นที่นี่จะติดหนาวเหน็บ 1',
-  'Costs 2. +1 DEF. Blocks line of sight.': 'ใช้แต้มเดิน 2 +1 DEF บังแนวสายตา',
+  
   '+1 DEF (cover).': '+1 DEF (ที่กำบัง)',
   'Ending a turn here deals 1 Shadow damage.': 'จบเทิร์นที่นี่รับความเสียหายเงา 1',
   'Impassable chasm. Does not block sight.': 'เหวที่ผ่านไม่ได้ ไม่บังแนวสายตา',
@@ -707,7 +707,7 @@ export const TH = {
   'Firm footing: +1 DEF.': 'พื้นมั่นคง: +1 DEF',
   'Costs 2. +1 DEF. Blocks line of sight.': 'ใช้แต้มเดิน 2 +1 DEF บังแนวสายตา',
   'A slick span over the crevasse. Ending a turn here inflicts Chill 1.': 'สะพานลื่นเหนือรอยแยก จบเทิร์นที่นี่จะติดหนาวเหน็บ 1',
-  'High ground. Costs 2 to climb. +1 DEF.': 'ที่สูง ใช้แต้มเดิน 2 ในการปีน +1 DEF',
+  
   'A crumbling gap in the wall. Costs 2. Blocks line of sight.': 'ช่องผุพังในกำแพง ใช้แต้มเดิน 2 บังแนวสายตา',
   'Impassable, but low enough to shoot over.': 'ผ่านไม่ได้ แต่เตี้ยพอจะยิงข้ามได้',
   'A span of solid starlight between the islands.': 'สะพานแสงดาวแข็งตัวเชื่อมระหว่างเกาะ',
@@ -1042,4 +1042,6 @@ export const TH = {
   'Islet': 'เกาะเล็ก',
   'A scrap of beach. Impassable. Blocks line of sight.': 'หาดทรายผืนเล็ก ผ่านไม่ได้ บังแนวสายตา',
   'When the world broke, this sea stayed where it was and the ground fell away beneath it. There is no shore left to walk on: the party takes to small boats, and whatever lives here comes up out of the water to meet them.': 'เมื่อโลกแตก ทะเลนี้ยังอยู่ที่เดิมแต่พื้นดินข้างใต้ร่วงหายไป ไม่เหลือฝั่งให้เดิน ปาร์ตี้ต้องลงเรือลำเล็ก และทุกสิ่งที่อาศัยอยู่ที่นี่จะโผล่ขึ้นจากน้ำมาหา',
+  'EXP': 'EXP', 'Skill Point': 'แต้มสกิล', 'Fully restored': 'ฟื้นฟูเต็ม', 'HP restored': 'ฟื้นฟู HP', 'HP lost': 'เสีย HP',
+  '{name} next battle': '{name} ในการต่อสู้ครั้งหน้า', 'New card': 'การ์ดใหม่', 'Before': 'ก่อน', 'Upgraded to +{n}': 'อัปเกรดเป็น +{n}',
 };
