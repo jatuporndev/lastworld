@@ -1,5 +1,6 @@
 // Monster AI — chooses a telegraphed Intent each round, then moves and acts on its turn.
 import * as Hex from '../engine/hex.js';
+import { echoIntent } from './bossRules.js';
 
 function pickTarget(b, u) {
   const foes = b.heroSide();
@@ -47,12 +48,14 @@ function pattern(b, u, it, tgt) {
 export function chooseIntent(b, u) {
   const d = u.def;
   if (d.nest) return nestIntent(b, u);
+  if (d.prop) return null; // a piece of the MVP's rule: it only stands there
+  if (d.echo) return echoIntent(b, u);
   let list = (u.phase === 2 && d.phase2) ? d.phase2 : d.intents;
   if (!list || !list.length) return null;
-  const allies = b.enemies();
+  const allies = b.enemies().filter((a) => !a.prop);
   const hurt = allies.some((a) => a.hp < a.maxHp * 0.8);
   list = list.filter((it) => {
-    if (it.k === 'summon' && allies.length >= 6) return false;
+    if (it.k === 'summon' && (allies.length >= 6 || (b.rule?.def.noSummon && u === b.rule.boss))) return false;
     if (it.k === 'heal' && !(it.self ? u.hp < u.maxHp * 0.8 : hurt)) return false;
     if (it.k === 'guard' && u.block > 0) return false;
     if (u.lastIntent && u.lastIntent === it.name && list.length > 1 && it.k !== 'strike' && it.k !== 'shoot') return false;
@@ -62,6 +65,7 @@ export function chooseIntent(b, u) {
   // the second half of a two-step attack follows on its own
   const it = u.nextIntent ? { ...u.nextIntent } : { ...b.rng.weighted(list.map((x) => ({ w: x.w || 1, v: x }))) };
   u.nextIntent = null;
+  if (it.rule) { u.lastIntent = it.name; return it; } // the next step of its rule, already worked out
   const boss = d.rank === 'mvp' || d.rank === 'mini';
   if (it.k === 'aoe' && it.shape === 'area' && boss) it.size += 1; // harder to walk out of, and it stays where it is marked
   u.lastIntent = it.name;
@@ -106,6 +110,7 @@ async function approach(b, u, tgt, range, budget, needLos = false) {
 export async function monsterAct(b, u) {
   const it = u.intent;
   if (!it || !u.alive) return;
+  if (it.rule) { await b.rule?.def.act?.(b, b.rule, u, it); return; }
   const budget = b.moveBudget(u);
   let tgt = b.units.find((x) => x.uid === it.targetUid && x.alive) || pickTarget(b, u);
   if (u.status.taunt) tgt = pickTarget(b, u);

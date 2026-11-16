@@ -568,6 +568,13 @@ const ITEM = {
     c.fillStyle = '#3a4050'; c.fillRect(256, 180, 68, 44); c.strokeStyle = '#c8a070'; c.lineWidth = 12; c.lineCap = 'round'; c.beginPath(); c.moveTo(290, 184); c.quadraticCurveTo(330, 100, 420, 110); c.stroke();
     for (let i = 0; i < 10; i++) at(c, 430, 108, (i / 10) * TAU, () => poly(c, [[-12, 0], [0, -(40 + (i % 2) * 34)], [12, 0]], i % 2 ? P.hot : P.core)); disc(c, 430, 108, 20, P.core); halo(c, P, 430, 108, 200, 0.8); sparks(c, P, R, 430, 108, 16, 110);
   },
+  leaf(c, P) { // one broad leaf, lit from within
+    shape(c, '#0e1a0c', () => { c.moveTo(300, 80); c.bezierCurveTo(520, 180, 500, 430, 300, 540); c.bezierCurveTo(100, 430, 80, 180, 300, 80); });
+    shape(c, lin(c, 140, 100, 460, 520, [P.core, P.hot, P.mid, P.deep]), () => { c.moveTo(300, 104); c.bezierCurveTo(492, 196, 476, 418, 300, 516); c.bezierCurveTo(124, 418, 108, 196, 300, 104); });
+    line(c, 300, 124, 300, 580, 10, 'rgba(255,255,255,0.75)');
+    for (const y of [230, 310, 390]) { line(c, 300, y, 212, y - 62, 6, 'rgba(255,255,255,0.5)'); line(c, 300, y, 388, y - 62, 6, 'rgba(255,255,255,0.5)'); }
+    halo(c, P, 300, 300, 260, 0.6);
+  },
   gem(c, P) { // a raw material
     poly(c, [[300, 110], [470, 250], [400, 500], [200, 500], [130, 250]], P.deep); poly(c, [[300, 130], [448, 254], [300, 300]], P.hot); poly(c, [[300, 130], [152, 254], [300, 300]], P.core); poly(c, [[152, 254], [300, 300], [210, 486]], P.mid); poly(c, [[448, 254], [300, 300], [390, 486]], P.mid); poly(c, [[300, 300], [390, 486], [210, 486]], P.hot);
     line(c, 300, 130, 300, 300, 4, 'rgba(255,255,255,0.6)'); halo(c, P, 300, 300, 260, 0.45);

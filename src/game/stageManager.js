@@ -226,7 +226,7 @@ export class StageManager {
     const stock = [];
     for (let i = 0; i < 4; i++) { const it = this.rollEquip(rng, 1, i === 0 ? 'rare' : 'uncommon'); it.uid = `shop${k}${i}`; stock.push({ key: 'e' + i, kind: 'equip', item: it, price: Math.round(it.value * 1.6) }); }
     this.rollCards(rng, 3).forEach((id, i) => stock.push({ key: 'c' + i, kind: 'card', id, price: Math.round(RARITY[CARDS[id].rarity].craft * (1.2 + s.id * 0.25)) }));
-    ['potion', 'hipotion', 'ether', 'antidote', 'bomb', 'elixir'].forEach((id) => stock.push({ key: 'k' + id, kind: 'cons', id, price: Math.round(CONSUMABLES[id].price * (1 + (s.id - 1) * 0.25)), unlimited: true }));
+    ['potion', 'hipotion', 'ether', 'antidote', 'leaf', 'bomb', 'elixir'].forEach((id) => stock.push({ key: 'k' + id, kind: 'cons', id, price: Math.round(CONSUMABLES[id].price * (1 + (s.id - 1) * 0.25)), unlimited: true }));
     stock.forEach((x) => { x.sold = !x.unlimited && !!bought[x.key]; });
     return stock;
   }

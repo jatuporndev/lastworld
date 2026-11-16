@@ -239,7 +239,7 @@ export const STARTER_DECKS = {
 };
 
 export const DECK_MIN = 8;
-export const DECK_MAX = 16;
+export const DECK_MAX = 18;
 
 // ───────── Upgrades ─────────
 // Level 1: +1 to numeric bases. Level 2: +1 die and +1 status stack. Level 3: +1 again and -1 cooldown.

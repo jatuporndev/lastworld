@@ -12,6 +12,7 @@ import { CONSUMABLES } from '../data/items.js';
 import { computeStats } from './character.js';
 import { CardEngine, HAND_SIZE } from './cardEngine.js';
 import { chooseIntent, monsterAct } from './ai.js';
+import { initRule } from './bossRules.js';
 
 const FOOT = {
   1: [[0, 0]],
@@ -68,7 +69,9 @@ export class Battle {
     // A boss has more life for a bigger party: +50% for each hero after the first (x1.5 for two, x2 for three).
     // Ordinary monsters do not: a bigger party already meets more of them.
     this.bossHp = 1 + 0.5 * Math.max(0, heads - 1);
+    this.rule = null; // the MVP's own rule (bossRules.js)
     this._setup(party, enemies, levelOf, nextBuff);
+    initRule(this);
   }
 
   // ───────── setup ─────────
@@ -135,7 +138,7 @@ export class Battle {
     const hp = Math.round(d.hp * (minion ? 0.6 : (d.rank === 'mvp' || d.rank === 'mini') ? this.bossHp || 1 : 1));
     return {
       uid: 'u' + this.nextId(), side: d.construct ? 'hero' : 'enemy', def: d, monsterId: id, name: d.name, look: d.look, spriteKey: 'mon_' + id,
-      size: d.size || 1, scale: d.scale || 1, q: 0, r: 0, facing: 3, level: d.level || 1, rank: d.rank || 'normal', construct: !!d.construct, nest: !!d.nest, minion,
+      size: d.size || 1, scale: d.scale || 1, q: 0, r: 0, facing: 3, level: d.level || 1, rank: d.rank || 'normal', construct: !!d.construct, nest: !!d.nest, prop: !!d.prop, wall: !!d.wall, minion,
       hp, maxHp: hp, mp: 0, maxMp: 0,
       stats: { atk: d.atk, matk: d.matk || d.atk, def: d.def, spd: d.spd, crit: 5, eva: d.body === 'bat' ? 15 : 3, move: d.move },
       passives: { statusBonus: {}, elemPct: {}, thorns: d.thorns || 0 }, el: d.el, weak: d.weak || [], resist: d.resist || [],
@@ -154,7 +157,7 @@ export class Battle {
   cellsOf(u, at = u) { return FOOT[u.size].map(([dq, dr]) => ({ q: at.q + dq, r: at.r + dr })); }
   unitAt(h, except = null) {
     for (const u of this.units) {
-      if (!u.alive || u === except) continue;
+      if (!u.alive || u === except || u.hidden) continue;
       for (const [dq, dr] of FOOT[u.size]) if (u.q + dq === h.q && u.r + dr === h.r) return u;
     }
     return null;
@@ -164,6 +167,7 @@ export class Battle {
       const t = this.terrain(c);
       if (!t || !isFinite(t.cost)) return false;
       if (this.unitAt(c, u)) return false;
+      if (this.rule?.reserved?.has(Hex.key(c.q, c.r)) && u !== this.rule.boss) return false;
     }
     return true;
   }
@@ -175,7 +179,11 @@ export class Battle {
   distCells(a, b) { let m = Infinity; for (const x of a) for (const y of b) m = Math.min(m, Hex.distance(x, y)); return m; }
   dist(a, b, aAt = a) { return this.distCells(this.cellsOf(a, aAt), this.cellsOf(b)); }
   nearestCell(from, u) { let best = null, bd = Infinity; for (const c of this.cellsOf(u)) { const d = Hex.distance(from, c); if (d < bd) { bd = d; best = c; } } return best; }
-  los(a, b) { return Hex.hasLOS(a, b, (h) => { const t = this.terrain(h); return !t || !!t.blocksLos; }); }
+  los(a, b) { return Hex.hasLOS(a, b, (h) => { const t = this.terrain(h); return !t || !!t.blocksLos || !!this.unitAt(h)?.wall; }); }
+  // Can this card be aimed at that unit at all? Not while it is under the ground; not with a blade while it is in the air.
+  canTarget(u, card, tg) { return !tg.hidden && !(tg.aloft && this.cardRange(u, card) < 2); }
+  pickIntent(u) { return chooseIntent(this, u); }
+  async hook(name, d) { const R = this.rule; if (!R || !R.def[name]) return undefined; try { return await R.def[name](this, R, d); } catch (e) { console.error('[boss rule]', name, e); return undefined; } }
   moveBudget(u) {
     if (u.status.root) return 0;
     let m = u.stats.move + (u.passives.move || 0);
@@ -200,6 +208,7 @@ export class Battle {
         this.checkEnd();
       }
       this.checkEnd();
+      if (!this.result) { this.current = null; await this.hook('roundEnd'); this.checkEnd(); }
       if (this.round > 60 && !this.result) this.result = 'defeat';
     }
     this.heroes().forEach((u) => { u.hero.hp = Math.max(1, Math.round(u.hp)); u.hero.mp = Math.round(u.mp); });
@@ -219,7 +228,8 @@ export class Battle {
   async startRound() {
     this.round++;
     for (const u of this.enemies()) u.intent = chooseIntent(this, u);
-    this.order = this.units.filter((u) => u.alive).sort((a, b) => (b.stats.spd + (b.status.haste ? 5 : 0)) - (a.stats.spd + (a.status.haste ? 5 : 0)) || (a.side === 'hero' ? -1 : 1));
+    await this.hook('round');
+    this.order = this.units.filter((u) => u.alive && !u.prop).sort((a, b) => (b.stats.spd + (b.status.haste ? 5 : 0)) - (a.stats.spd + (a.status.haste ? 5 : 0)) || (a.side === 'hero' ? -1 : 1));
     await this.emit('round', { round: this.round, order: this.order });
   }
 
@@ -282,6 +292,7 @@ export class Battle {
       }
     }
     for (const st of ['weak', 'vulnerable', 'haste', 'root', 'taunt', 'stealth', 'strength', 'chill']) if (u.status[st]) this.decStatus(u, st);
+    await this.hook('turnEnd', u);
     await this.emit('turnEnd', { unit: u });
   }
 
@@ -330,6 +341,7 @@ export class Battle {
       const pool = card.tg === 'enemy' ? this.foesOf(u) : this.alliesOf(u).filter((a) => !a.construct || f0 === 'heal' || f0 === 'block');
       const cells = [];
       for (const t of pool) {
+        if (!this.canTarget(u, card, t)) continue;
         const tc = t === u ? [from] : this.cellsOf(t);
         const d = this.distCells([from], tc);
         if (d > range) continue;
@@ -473,6 +485,7 @@ export class Battle {
     const inv = u.hero?.owner ? { cons: (u.hero.cons ||= {}) } : this.inv; // co-op: each hero carries its own potions
     if (this.busy || u.itemUsed || !inv || !(inv.cons[id] > 0)) return false;
     const use = CONSUMABLES[id].use;
+    if (use.raise && !this.raiseTarget(u)) return false; // nobody has fallen: the leaf is kept
     this.busy = true; u.itemUsed = true;
     inv.cons[id]--; if (inv.cons[id] <= 0) delete inv.cons[id];
     await this.emit('item', { unit: u, id });
@@ -481,8 +494,9 @@ export class Battle {
     if (use.mp) { u.mp = Math.min(u.maxMp, u.mp + use.mp); await this.emit('text', { unit: u, text: `+${use.mp} MP`, color: '#6aa8ff' }); }
     if (use.cleanse) this.cleanse(u);
     if (use.block) await this.addBlock(u, use.block);
+    if (use.raise) { const { f, spot } = this.raiseTarget(u); f.alive = true; f.hp = 1; f.status = {}; f.block = 0; f.q = spot.q; f.r = spot.r; await this.emit('spawn', { unit: f, revive: true }); }
     if (use.bomb) {
-      const foe = this.enemies().sort((a, b) => this.dist(u, a) - this.dist(u, b))[0];
+      const foe = this.enemies().filter((e) => !e.hidden).sort((a, b) => this.dist(u, a) - this.dist(u, b))[0];
       if (foe) { await this.emit('cast', { unit: u, card: { name: t('Alchemist Bomb'), el: 'fire', proj: 'fire', cat: 'attack' }, cells: this.cellsOf(foe), targets: [foe], target: this.nearestCell(u, foe) }); await this.applyDamage(u, foe, use.bomb, { el: 'fire', tags: [] }); }
     }
     } catch (err) { console.error('[battle] item failed', id, err); }
@@ -538,7 +552,7 @@ export class Battle {
     } else {
       cells = this.shapeCells(card, origin, target || origin);
       const pool = card.allies ? this.alliesOf(u) : this.foesOf(u);
-      victims = pool.filter((v) => this.cellsOf(v).some((c) => cells.some((x) => Hex.hexEq(x, c))));
+      victims = pool.filter((v) => this.canTarget(u, card, v) && this.cellsOf(v).some((c) => cells.some((x) => Hex.hexEq(x, c))));
       if (card.allies && !victims.includes(u)) victims.unshift(u);
     }
     if (hasEffect) await this.emit('cast', { unit: u, card, cells, targets: victims, target: target || origin });
@@ -601,6 +615,7 @@ export class Battle {
     }
     if (comboCat && card.combo.bonus.status) for (const v of victims) if (v.alive && !evaded.has(v)) await this.addStatus(u, v, card.combo.bonus.status.st, card.combo.bonus.status.n);
     u.lastCat = card.cat;
+    await this.hook('card', { unit: u, card, cells, victims });
   }
 
   async moveUnit(u, path) {
@@ -613,7 +628,7 @@ export class Battle {
   }
 
   async shove(src, v, n, pull) {
-    if (v.size > 1 || v.construct || v.nest) return;
+    if (v.size > 1 || v.construct || v.nest || v.prop) return;
     const sc = this.nearestCell(v, src);
     let d = Hex.directionTo(sc, v); if (pull) d = (d + 3) % 6;
     let pos = { q: v.q, r: v.r }; let moved = 0; let wall = null;
@@ -658,6 +673,13 @@ export class Battle {
     return u;
   }
 
+  // The fallen hero a Leaf of Life would raise, and the free hex beside its user where that hero gets up.
+  raiseTarget(u) {
+    const f = this.units.find((x) => x.hero && !x.alive); if (!f) return null;
+    const spot = Hex.spiral(u, 3).find((h) => !Hex.hexEq(h, u) && this.canStand(f, h));
+    return spot ? { f, spot } : null;
+  }
+
   async revive(caster, pct) {
     const fallen = this.units.filter((x) => x.hero && !x.alive);
     if (!fallen.length) { await this.heal(caster, caster, caster.maxHp * 0.25); return; }
@@ -674,7 +696,7 @@ export class Battle {
       // a shell lobbed over walls at the spot that catches the most enemies; anything in the next hex is too close to aim at
       let best = null;
       for (const e of this.enemies()) {
-        const d = this.dist(u, e); if (d < 2 || d > 6) continue;
+        const d = this.dist(u, e); if (d < 2 || d > 6 || e.hidden) continue;
         const c = this.nearestCell(u, e); const n = this.enemies().filter((o) => this.distCells([c], this.cellsOf(o)) <= 1).length;
         if (!best || n > best.n || (n === best.n && d < best.d)) best = { c, n, d };
       }
@@ -687,7 +709,7 @@ export class Battle {
       return;
     }
     if (u.monsterId !== 'turret') return;
-    const foe = this.enemies().filter((e) => this.dist(u, e) <= 4).sort((a, b) => this.dist(u, a) - this.dist(u, b))[0];
+    const foe = this.enemies().filter((e) => !e.hidden && this.dist(u, e) <= 4).sort((a, b) => this.dist(u, a) - this.dist(u, b))[0];
     if (!foe) return;
     const tc = this.nearestCell(u, foe);
     u.facing = Hex.directionTo(u, tc);
@@ -725,16 +747,17 @@ export class Battle {
 
   // ───────── damage / heal / status ─────────
   async hit(src, tgt, o) {
-    if (!tgt.alive) return { dmg: 0 };
+    if (!tgt.alive || tgt.hidden) return { dmg: 0 };
     const tags = [...(o.tags || [])];
     if (!o.noEvade) {
       let eva = tgt.stats.eva + (tgt.status.stealth ? 50 : 0);
-      if (tgt.status.stun || tgt.status.frozen || tgt.status.root || tgt.construct) eva = 0;
+      if (tgt.status.stun || tgt.status.frozen || tgt.status.root || tgt.construct || tgt.prop) eva = 0;
       if (this.rng.chance(eva / 100)) { await this.emit('miss', { src, tgt, together: o.together }); return { dmg: 0, evaded: true }; }
     }
     let dmg = o.raw; const el = o.el || 'neutral';
     const P = src?.passives || {};
     dmg += src.status.strength?.n || 0;
+    if (this.rule) { const R = this.rule; dmg = (dmg + (R.def.dmgOut?.(this, R, src) || 0)) * (R.def.dmgMul?.(this, R, src) ?? 1); }
     if (src.status.weak) dmg *= 0.75;
     if (P.dmgPct) dmg *= 1 + P.dmgPct;
     if (P.elemPct?.[el]) dmg *= 1 + P.elemPct[el];
@@ -779,15 +802,22 @@ export class Battle {
     if (tgt.block > 0 && !dot) { blocked = Math.min(tgt.block, dmg); tgt.block -= blocked; dmg -= blocked; }
     const before = tgt.hp; tgt.hp = Math.max(0, tgt.hp - dmg);
     this.count(src, 'dealt', before - tgt.hp); this.count(tgt, 'taken', before - tgt.hp);
-    const killed = tgt.hp <= 0;
+    let killed = tgt.hp <= 0;
+    const saved = killed && this.rule?.def.lethal?.(this, this.rule, tgt); // the MVP's rule may keep it on its feet
+    if (saved) { killed = false; tgt.hp = 1; }
     await this.emit('hit', { src, tgt, dmg, blocked, crit, el, tags, dot, combo, killed, together });
     if (killed) await this.kill(tgt, src, together);
-    else if (tgt.rank === 'mvp' && tgt.phase === 1 && tgt.hp <= tgt.maxHp * 0.5) {
-      tgt.phase = 2; this.cleanse(tgt); tgt.block += Math.round(tgt.maxHp * 0.08);
-      tgt.intent = null;
-      await this.emit('phase', { unit: tgt });
-      tgt.intent = chooseIntent(this, tgt);
-      await this.emit('intent', { unit: tgt });
+    else {
+      if (saved) await this.hook('saved');
+      if (before > tgt.hp) await this.hook('damaged', { src, tgt, dealt: before - tgt.hp, el });
+      if (tgt.alive && tgt.rank === 'mvp' && tgt.phase === 1 && tgt.hp <= tgt.maxHp * 0.5) {
+        tgt.phase = 2; this.cleanse(tgt); tgt.block += Math.round(tgt.maxHp * 0.08);
+        const keep = tgt.intent?.rule ? tgt.intent : null; // a move its rule has begun is seen through
+        tgt.intent = null;
+        await this.emit('phase', { unit: tgt });
+        await this.hook('phase');
+        if (tgt.alive && !tgt.nextIntent?.rule) { tgt.intent = this.current === tgt ? null : keep || chooseIntent(this, tgt); await this.emit('intent', { unit: tgt }); }
+      }
     }
     return { dealt: dmg, killed };
   }
@@ -795,8 +825,9 @@ export class Battle {
   // together: the blow fell on several units at once, so the view shows them falling at once too
   async kill(u, src, together = false) {
     u.alive = false; u.status = {}; u.block = 0; u.intent = null;
-    if (u.side === 'enemy') this.kills.push(u);
+    if (u.side === 'enemy' && !u.prop) this.kills.push(u);
     await this.emit('death', { unit: u, src, together });
+    if (u.rank !== 'mvp') await this.hook('died', u);
     // constructs die with their owner
     if (u.hero) for (const c of this.units) if (c.alive && c.owner === u.uid) await this.kill(c, null);
     // the brood scatters when its MVP falls (no spoils for those)
@@ -829,7 +860,7 @@ export class Battle {
   cleanse(u) { for (const st of Object.keys(u.status)) if (STATUS_INFO[st]?.debuff) delete u.status[st]; }
 
   async addStatus(src, tgt, st, n) {
-    if (!tgt.alive || tgt.construct) return;
+    if (!tgt.alive || tgt.construct || tgt.prop) return;
     const hard = ['stun', 'frozen', 'root'].includes(st);
     if (hard && (tgt.rank === 'mvp' || tgt.rank === 'mini')) {
       if ((tgt.ccUntil || 0) >= this.round) { await this.emit('text', { unit: tgt, text: t('Resisted'), color: '#bbb' }); return; }

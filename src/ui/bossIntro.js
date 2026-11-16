@@ -12,6 +12,7 @@ import { audio } from '../core/audio.js';
 import { elColor } from '../engine/renderer.js';
 import { fxSprite, fxDecal, fxBit, poofFx } from '../engine/vfx.js';
 import { ui } from './components.js';
+import { ruleCaption } from './bossRuleUI.js';
 
 // How each boss arrives; a boss not listed arrives by the shape of its body.
 const ENTRANCE = {
@@ -42,7 +43,9 @@ export async function bossIntro(scene, boss) {
   const cam = (to, ms) => { const c = w.cam; const f = { x: c.target.x, z: c.target.z, size: c.size };
     return tw(ms, (e) => { c.target.x = f.x + (to.x - f.x) * e; c.target.z = f.z + (to.z - f.z) * e; c.size = f.size + (to.size - f.size) * e; }, Ease.inOutQuad); };
 
-  const guards = b.units.filter((u) => u.side === 'enemy' && u !== boss && u.alive).map((u) => w.units.get(u.uid)).filter(Boolean);
+  const piece = (u) => u.prop || u.def?.echo; // the pieces of its rule are shown last, with the line that explains them
+  const guards = b.units.filter((u) => u.side === 'enemy' && u !== boss && u.alive && !piece(u)).map((u) => w.units.get(u.uid)).filter(Boolean);
+  const pieces = b.units.filter((u) => u.alive && piece(u)).map((u) => w.units.get(u.uid)).filter(Boolean);
   const heroes = b.units.filter((u) => u.side === 'hero' && u.alive);
   const home = U.group.position.clone(); const S = U.size; const shS = U.shadow.scale.x; const shY = U.shadow.position.y;
   const feet = home.clone(); const chest = home.clone().add(V(0, 1.1 * U.scale, 0));
@@ -50,10 +53,11 @@ export async function bossIntro(scene, boss) {
   // the stage is set: no HUD, no labels, the boss and its guards not yet there
   const labels = document.getElementById('labels');
   scene.hud.style.visibility = 'hidden'; labels.style.visibility = 'hidden';
-  U.group.visible = false; guards.forEach((g) => { g.group.visible = false; });
+  U.group.visible = false; [...guards, ...pieces].forEach((g) => { g.group.visible = false; });
+  const rule = h('div.cine-rule');
   const card = h('div.cine-card', { style: { '--el': '#' + new THREE.Color(color).getHexString() } },
     h('div.cine-rank', t('MVP Boss') + ' · ' + scene.stage.name), h('div.cine-name', boss.name), h('div.cine-stroke'), h('div.cine-quote'));
-  const veil = h('div.cine', h('div.cine-bar.top'), h('div.cine-bar.bottom'), card); // also keeps taps off the board while the scene plays
+  const veil = h('div.cine', h('div.cine-bar.top'), h('div.cine-bar.bottom'), card, rule); // also keeps taps off the board while the scene plays
   ui().appendChild(veil);
   const onKey = (e) => { e.stopPropagation(); e.preventDefault(); }; window.addEventListener('keydown', onKey, true); // no hotkeys during the scene
   const c0 = { minWidth: w.cam.minWidth, zoom: w.cam.zoom }; w.cam.minWidth = 0;
@@ -153,11 +157,28 @@ export async function bossIntro(scene, boss) {
     const parts = graphemes(`“${boss.def?.quote || ''}”`); const line = card.querySelector('.cine-quote'); await wait(520);
     for (let i = 1; i <= parts.length; i++) { line.textContent = parts.slice(0, i).join(''); if (i % 3 === 0) audio.sfx('hover'); await wait(seen ? 12 : 26); }
     await wait(1700 * q);
+    // 7 · the one thing to know about this fight: the camera goes to it, and a line says it
+    const cap = ruleCaption(boss.monsterId);
+    if (cap) {
+      card.classList.add('out');
+      if (pieces.length) {
+        let px = 0, pz = 0; pieces.forEach((g) => { px += g.group.position.x; pz += g.group.position.z; }); px /= pieces.length; pz /= pieces.length;
+        await cam({ x: (px + home.x) / 2, z: (pz + home.z) / 2 - 0.6, size: 12.5 }, 600);
+        for (const g of pieces) {
+          g.group.visible = true; const gs = g.size; const at = g.group.position.clone();
+          fx(() => { audio.sfx('magic'); w.ring(at, color, 1.8, 600); fxDecal(w, 'circle', at, { color, size: 0.8, to: 2.4, ms: 1000, opacity: 0.85, spin: 2 }); });
+          tw(260, (e) => g.sprite.scale.set(gs * e, gs * e, 1), Ease.outBack); await wait(180);
+        }
+      }
+      rule.textContent = cap; rule.classList.add('show');
+      await wait(2400);
+    }
   } finally {
     // put everything back exactly as the fight expects it, however the scene ended
     window.removeEventListener('keydown', onKey, true);
     U.group.visible = true; U.group.position.copy(home); U.sprite.scale.set(S, S, 1); U.mat.opacity = 1; U.shadow.scale.setScalar(shS); U.shadow.position.y = shY;
-    guards.forEach((g) => { g.group.visible = true; g.sprite.scale.set(g.size, g.size, 1); });
+    [...guards, ...pieces].forEach((g) => { g.group.visible = true; g.sprite.scale.set(g.size, g.size, 1); });
+    rule.classList.remove('show');
     heroes.forEach((u) => w.setFacing(u.uid, u.facing));
     card.classList.add('out'); veil.classList.remove('in'); veil.style.pointerEvents = 'none';
     w.cam.zoom = c0.zoom; w.cam.minWidth = c0.minWidth;

@@ -215,7 +215,7 @@ export function sellItem(item) {
 export function useConsumable(id, hero) {
   const st = G.state; if (!(st.inv.cons[id] > 0)) return false;
   const u = CONSUMABLES[id].use; const s = computeStats(hero);
-  if (u.bomb) return false;
+  if (u.bomb || u.raise) return false;
   if (hero.hp <= 0 && !u.revive) return false;
   if (u.healPct) hero.hp = Math.min(s.hp, Math.max(hero.hp, 0) + Math.round(s.hp * u.healPct));
   if (u.mp) hero.mp = Math.min(s.mp, hero.mp + u.mp);

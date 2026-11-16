@@ -322,7 +322,8 @@ export class World {
     });
   }
   clearLayer(name) { const L = this.layers.get(name); if (L) L.meshes.forEach((m) => { m.visible = false; }); }
-  clearLayers(except = []) { for (const k of this.layers.keys()) if (!except.includes(k)) this.clearLayer(k); }
+  // A partial clear leaves the marks of a boss's rule ('rule-…') alone: they belong to the fight, not to the turn.
+  clearLayers(except = []) { for (const k of this.layers.keys()) if (!except.includes(k) && !(except.length && k.startsWith('rule-'))) this.clearLayer(k); }
   setHover(c, color = 0xffffff) {
     if (!c || !this.tiles.has(Hex.key(c.q, c.r))) { this.hover.visible = false; return; }
     const p = this.cellPos(c.q, c.r); this.hover.position.set(p.x, p.y + 0.05, p.z); this.hover.material.color.set(color); this.hover.visible = true;
@@ -422,7 +423,9 @@ export class World {
     if (flip) { U.tex.repeat.x = -1 / COLS; U.tex.offset.x = (col + 1) / COLS; } else { U.tex.repeat.x = 1 / COLS; U.tex.offset.x = col / COLS; }
     U.tex.offset.y = 1 - (row + 1) / ROWS;
   }
-  setAnim(uid, anim) { const U = this.units.get(uid); if (!U || U.anim === anim) return; U.anim = anim; U.frame = 0; U.t = 0; U.once = null; this.applyFrame(U); }
+  // A unit that is gathering a blow rests in its casting pose instead of standing idle (see setRest).
+  setRest(uid, anim) { const U = this.units.get(uid); if (!U || (U.rest || null) === anim) return; U.rest = anim; if (!U.once && (U.anim === 'idle' || U.anim === 'cast')) { U.anim = anim || 'idle'; U.frame = 0; U.t = 0; this.applyFrame(U); } }
+  setAnim(uid, anim) { const U = this.units.get(uid); if (U && anim === 'idle' && U.rest) anim = U.rest; if (!U || U.anim === anim) return; U.anim = anim; U.frame = 0; U.t = 0; U.once = null; this.applyFrame(U); }
   playOnce(uid, anim) {
     const U = this.units.get(uid); if (!U) return Promise.resolve();
     return new Promise((res) => { if (U.once) U.once(); U.anim = anim; U.frame = 0; U.t = 0; U.once = res; this.applyFrame(U); });
@@ -673,7 +676,7 @@ export class World {
       U.t += dt; const fd = 1000 / ANIM_FPS[U.anim];
       if (U.t >= fd) {
         U.t -= fd; U.frame++;
-        if (U.once && U.frame >= FRAMES) { const res = U.once; U.once = null; U.anim = 'idle'; U.frame = 0; res(); }
+        if (U.once && U.frame >= FRAMES) { const res = U.once; U.once = null; U.anim = U.rest || 'idle'; U.frame = 0; res(); }
         this.applyFrame(U);
       }
     }

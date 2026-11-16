@@ -8,7 +8,8 @@ const tr = t; // for scopes with a local variable named t
 import { audio } from '../core/audio.js';
 import { elColor } from '../engine/renderer.js';
 import { bossIntro } from './bossIntro.js';
-import { castVfx, dashFx, blinkFx, critFx, poofFx, fxSheetsFor, ALWAYS_SHEETS } from '../engine/vfx.js';
+import { ruleLine, ruleEvent, ruleSync, ruleTip, ruleIntentText, ruleDispose } from './bossRuleUI.js';
+import { castVfx, dashFx, blinkFx, critFx, poofFx, fxDecal, fxSheetsFor, ALWAYS_SHEETS } from '../engine/vfx.js';
 import { preloadSheets, releaseSheets } from '../engine/pixfx.js';
 import { Battle, DICE } from '../game/combat.js';
 import { ACTION_SLOTS } from '../game/cardEngine.js';
@@ -27,7 +28,8 @@ import { itemPic, ui, cardEl, unitSprite, statusChips, bar, btn, icon, toast, ba
 // A monster attack reads as its dice plus the fixed bonus: drawn dice on the board, words in a sentence.
 const pw = (i) => t('{n} dice', { n: i.dice || 1 }) + ' +' + i.power;
 const pwEl = (i) => [...die(i.dice || 1), '+' + i.power + (i.hits > 1 ? '×' + i.hits : '')];
-const INTENT_ICON = { strike: 'sword', shoot: 'arrow', aoe: 'meteor', guard: 'shield', buff: 'star', heal: 'cross', summon: 'skull', wait: 'orb' };
+const INTENT_ICON = { strike: 'sword', shoot: 'arrow', aoe: 'meteor', guard: 'shield', buff: 'star', heal: 'cross', summon: 'skull', wait: 'orb',
+  burrow: 'orb', emerge: 'meteor', gather: 'orb', zero: 'meteor', ascend: 'orb', dive: 'meteor', charge: 'orb', overload: 'meteor', stagger: 'orb', erupt: 'meteor', echo: 'meteor', idle: 'orb' }; // the last row: steps of an MVP's rule
 
 const VOLLEY_RIDERS = new Set(['status', 'heal', 'block', 'text']); // small notes that ride along with an area blow
 const DEAL_GAP = 130, DEAL_FLY = 620; // ms between two cards dealt, and how long one flies (matches drawCard in styles.css)
@@ -141,6 +143,7 @@ export class BattleScene {
 
   dispose() {
     this.bagTags?.forEach((a) => this.world.detach(a));
+    ruleDispose(this); clearInterval(this.chanT); this.chanT = 0;
     releaseSheets();
     this._offs?.forEach((off) => off());
     this.unbind();
@@ -159,8 +162,8 @@ export class BattleScene {
     // under the feet: the HP bar, then the name of a hero or boss (plain text; in co-op a hero's name takes its player's colour)
     const foot = h('div.unit-label.foot' + cls, h('div.ul-foot', h('div.ul-row', h('div.ul-block'), h('div.ul-hp', h('div.ul-hp-ghost'), h('div.ul-hp-fill'))),
       u.hero || u.rank === 'mvp' || u.rank === 'mini' ? h('div.ul-name', { style: u.hero?.owner ? { color: Coop.colorOf(u.hero.owner) } : null }, u.name) : null));
-    const anchor = w.attach(el, () => (u.alive ? w.unitPos(u.uid, u.construct ? 1.1 : u.nest ? 1.6 : 2.0) : null));
-    const footAnchor = w.attach(foot, () => (u.alive ? w.unitPos(u.uid, 0) : null));
+    const anchor = w.attach(el, () => (u.alive && !u.hidden ? w.unitPos(u.uid, u.construct ? 1.1 : u.nest || u.prop ? 1.6 : 2.0) : null));
+    const footAnchor = w.attach(foot, () => (u.alive && !u.hidden ? w.unitPos(u.uid, 0) : null));
     this.labels.set(u.uid, { el, foot, anchor, footAnchor, u });
     this.syncLabel(u);
   }
@@ -181,7 +184,9 @@ export class BattleScene {
       it.dataset.tip = this.intentText(u);
     } else { it.className = 'ul-intent'; it.replaceChildren(); }
   }
-  syncAll() { for (const u of this.battle.units) this.syncLabel(u); this.renderParty(); this.renderInfo(); this.updateDanger(); }
+  syncAll() { for (const u of this.battle.units) this.syncLabel(u); this.renderParty(); this.renderInfo(); this.updateDanger(); this.syncRule(); }
+  // The MVP's rule: one line under the turn order saying where it stands, and its marks on the board.
+  syncRule() { const s = ruleLine(this.battle); this.el.rule.textContent = s || ''; this.el.rule.classList.toggle('on', !!s); ruleSync(this); }
   // ── impact feedback ──
   // A full-screen flash (hurt = red edges, crit = warm burst, kill = white), and a buzz on phones.
   screenFx(kind) { const el = h('div.screen-fx.' + kind); this.hud.appendChild(el); setTimeout(() => el.remove(), 520); }
@@ -198,6 +203,7 @@ export class BattleScene {
 
   intentText(u) {
     const i = u.intent; if (!i) return '';
+    if (i.rule) return ruleIntentText(u, i, pw(i));
     const st = i.status ? t(' Applies {st}.', { st: STATUS_INFO[i.status.st].name }) : '';
     switch (i.k) {
       case 'strike': return t('{name}: melee attack for {p}{hits}.{st}', { name: i.name, p: pw(i), hits: i.hits > 1 ? ' ×' + i.hits : '', st });
@@ -222,10 +228,10 @@ export class BattleScene {
       end: btn(t('End Turn'), () => this.endTurn(), { cls: 'end', tip: t("End this hero's turn (Space)") }),
       undo: btn(t('Undo'), () => this.undo(), { cls: 'small', tip: t('Remove the last planned card') }),
       items: btn(t('Items'), () => this.openItems(), { cls: 'small', tip: t('Use a consumable (once per turn)') }),
-      hint: h('div.b-hint'),
+      hint: h('div.b-hint'), rule: h('div.b-rule'),
     };
     this.hud = h('div.battle-hud', this.el.log, this.world.camControls({ fit: true }),
-      h('div.b-top', h('div.b-title', h('div.b-stage', this.stage.name), this.el.round), this.el.order),
+      h('div.b-top', h('div.b-title', h('div.b-stage', this.stage.name), this.el.round), this.el.order, this.el.rule),
       this.el.party, this.el.info, this.el.hint,
       h('div.b-bottom',
         h('div.b-left', this.el.heroTag),
@@ -263,6 +269,7 @@ export class BattleScene {
       if (u.weak.length) rows.push(h('div.i-line.weak', t('Weak: '), ...u.weak.map((e) => h('span', { style: { color: ELEMENTS[e].color } }, ELEMENTS[e].name + ' '))));
       if (u.resist.length) rows.push(h('div.i-line.res', t('Resists: '), ...u.resist.map((e) => h('span', { style: { color: ELEMENTS[e].color } }, ELEMENTS[e].name + ' '))));
       if (u.intent) rows.push(h('div.i-intent', h('b', t('Intent — ')), this.intentText(u)));
+      { const tip = ruleTip(this.battle, u); if (tip) rows.push(h('div.i-rule', tip)); }
     } else if (u.cls) rows.push(h('div.i-line', CLASSES[u.cls].role));
     box.replaceChildren(
       h('div.i-head', h('div.i-portrait', unitSprite(u, { size: 72, zoom: u.scale > 1.5 ? 1 : 1.3, oy: u.scale > 1.5 ? 0 : 0.14 })),
@@ -429,11 +436,35 @@ export class BattleScene {
   refreshTelegraph() {
     const b = this.battle; const cells = [];
     for (const e of b.enemies()) {
-      const i = e.intent; if (!i || i.k !== 'aoe') continue;
+      const i = e.intent || (e.nextIntent?.rule ? e.nextIntent : null); if (!i || (i.k !== 'aoe' && !i.cells)) continue; // (a rule's next step is marked as soon as it is known)
       if (i.cells) cells.push(...i.cells);
       else if (i.shape === 'burst') cells.push(...Hex.spiral(e, i.size + (e.size === 7 ? 1 : 0)).filter((c) => b.cell(c) && !b.cellsOf(e).some((o) => Hex.hexEq(o, c))));
     }
     this.world.setLayer('telegraph', cells, { color: 0xff2a2a, opacity: 0.5, pulse: 5, y: 0.03, order: 3 });
+    this.syncChannels();
+  }
+
+  // A monster whose blow is marked on the board does not stand idle while everyone waits for it: it holds its casting
+  // pose, power rises off it, and a circle turns under its feet. The bigger the monster, the more of it.
+  syncChannels() {
+    const b = this.battle, w = this.world; const live = (this.channels ||= new Map());
+    for (const e of b.units) {
+      if (!w.units.has(e.uid)) continue;
+      const i = e.alive && e.side === 'enemy' && !e.hidden && !b.result ? e.intent || (e.nextIntent?.rule ? e.nextIntent : null) : null;
+      const on = !!i && (!!i.cells || i.k === 'aoe' || i.k === 'gather' || i.k === 'charge');
+      if (on) live.set(e.uid, { u: e, color: elColor(i.el || e.el), n: 0 }); else live.delete(e.uid);
+      w.setRest(e.uid, on ? 'cast' : null);
+    }
+    if (live.size && !this.chanT) this.chanT = setInterval(() => {
+      if (document.hidden || this.battle.result) return;
+      for (const [uid, c] of this.channels) {
+        if (!w.units.has(uid) || !c.u.alive) continue;
+        const big = c.u.rank === 'mvp' ? 1 : c.u.rank === 'mini' ? 0.7 : 0.45; const sc = c.u.scale || 1; const feet = w.unitPos(uid, 0);
+        w.rise(feet.clone().add(new THREE.Vector3(0, 0.2, 0)), { color: c.color, count: Math.round(2 + big * 5), radius: 0.9 * sc, speed: 1.8 + big * 1.6, size: 0.24 + big * 0.12 });
+        if (c.n++ % 3 === 0) { fxDecal(w, 'circle', feet, { color: c.color, size: 1.1 * sc, to: (1.6 + big) * sc, ms: 1100, opacity: 0.35 + big * 0.4, spin: 2.2 }); if (big === 1) w.ring(feet, c.color, 1.6 * sc, 700); }
+      }
+    }, 280);
+    if (!live.size && this.chanT) { clearInterval(this.chanT); this.chanT = 0; }
   }
 
   refreshPreview() {
@@ -600,7 +631,8 @@ export class BattleScene {
   openItems() {
     const u = this.hero(); if (!u || !this.inputOn) return;
     const list = Object.entries(this.consOf(u)).map(([id, n]) => { const c = CONSUMABLES[id];
-      return h('div.item', { style: { '--rar': c.color }, onclick: async () => { m.close(); if (!this.inputOn || u.itemUsed) return; this.inputOn = false; await this.act({ k: 'item', id }); } },
+      const idle = c.use.raise && !this.battle.raiseTarget(u); // a leaf with nobody to raise stays in the bag
+      return h('div.item' + (idle ? '.dim' : ''), { style: { '--rar': c.color }, onclick: async () => { if (idle) { audio.sfx('error'); toast(t('No ally has fallen'), 'bad'); return; } m.close(); if (!this.inputOn || u.itemUsed) return; this.inputOn = false; await this.act({ k: 'item', id }); } },
         h('div.item-icon', itemPic(c.icon, c.color, 34)), h('div.item-info', h('div.item-name', c.name), h('div.item-sub', c.desc)), h('div.item-tag', '×' + n)); });
     const m = openModal(h('div.item-list', ...list), { title: t('Use Item — {name}', { name: u.name }), cls: 'narrow' });
   }
@@ -713,7 +745,7 @@ export class BattleScene {
       }
       case 'text': { w.floatText(pos(d.unit, 1.9), d.text, 'note'); await sleep(260); break; }
       case 'death': {
-        const u = d.unit; audio.sfx(u.rank === 'mvp' ? 'explosion' : 'death');
+        const u = d.unit; audio.sfx(u.rank === 'mvp' ? 'explosion' : 'death'); { const U = w.units.get(u.uid); if (U) U.group.visible = true; }
         const L = this.labels.get(u.uid); if (L) { w.detach(L.anchor); w.detach(L.footAnchor); this.labels.delete(u.uid); }
         const p = pos(u, 0.8);
         // the MVP's brood scatters with it: a quick puff each, no fanfare
@@ -731,7 +763,7 @@ export class BattleScene {
         break;
       }
       case 'spawn': {
-        const u = d.unit; this.addUnit(u); audio.sfx(d.revive ? 'holy' : 'magic');
+        const u = d.unit; this.addUnit(u); audio.sfx(d.revive ? 'holy' : 'magic'); if (d.prop) this.syncRule();
         w.ring(pos(u, 0), d.revive ? 0xfff0a0 : elColor(u.el), 1.6); w.rise(pos(u, 0.2), { color: d.revive ? 0xfff0a0 : elColor(u.el), count: 16 });
         await w.fadeIn(u.uid, 380); this.renderOrder(); this.renderParty(); break;
       }
@@ -742,6 +774,7 @@ export class BattleScene {
         await banner(t('ENRAGED'), t('{name} unleashes its true power!', { name: u.name }), 'boss enrage', 1700);
         this.syncAll(); break;
       }
+      case 'rule': await ruleEvent(this, d); this.syncAll(); break;
       case 'intent': case 'intentDone': { this.syncLabel(d.unit); this.refreshTelegraph(); if (this.inspect === d.unit) this.renderInfo(); break; }
       case 'cardSpent': case 'draw': { if (d.drawn) d.drawn.forEach((_, i) => setTimeout(() => audio.sfx('draw'), i * DEAL_GAP)); this.renderHand(d.drawn || []); this.syncAll(); break; }
       case 'item': { audio.sfx('heal'); w.floatText(pos(d.unit, 2.2), CONSUMABLES[d.id].name, 'card-name'); await sleep(200); break; }

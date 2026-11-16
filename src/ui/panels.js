@@ -92,7 +92,7 @@ function equipTab(render) {
     sellItem(it); audio.sfx('coin'); picked = null; render(); };
   const use = (id) => { const c = CONSUMABLES[id];
     if (useConsumable(id, hero)) { audio.sfx('heal'); toast(t('{hero} used {item}', { hero: hero.name, item: c.name })); if (!st.inv.cons[id]) picked = null; render(); }
-    else { audio.sfx('error'); toast(t(c.use.bomb ? 'Only usable in battle' : 'Cannot use that now'), 'bad'); } };
+    else { audio.sfx('error'); toast(t(c.use.bomb || c.use.raise ? 'Only usable in battle' : 'Cannot use that now'), 'bad'); } };
   const ghost = (ic, color) => h('div.cell.ghost', itemPic(ic, color, 40));
   const gearCell = (it, extra = {}) => { const r = ITEM_RARITY[it.rarity];
     const el = h('div.cell.gear' + (canEquip(hero, it) ? '' : '.dim') + on(extra.slot ? 'slot' : 'gear', extra.slot || it.uid), { style: { '--rar': r.color }, 'data-tip-html': itemTip(it), 'data-drop': extra.slot ? 'slot:' + extra.slot : null,
