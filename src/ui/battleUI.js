@@ -709,10 +709,16 @@ export class BattleScene {
         if (dmg > 0) {
           // every blow answers on several channels at once; how hard depends on how much it took
           const sev = dmg / tgt.maxHp; const heavy = crit || killed || sev >= 0.25; const onHero = tgt.side === 'hero' && !tgt.construct;
-          w.hitFlash(tgt.uid, heavy, d.src && d.src !== tgt ? pos(d.src, 0) : null);
+          const by = d.src && d.src !== tgt && w.units.has(d.src.uid) ? pos(d.src, 0) : null; const many = !!d.together;
+          w.hitFlash(tgt.uid, heavy, by, { white: !onHero && !dot, soft: many });
+          if (by && !dot) { // the blow carries on through its target, and pushes back on whoever dealt it
+            const dir = pos(tgt, 0).sub(by).setY(0); if (dir.lengthSq() > 0.001) { dir.normalize(); w.spray(p, dir, { color: elColor(el), count: many ? 6 : crit ? 20 : heavy ? 14 : 9, speed: crit ? 7.5 : heavy ? 6 : 4.5 }); }
+            if (!many && b.dist(d.src, tgt) <= 1) w.recoil(d.src.uid, pos(tgt, 0), heavy ? 0.26 : 0.16);
+          }
           const num = w.floatText(pos(tgt, 1.6), (crit ? '✦ ' : '') + dmg, `dmg el-${el}${crit ? ' crit' : ''}${dot ? ' dot' : ''}${tgt.side === 'hero' ? ' on-ally' : ''}`);
           if (!dot) num.style.fontSize = (crit ? 2.8 : 1.9) * Math.min(1.9, 0.85 + sev * 2.4) + 'em';
-          w.burst(p, { color: elColor(el), count: crit ? 26 : dot ? 6 : heavy ? 18 : 12, speed: crit ? 5 : heavy ? 4 : 3 });
+          if (!dot) num.style.setProperty('--dx', (by ? (w.project(pos(tgt, 0)).x >= w.project(by).x ? 1 : -1) : Math.random() < 0.5 ? 1 : -1) * (1 + Math.random() * 0.9) + 'em'); // thrown the way the blow went
+          w.burst(p, { color: elColor(el), count: by && !dot ? (crit ? 12 : heavy ? 8 : 5) : crit ? 26 : dot ? 6 : heavy ? 18 : 12, speed: crit ? 5 : heavy ? 4 : 3 }); // fewer all round when most of it goes one way
           if (heavy && !dot) w.ring(pos(tgt, 0.1), elColor(el), crit ? 1.8 : 1.2, 260);
           if (crit && !dot) critFx(w, p);
           audio.sfx(crit ? 'crit' : dot ? (el === 'fire' ? 'fire' : 'poison') : 'hit');

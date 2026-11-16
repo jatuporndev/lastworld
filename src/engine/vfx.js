@@ -29,6 +29,12 @@ const PAINT = {
     const gr = g.createLinearGradient(0, 44, 0, 84); gr.addColorStop(0, W); gr.addColorStop(0.5, 'rgba(255,255,255,0.55)'); gr.addColorStop(1, W);
     g.fillStyle = gr; g.beginPath(); g.moveTo(124, 64); g.lineTo(52, 46); g.lineTo(4, 64); g.lineTo(52, 82); g.fill();
   },
+  // a fat wedge pointing right, base on the left edge: one lit face, one in shade
+  spike(g) {
+    g.fillStyle = W; g.beginPath(); g.moveTo(2, 24); g.lineTo(48, 32); g.lineTo(126, 64); g.lineTo(52, 100); g.lineTo(2, 104); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(0,0,0,0.26)'; g.beginPath(); g.moveTo(2, 64); g.lineTo(126, 64); g.lineTo(52, 100); g.lineTo(2, 104); g.closePath(); g.fill();
+    g.strokeStyle = 'rgba(255,255,255,0.9)'; g.lineWidth = 3; g.beginPath(); g.moveTo(2, 64); g.lineTo(126, 64); g.stroke();
+  },
   flame(g) {
     const gr = g.createRadialGradient(64, 86, 4, 64, 78, 52); gr.addColorStop(0, W); gr.addColorStop(0.55, 'rgba(255,255,255,0.75)'); gr.addColorStop(1, CLEAR);
     g.fillStyle = gr; g.beginPath(); g.moveTo(64, 4); g.bezierCurveTo(74, 40, 108, 58, 100, 92); g.bezierCurveTo(96, 118, 32, 118, 28, 92); g.bezierCurveTo(22, 62, 52, 44, 64, 4); g.fill();
@@ -224,7 +230,7 @@ export function fxPlan(card, monster = false, hostile = card.cat === 'attack') {
     if (el !== 'neutral') P.extra = IMPACT[el];
   }
   const own = OWN[card.id]; if (own) Object.assign(P, own);
-  P.sheets = [P.charge, P.main, P.proj, P.impact, P.extra, P.self, P.n ? 'hit_spark' : null].filter(Boolean);
+  P.sheets = [P.charge, P.main, P.proj, P.impact, P.extra, P.self, P.n ? 'hit_spark' : null, ...(!monster && SIGN_SHEETS[card.id] || [])].filter(Boolean);
   return P;
 }
 // Every sheet a card could play (a "special" may be friendly or hostile), for loading before the fight.
@@ -236,11 +242,178 @@ const flightMs = (from, to) => clamp(from.distanceTo(to) * 75, 240, 600);
 // How long a world-space stretch looks on screen, in the units a billboard is sized in.
 function screenLen(w, a, b) { const p = w.project(a), q = w.project(b), o = w.project(V(0, 0, 0)), u = w.project(screenDir(w, 0, 1)); return Math.hypot(q.x - p.x, q.y - p.y) / Math.max(1e-3, Math.hypot(u.x - o.x, u.y - o.y)); }
 // A projectile: the sheet flies from `from` to `to`, nose first, speeding up a little on the way.
-function fly(w, name, from, to, { s = 1, ms = flightMs(from, to), arc = 0 } = {}) {
-  const ang = screenAngle(w, from, to);
+// A thing in flight is never a rigid picture: it is pressed short as it leaves the hand, drawn out long at full speed,
+// and leaves a tail of light that lags behind it (`trail`: its colour).
+function fly(w, name, from, to, { s = 1, ms = flightMs(from, to), arc = 0, trail = null } = {}) {
+  const ang = screenAngle(w, from, to); let base = null, n = 0;
   return play(w, name, from, { s, rot: ang, flipY: Math.cos(ang) < 0, ms, loop: true, fadeIn: 0.08, fadeOut: 0, order: 34,
-    move: (p, k) => { p.lerpVectors(from, to, k * k * 0.35 + k * 0.65); p.y += Math.sin(k * Math.PI) * arc; } });
+    move: (p, k, sp) => {
+      p.lerpVectors(from, to, k * k * 0.35 + k * 0.65); p.y += Math.sin(k * Math.PI) * arc;
+      base ||= { x: sp.scale.x, y: sp.scale.y };
+      const st = k < 0.12 ? -0.25 * (1 - k / 0.12) : 0.38 * Math.sin(((k - 0.12) / 0.88) * Math.PI); // squash, then stretch
+      sp.scale.set(base.x * (1 + st), base.y * (1 - st * 0.45), 1);
+      if (trail != null && n++ % 2 === 0) w.particle(p, { color: trail, size: 0.34 * s, life: 300, vel: V(R(0.3), 0.15, R(0.3)) });
+    } });
 }
+
+// ───────── signature spells: one per element, told in more beats than the rest ─────────
+// Each is built the same way: it gathers (the shared wind-up), it travels in a way of its own, it lands with one big
+// finish, and it leaves something behind in the air or on the ground. A signature returns when the blow lands (the
+// damage is shown then); what it leaves behind plays on by itself.
+const SIGN_SHEETS = {
+  m_frostshard: ['hit_ice', 'frostnova'], m_fireball: ['fireball', 'blast'], m_stonespike: ['hit_earth'], m_lance: ['beam_wind', 'zap'],
+  p_smite: ['holypillar', 'hit_holy'], m_voidbolt: ['orb_shadow', 'darkblast', 'hit_shadow'], a_poison: ['arrow', 'hit_poison'],
+};
+const beat = (ms) => tween(ms, () => {});
+const sideways = (a, b) => { const v = V(-(b.z - a.z), 0, b.x - a.x); return v.lengthSq() > 1e-6 ? v.normalize() : V(1, 0, 0); };
+// A crystal or a rock that thrusts up out of the ground, stands a moment, and breaks up from the top.
+function spike(w, at, { color, h = 1, wd = 0.4, tilt = 0, up = 110, hold = 400, out = 200, add = false, bits = null } = {}) {
+  const mat = new THREE.SpriteMaterial({ map: tex('spike'), color, transparent: true, depthWrite: false, fog: false, toneMapped: false, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending, rotation: Math.PI / 2 + tilt });
+  const sp = new THREE.Sprite(mat); sp.center.set(0.02, 0.5); sp.position.copy(at); sp.renderOrder = 32; sp.scale.set(0.001, wd * K, 1); w.fxGroup.add(sp);
+  tween(up, (e) => sp.scale.set(Math.max(0.001, h * K * e), wd * K * (1.25 - 0.25 * e), 1), Ease.outBack)
+    .then(() => beat(hold))
+    .then(() => { if (bits != null) for (let i = 0; i < 4; i++) bit(w, 'shard', at.clone().add(V(R(0.3), h * K * (0.4 + Math.random() * 0.5), R(0.2))), { color: bits, size: 0.1 + Math.random() * 0.1, life: 520, vel: V(R(2.4), 0.6 + Math.random() * 1.6, R(2.4)), gravity: 9, spin: R(10), add: false });
+      return tween(out, (e) => { sp.scale.set(h * K * (1 - 0.55 * e), wd * K * (1 - 0.4 * e), 1); mat.opacity = 1 - e; }); })
+    .then(() => { w.fxGroup.remove(sp); mat.dispose(); });
+  return beat(up);
+}
+const SIGN = {
+  // ICE · Frost Shard: spikes break out of the ground in a line toward the enemy, bigger the nearer they get, smaller
+  // ones fanned out at their sides; the floor cracks round the enemy and a great cluster comes up under it; the spikes
+  // shatter from the top, and snow, mist and sparkles hang in the air.
+  async m_frostshard(w, x) {
+    const { feet, target, color } = x; const to = x.floor(target), a = feet.clone(); const side = sideways(a, to); const lite = pale(color);
+    const n = clamp(Math.round(a.distanceTo(to) * 2.2), 5, 12); audio.sfx('ice');
+    for (let i = 1; i <= n; i++) { const t = i / (n + 1); const p = a.clone().lerp(to, t).add(side.clone().multiplyScalar(R(0.16)));
+      after(i * 30, () => {
+        spike(w, p, { color: i % 2 ? color : lite, h: 0.42 + t * 0.85, wd: 0.2 + t * 0.2, tilt: R(0.25), hold: 300 + (n - i) * 30, bits: color }); // (two blues, so the row reads on snow and ice too)
+        if (i % 2 === 0) [-1, 1].forEach((sg) => spike(w, p.clone().add(side.clone().multiplyScalar(sg * (0.2 + t * 0.2))), { color, h: 0.24 + t * 0.42, wd: 0.15 + t * 0.1, tilt: -sg * (0.5 + R(0.2)), hold: 270 + (n - i) * 30 }));
+        w.particle(p.clone().add(V(0, 0.2, 0)), { color: 0xffffff, size: 0.42, life: 200 });
+      }); }
+    await beat(n * 30 + 50);
+    decal(w, 'crack', to, { color: lite, size: 1.2, to: 2.7, ms: 1500, hold: 0.7, opacity: 0.9 });
+    for (let k = 0; k < 7; k++) { const g = (k / 7) * Math.PI * 2, r = k === 0 ? 0 : 0.42;
+      spike(w, to.clone().add(V(Math.cos(g) * r, 0, Math.sin(g) * r * 0.6)), { color: k % 2 ? color : lite, h: k === 0 ? 2.05 : 1.05 + Math.random() * 0.5, wd: k === 0 ? 0.6 : 0.36, tilt: k === 0 ? 0 : -Math.cos(g) * 0.55, up: 130, hold: 480, bits: color }); }
+    x.land('hit_ice', target, { s: 1.1 }); x.land('frostnova', target, { s: 0.4 }); w.shake(0.32, 280); audio.sfx('ice');
+    for (let k = 0; k < 10; k++) bit(w, 'shard', to.clone().add(V(R(0.8), 0.2, R(0.5))), { color: lite, size: 0.12 + Math.random() * 0.12, life: 620, vel: V(R(4), 3 + Math.random() * 3, R(4)), gravity: 10, spin: R(10), add: false });
+    await beat(150);
+    for (let i = 0; i < 12; i++) after(250 + i * 70, () => { const q = to.clone().add(V(R(1.6), 0.3 + Math.random() * 1.2, R(1)));
+      if (i % 3 === 0) bit(w, 'smoke', q, { color: 0xdff4ff, size: 0.5, life: 900, vel: V(R(0.3), 0.3, R(0.3)), add: false, opacity: 0.45 });
+      else bit(w, 'spark', q, { color: 0xffffff, size: 0.08 + Math.random() * 0.07, life: 520, vel: V(R(0.3), -0.35, R(0.3)), spin: R(4) }); });
+  },
+
+  // FIRE · Fireball: lobbed high with a tail of fire; it bursts, pillars of flame go up hex by hex from the middle
+  // outward, and it leaves scorched ground, drifting embers and smoke.
+  async m_fireball(w, x) {
+    const { from, target, cells, color } = x; const mid = x.chest(target), g = x.floor(target);
+    audio.sfx('fire'); await fly(w, 'fireball', from, mid, { s: 1.35, arc: 1.35, trail: color });
+    x.land('blast', target, { s: 1.15 }); audio.sfx('explosion'); w.shake(0.48, 360);
+    decal(w, 'shock', g, { color: 0xffe0a0, size: 0.8, to: 4.4, ms: 420, opacity: 0.9, add: true });
+    decal(w, 'crack', g, { color: 0x1a0c06, size: 1.7, to: 2.3, ms: 2400, hold: 0.78, opacity: 0.85 });
+    const order = cells.slice(0, 19).sort((a, b) => x.floor(a).distanceToSquared(g) - x.floor(b).distanceToSquared(g));
+    order.forEach((c, i) => after(i * 42, () => { const q = x.floor(c).add(V(0, 0.75, 0));
+      spr(w, 'flame', q, { color, size: 0.5, to: 1.15, sy: 1.9, ms: 430, add: true, rise: 0.55, hold: 0.3 });
+      spr(w, 'flame', q, { color: 0xfff0b0, size: 0.25, to: 0.6, sy: 1.6, ms: 320, add: true, rise: 0.4, hold: 0.2 }); }));
+    w.flashCells(cells, color, 520);
+    await beat(160);
+    for (let i = 0; i < 16; i++) after(120 + i * 65, () => { const q = g.clone().add(V(R(2), 0.2, R(1.3)));
+      if (i % 4 === 0) bit(w, 'smoke', q, { color: 0x3a2a26, size: 0.55, life: 1100, vel: V(R(0.3), 0.9, R(0.3)), add: false, opacity: 0.5 });
+      else bit(w, 'flame', q, { color: i % 3 ? color : 0xffe9a0, size: 0.09 + Math.random() * 0.09, life: 900, vel: V(R(0.7), 1.2 + Math.random() * 1.4, R(0.7)), gravity: -0.5 }); });
+  },
+
+  // EARTH · Stone Spike: a crack runs along the ground from the caster, throwing up dust and stones; one great
+  // spike of rock is driven up under the enemy with smaller ones at its sides; it crumbles, and the dust settles.
+  async m_stonespike(w, x) {
+    const { feet, target, color } = x; const to = x.floor(target), a = feet.clone(); const side = sideways(a, to); const dark = 0x3a2a1a;
+    const n = clamp(Math.round(a.distanceTo(to) * 1.8), 4, 10); audio.sfx('earth');
+    for (let i = 1; i <= n; i++) { const p = a.clone().lerp(to, i / (n + 1)).add(side.clone().multiplyScalar(R(0.2)));
+      after(i * 36, () => { decal(w, 'crack', p, { color: dark, size: 0.5, to: 0.95, ms: 1300, hold: 0.7, opacity: 0.85 });
+        bit(w, 'smoke', p.clone().add(V(0, 0.15, 0)), { color: 0xb09870, size: 0.4, life: 520, vel: V(R(0.6), 0.9, R(0.6)), add: false, opacity: 0.55 });
+        bit(w, 'rock', p.clone().add(V(0, 0.1, 0)), { color, size: 0.1 + Math.random() * 0.1, life: 480, vel: V(R(2), 2.4 + Math.random() * 2, R(2)), gravity: 11, spin: R(9), add: false });
+        if (i % 3 === 0) w.shake(0.08, 90); }); }
+    await beat(n * 36 + 60);
+    decal(w, 'crack', to, { color: dark, size: 1.5, to: 2.9, ms: 2000, hold: 0.75, opacity: 0.9 });
+    spike(w, to, { color: 0xa88458, h: 2.2, wd: 1.15, up: 120, hold: 420, bits: color });
+    [-1, 1].forEach((sg) => spike(w, to.clone().add(side.clone().multiplyScalar(sg * 0.5)), { color: 0x8a6a48, h: 1.2, wd: 0.7, tilt: -sg * 0.5, up: 140, hold: 380, bits: color }));
+    x.land('hit_earth', target, { s: 1 }); w.shake(0.5, 320); audio.sfx('smash');
+    for (let k = 0; k < 12; k++) bit(w, 'rock', to.clone().add(V(R(0.7), 0.3, R(0.5))), { color: k % 2 ? color : 0x6a5238, size: 0.12 + Math.random() * 0.14, life: 700, vel: V(R(4.5), 3.5 + Math.random() * 3, R(4.5)), gravity: 11, spin: R(10), add: false });
+    await beat(160);
+    for (let i = 0; i < 8; i++) after(300 + i * 80, () => bit(w, 'smoke', to.clone().add(V(R(1.4), 0.2 + Math.random() * 0.5, R(0.9))), { color: 0xb09870, size: 0.6, life: 1000, vel: V(R(0.4), 0.45, R(0.4)), add: false, opacity: 0.45 }));
+  },
+
+  // WIND · Lightning Lance: a faint leader runs down the line first; then the stroke itself, with branches forking
+  // off it and every hex flashing white; afterwards the air still crackles.
+  async m_lance(w, x) {
+    const { from, cells, color } = x; if (!cells.length) return; const lite = pale(color);
+    const order = cells.slice(0, 12).sort((a, b) => x.chest(a).distanceToSquared(from) - x.chest(b).distanceToSquared(from));
+    const far = x.chest(order[order.length - 1]); const ang = screenAngle(w, from, far);
+    order.forEach((c, i) => after(i * 16, () => w.particle(x.chest(c).add(V(R(0.3), R(0.3), R(0.3))), { color: 0xffffff, size: 0.2, life: 140 })));
+    await beat(order.length * 16 + 60);
+    audio.sfx('zap'); w.flashCells(cells, 0xffffff, 240); w.shake(0.34, 240);
+    play(w, 'beam_wind', from, { rot: ang, flipY: Math.cos(ang) < 0, len: screenLen(w, from, far) + 0.8, ms: 420, loop: true, fadeIn: 0.05, fadeOut: 0.35, order: 34 });
+    order.forEach((c, i) => after(i * 22, () => { const q = x.chest(c);
+      spr(w, 'bolt', q.clone().add(V(0, 0.8, 0)), { color: lite, size: 0.9, to: 1.1, sy: 1.7, ms: 190, add: true, rot: R(0.5) });
+      if (i % 2 === 0) spr(w, 'bolt', q.clone().add(V(R(0.5), 0.5, R(0.3))), { color: 0xffffff, size: 0.5, to: 0.7, sy: 1.2, ms: 150, add: true, rot: (Math.random() < 0.5 ? -1 : 1) * (0.8 + Math.random() * 0.6) });
+      x.land('zap', c, { s: 0.85 }); }));
+    await beat(170);
+    for (let i = 0; i < 16; i++) after(180 + i * 55, () => { const c = order[Math.floor(Math.random() * order.length)];
+      bit(w, 'spark', x.chest(c).add(V(R(0.8), R(0.9), R(0.5))), { color: i % 2 ? lite : 0xffffff, size: 0.08 + Math.random() * 0.1, life: 150, spin: R(8) }); });
+  },
+
+  // HOLY · Smite: a circle of light turns on the ground under the enemy and draws motes in; a pillar of light comes
+  // down on it out of the sky; gold dust rises for a while after.
+  async p_smite(w, x) {
+    const { target, color } = x; const g = x.floor(target), mid = x.chest(target); const lite = pale(color);
+    audio.sfx('holy'); decal(w, 'circle', g, { color: lite, size: 0.6, to: 2, ms: 1500, spin: 2.6, hold: 0.7, opacity: 0.95, add: true });
+    for (let k = 0; k < 10; k++) after(k * 22, () => { const a = Math.random() * 6.28, st = g.clone().add(V(Math.cos(a) * 1.4, 0.15, Math.sin(a) * 0.9));
+      bit(w, 'spark', st, { color: lite, size: 0.1, life: 300, vel: mid.clone().sub(st).multiplyScalar(2.6), drag: 1 }); });
+    await beat(280);
+    spr(w, 'pillar', g.clone().add(V(0, 3, 0)), { color: lite, size: 0.5, to: 1.6, sy: 4.4, ms: 520, add: true, hold: 0.5, opacity: 0.9 });
+    spr(w, 'pillar', g.clone().add(V(0, 3, 0)), { color: 0xffffff, size: 0.2, to: 0.7, sy: 9, ms: 380, add: true, hold: 0.4 });
+    x.land('holypillar', target, { s: 0.9 }); x.land('hit_holy', target, { s: 0.9 }); audio.sfx('holy'); w.shake(0.32, 280);
+    decal(w, 'shock', g, { color: 0xfff6c8, size: 0.8, to: 3.8, ms: 460, opacity: 0.9, add: true });
+    spr(w, 'cross', mid.clone().add(V(0, 1.1, 0)), { color: 0xffffff, size: 0.3, to: 0.75, ms: 420, add: true, rise: 0.5, hold: 0.4 });
+    await beat(170);
+    for (let i = 0; i < 12; i++) after(150 + i * 75, () => bit(w, 'spark', g.clone().add(V(R(1.3), 0.2 + Math.random() * 0.4, R(0.9))), { color: i % 3 ? lite : 0xffffff, size: 0.07 + Math.random() * 0.08, life: 800, vel: V(R(0.3), 1 + Math.random() * 0.9, R(0.3)), gravity: -0.3, spin: R(3) }));
+  },
+
+  // SHADOW · Void Bolt: the bolt arrives and everything round the enemy is pulled in to one point; a held breath;
+  // then it bursts outward in dark crescents, and smoke hangs where it was.
+  async m_voidbolt(w, x) {
+    const { from, aim, target, color } = x; const g = x.floor(target);
+    audio.sfx('shadow'); await fly(w, 'orb_shadow', from, aim, { arc: 0.38, trail: color });
+    const lit = pale(color);
+    decal(w, 'swirl', g, { color: lit, size: 3.2, to: 0.5, ms: 250, spin: -9, opacity: 1, add: true, ease: Ease.inQuad });
+    spr(w, 'shock', aim, { color: lit, size: 2.6, to: 0.25, ms: 250, add: true, opacity: 0.95, ease: Ease.inQuad }); // a ring of light closing on one point
+    for (let k = 0; k < 18; k++) { const a = (k / 18) * 6.28, st = aim.clone().add(V(Math.cos(a) * 1.9, R(1.8), Math.sin(a) * 1.2));
+      bit(w, 'spark', st, { color: k % 3 ? lit : 0xffffff, size: 0.16, life: 240, vel: aim.clone().sub(st).multiplyScalar(4), drag: 1, spin: R(6) }); }
+    spr(w, 'smoke', aim, { color: 0x0a0410, size: 0.3, to: 1.3, ms: 250, opacity: 0.95, hold: 0.8 }); // the dark at its heart, growing
+    await beat(250); // (kept short: a turn should not wait on it)
+    x.land('darkblast', target, { s: 0.7 }); x.land('hit_shadow', target, { s: 1.2 }); audio.sfx('shadow'); w.shake(0.4, 300);
+    for (let k = 0; k < 6; k++) spr(w, 'slash', aim, { color: k % 2 ? color : lit, rot: (k / 6) * 6.28, size: 0.5, to: 1.9, ms: 340, hold: 0.25, add: k % 2 === 1 });
+    spr(w, 'spark', aim, { color: 0xffffff, size: 0.6, to: 2.4, ms: 220, add: true });
+    decal(w, 'shock', g, { color: lit, size: 0.8, to: 3.8, ms: 440, opacity: 0.9, add: true });
+    await beat(150);
+    for (let i = 0; i < 10; i++) after(150 + i * 85, () => bit(w, 'smoke', aim.clone().add(V(R(1.2), R(0.8), R(0.8))), { color: i % 2 ? 0x2a1640 : color, size: 0.45, life: 1000, vel: V(R(0.35), 0.6, R(0.35)), add: false, opacity: 0.5 }));
+  },
+
+  // POISON · Venom Arrow: the arrow drips as it flies; it splashes where it strikes, and leaves a pool that goes on
+  // bubbling under the enemy.
+  async a_poison(w, x) {
+    const { from, aim, target } = x; const color = 0x9be04a; const g = x.floor(target); const ms = flightMs(from, aim); // (a plain arrow's own colour is cream)
+    audio.sfx('arrow');
+    for (let i = 1; i <= 6; i++) after((i / 7) * ms, () => { const q = from.clone().lerp(aim, i / 7); q.y += Math.sin((i / 7) * Math.PI) * 0.5;
+      w.particle(q, { color, size: 0.3, life: 560, vel: V(R(0.3), -0.4, R(0.3)), gravity: 8 }); });
+    await fly(w, 'arrow', from, aim, { arc: 0.5, trail: color, ms });
+    x.land('hit_poison', target, { s: 1 }); audio.sfx('poison');
+    const dir = aim.clone().sub(from).setY(0); if (dir.lengthSq() > 1e-4) w.spray(aim, dir.normalize(), { color, count: 16, speed: 5.5, fan: 0.8 });
+    decal(w, 'smoke', g, { color: 0x6aa82a, size: 0.8, to: 2, ms: 2400, hold: 0.78, opacity: 0.75 });
+    decal(w, 'shock', g, { color, size: 0.5, to: 2.4, ms: 380, opacity: 0.7 });
+    await beat(130);
+    for (let i = 0; i < 12; i++) after(200 + i * 110, () => { const q = g.clone().add(V(R(1), 0.1, R(0.6)));
+      bit(w, 'bubble', q, { color: i % 3 ? color : pale(color), size: 0.08 + Math.random() * 0.1, life: 620, vel: V(R(0.2), 0.7 + Math.random() * 0.6, R(0.2)), add: false, grow: 0.5 }); });
+  },
+};
 
 export async function castVfx(w, d) {
   const { unit: u, card, cells, targets, target } = d;
@@ -262,12 +435,13 @@ export async function castVfx(w, d) {
     if (P.charge) audio.sfx('magic');
     const hand = aim ? from.clone().add(screenDir(w, screenAngle(w, from, aim), 0.35 * sc)) : from.clone().add(V(0, 0.5 * sc, 0));
     if (P.charge) play(w, P.charge, hand, { s: sc, ms: 400, loop: true, fadeIn: 0.2, fadeOut: 0.12, order: 34 });
-    await w.gather(u.uid, 380);
+    await w.gather(u.uid, 380, P.mode === 'support' ? null : aim);
     w.release(u.uid, P.mode === 'support' ? null : aim);
-  }
+  } else if (P.mode === 'shot' && aim) { await w.gather(u.uid, 130, aim); w.release(u.uid, aim); } // an arrow or a thrown blade is drawn back first, too
 
   if (P.self) play(w, P.self, feet, { s: sc, order: 34 });
   if (P.mode === 'support') { supportFx(w, d, P, sc); await tween(200, () => {}); return; }
+  if (!d.monster && SIGN[card.id] && target && aim) { await SIGN[card.id](w, { u, card, cells, target, from, feet, aim, color, sc, chest, floor, land }); return; } // this element's signature spell
 
   // beats 2 and 3 · it travels, and it lands
   const wait = (name, s = 1) => tween(Math.max(1, hitMs(name, s)), () => {});
@@ -284,7 +458,7 @@ export async function castVfx(w, d) {
         order.slice(0, 10).forEach((c, i) => after(i * 45, () => { const p = chest(c); fly(w, 'arrow', p.clone().add(V(-1.6 + R(0.6), 7, -0.6)), p, { ms: 230 }).then(() => land(P.impact, c, { s: 0.8 })); }));
         audio.sfx('arrow'); await tween(Math.min(10, order.length) * 45 + 230, () => {});
       } else {
-        if (P.proj) { audio.sfx(EL_SFX[el] || 'magic'); await fly(w, P.proj, from, origin, { s: big ? 1.5 : 1.2, arc: 1.1 }); } // lobbed, where a bolt flies straight
+        if (P.proj) { audio.sfx(EL_SFX[el] || 'magic'); await fly(w, P.proj, from, origin, { s: big ? 1.5 : 1.2, arc: 1.1, trail: color }); } // lobbed, where a bolt flies straight
         land(P.main, target, { s: S });
         await wait(P.main);
       }
@@ -310,8 +484,8 @@ export async function castVfx(w, d) {
     await tween(120, () => {});
   } else if (P.mode === 'shot') {
     audio.sfx(P.plain ? 'arrow' : el === 'fire' ? 'bolt' : EL_SFX[el] || 'magic');
-    for (let i = 1; i < (P.n || 1); i++) after(i * 110, () => fly(w, P.proj, from, aim, { arc: 0.5 + i * 0.25 }).then(() => land('hit_spark', target, { s: 0.7 }))); // a volley from one bow
-    if (P.proj) await fly(w, P.proj, from, aim, { arc: P.plain ? 0.5 : 0.1 }); else await shot(w, from, aim, color, SHOT.knife);
+    for (let i = 1; i < (P.n || 1); i++) after(i * 110, () => fly(w, P.proj, from, aim, { arc: 0.5 + i * 0.25, trail: color }).then(() => land('hit_spark', target, { s: 0.7 }))); // a volley from one bow
+    if (P.proj) await fly(w, P.proj, from, aim, { arc: P.plain ? 0.5 : 0.38, trail: color }); else await shot(w, from, aim, color, SHOT.knife); // nothing flies dead straight
     land(P.impact, target, { s: SINGLE[P.impact] || 1 }); if (P.impact === 'hit_fire') audio.sfx('burn');
     await wait(P.impact);
   } else if (P.mode === 'remote') {

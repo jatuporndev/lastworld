@@ -53,6 +53,6 @@ export function play(w, name, pos, { s = 1, rot = 0, flipX = false, flipY = fals
   return tween(ms, (_, k) => {
     show(Math.min(frames - 1, Math.floor(k * frames)) % span);
     mat.opacity = opacity * Math.min(fadeIn ? k / fadeIn : 1, fadeOut ? (1 - k) / fadeOut : 1, 1);
-    if (move) move(sp.position, k);
+    if (move) move(sp.position, k, sp);
   }, Ease.linear).then(() => { w.fxGroup.remove(sp); mat.dispose(); });
 }

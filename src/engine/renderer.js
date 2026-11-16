@@ -373,7 +373,7 @@ export class World {
     }
   }
   headingOf(dir) { const v = Hex.toWorld(Hex.DIRS[((dir % 6) + 6) % 6][0], Hex.DIRS[((dir % 6) + 6) % 6][1]); return Math.atan2(-v.z, v.x); }
-  removeUnit(uid) { const U = this.units.get(uid); if (!U) return; this.unitGroup.remove(U.group); U.tex.dispose(); U.mat.dispose(); this.units.delete(uid); if (this.turnUid === uid) this.setTurnRing(null); }
+  removeUnit(uid) { const U = this.units.get(uid); if (!U) return; this.unitGroup.remove(U.group); U.tex.dispose(); U.mat.dispose(); U.flash?.material.dispose(); this.units.delete(uid); if (this.turnUid === uid) this.setTurnRing(null); }
   unitPos(uid, up = 0) { const U = this.units.get(uid); if (!U) return new THREE.Vector3(); return U.group.position.clone().add(new THREE.Vector3(0, up * U.scale, 0)); }
   placeUnit(uid, cells) { const U = this.units.get(uid); if (U) U.group.position.copy(this.footPos(cells)); }
   setFacing(uid, dir) { const U = this.units.get(uid); if (U && dir != null) { U.dir = dir; this.applyFrame(U); } }
@@ -462,7 +462,7 @@ export class World {
   // strike(): pull back and squash, then snap at the target and stretch. Resolves on contact; the recovery
   // plays on by itself, so the hit and its hit-stop land while the attacker is still at full reach.
   async strike(uid, toward, { dist = 0.5, wind = 150, heavy = false } = {}) {
-    const U = this.units.get(uid); if (!U) return; const from = U.group.position.clone();
+    const U = this.units.get(uid); if (!U) return; const from = (U.home || U.group.position).clone(); U.homeLock = (U.homeLock || 0) + 1; // (U.home: its place, while a cast is still settling)
     const dir = toward.clone().sub(from); dir.y = 0; if (dir.lengthSq() < 0.001) return; dir.normalize();
     const k = Math.min(1.6, U.scale), back = (heavy ? 0.36 : 0.22) * k, fwd = dist * k, sq = heavy ? 0.17 : 0.1, S = U.size;
     await tween(wind, (e) => { U.group.position.copy(from).addScaledVector(dir, -back * e); U.sprite.scale.set(S * (1 + sq * e), S * (1 - sq * e), 1); }, Ease.outQuad);
@@ -472,25 +472,42 @@ export class World {
       .then(() => { if (this.units.has(uid)) { U.group.position.copy(from); U.sprite.scale.set(S, S, 1); } });
   }
   // gather(): a caster sinks into the spell while it charges.  release(): pops up and is kicked back by it.
-  gather(uid, ms = 380) {
-    const U = this.units.get(uid); if (!U) return Promise.resolve(); const S = U.size;
-    return tween(ms, (e) => { U.sprite.scale.set(S * (1 + 0.07 * e), S * (1 - 0.09 * e), 1); }, Ease.outQuad);
+  // With a target, gathering also leans the body away from it (the wind-up), and the release throws it forward
+  // before it is kicked back and settles: a cast reads as a throw, not as a pose.
+  gather(uid, ms = 380, toward = null) {
+    const U = this.units.get(uid); if (!U) return Promise.resolve(); const S = U.size; const home = U.group.position.clone();
+    const dir = toward ? toward.clone().sub(home).setY(0) : new THREE.Vector3(); if (dir.lengthSq() > 0.001) dir.normalize(); else dir.set(0, 0, 0);
+    const back = 0.2 * Math.min(1.6, U.scale); U.wind = { home, dir, back };
+    return tween(ms, (e) => { U.sprite.scale.set(S * (1 + 0.07 * e), S * (1 - 0.09 * e), 1); U.group.position.copy(home).addScaledVector(dir, -back * e); }, Ease.outQuad);
   }
   release(uid, toward = null) {
-    const U = this.units.get(uid); if (!U) return; const S = U.size; const from = U.group.position.clone();
+    const U = this.units.get(uid); if (!U) return; const S = U.size; const wd = U.wind; U.wind = null;
+    const from = wd ? wd.home : U.group.position.clone(); const start = wd && toward ? -wd.back : 0; // where the wind-up left it
+    U.home = from; const lock = (U.homeLock = (U.homeLock || 0) + 1); const mine = () => this.units.has(uid) && U.homeLock === lock; // a strike that follows takes the body over
     const dir = toward ? toward.clone().sub(from).setY(0) : new THREE.Vector3(); if (dir.lengthSq() > 0.001) dir.normalize(); else dir.set(0, 0, 0);
-    const kick = 0.16 * Math.min(1.6, U.scale);
-    tween(90, (e) => { U.sprite.scale.set(S * (1.07 - 0.15 * e), S * (0.91 + 0.19 * e), 1); U.group.position.copy(from).addScaledVector(dir, -kick * e); }, Ease.outQuad)
-      .then(() => tween(300, (e) => { U.sprite.scale.set(S * (0.92 + 0.08 * e), S * (1.1 - 0.1 * e), 1); U.group.position.copy(from).addScaledVector(dir, -kick * (1 - e)); }, Ease.inOutQuad))
-      .then(() => { if (this.units.has(uid)) { U.group.position.copy(from); U.sprite.scale.set(S, S, 1); } });
+    const k = Math.min(1.6, U.scale), fwd = 0.2 * k, kick = 0.14 * k;
+    tween(80, (e) => { if (!mine()) return; U.sprite.scale.set(S * (1.07 - 0.17 * e), S * (0.91 + 0.21 * e), 1); U.group.position.copy(from).addScaledVector(dir, start + (fwd - start) * e); }, Ease.outQuad) // thrown forward, stretched
+      .then(() => tween(150, (e) => { if (!mine()) return; U.sprite.scale.set(S * (0.9 + 0.13 * e), S * (1.12 - 0.15 * e), 1); U.group.position.copy(from).addScaledVector(dir, fwd - (fwd + kick) * e); }, Ease.inOutQuad)) // kicked back past its place
+      .then(() => tween(190, (e) => { if (!mine()) return; U.sprite.scale.set(S * (1.03 - 0.03 * e), S * (0.97 + 0.03 * e), 1); U.group.position.copy(from).addScaledVector(dir, -kick * (1 - e)); }, Ease.outQuad)) // and settles
+      .then(() => { if (mine()) { U.group.position.copy(from); U.sprite.scale.set(S, S, 1); } if (this.units.has(uid) && U.home === from) U.home = null; });
   }
-  hitFlash(uid, strong = false, from = null) {
+  // A blow lands. An enemy goes white for a few frames (white reads on any colour of monster); a hero goes red, so
+  // a glance tells whose side was hurt. `soft`: one of several struck at once, so each answers a little less.
+  hitFlash(uid, strong = false, from = null, { white = false, soft = false } = {}) {
     const U = this.units.get(uid); if (!U) return;
+    if (white) {
+      if (!U.flash) { // the same figure drawn again on top, added to itself until it burns out to white
+        const m = new THREE.SpriteMaterial({ map: U.tex, transparent: true, depthWrite: false, alphaTest: 0.02, toneMapped: false, blending: THREE.AdditiveBlending, opacity: 0 });
+        U.flash = new THREE.Sprite(m); U.flash.center.copy(U.sprite.center); U.flash.renderOrder = 11; U.sprite.add(U.flash);
+      }
+      const m = U.flash.material; const peak = soft ? 1.6 : strong ? 3.2 : 2.4; m.color.setRGB(peak, peak, peak);
+      tween(strong ? 150 : 110, (e) => { m.opacity = U.mat.opacity * (1 - e * e); }).then(() => { m.opacity = 0; });
+    }
     const dir = from ? U.group.position.clone().sub(from).setY(0) : new THREE.Vector3();
     if (dir.lengthSq() > 0.001) dir.normalize(); else dir.set(0, 0, 0);
     const kb = (strong ? 0.42 : 0.2) * (U.size > 1.5 ? 0.35 : 1), sq = strong ? 0.22 : 0.12;
     if (!U.once) this.playOnce(uid, 'hurt').then(() => { if (this.units.has(uid)) this.setAnim(uid, 'idle'); });
-    const tn = this.spriteTint; tween(260, (e, k) => { U.mat.color.setRGB(tn.r, tn.g * (0.35 + 0.65 * e), tn.b * (0.35 + 0.65 * e)); const a = Math.sin(Math.min(1, k) * Math.PI); U.sprite.position.x = Math.sin(k * 30) * (strong ? 0.16 : 0.08) * (1 - k) + dir.x * kb * a; U.sprite.position.z = dir.z * kb * a; U.sprite.scale.set(U.size * (1 + sq * a), U.size * (1 - sq * a), 1); }).then(() => { if (this.units.has(uid)) { U.sprite.position.x = 0; U.sprite.position.z = 0; U.sprite.scale.set(U.size, U.size, 1); } });
+    const tn = this.spriteTint; const red = white ? 1 : 0.35; tween(260, (e, k) => { U.mat.color.setRGB(tn.r, tn.g * (red + (1 - red) * e), tn.b * (red + (1 - red) * e)); const a = Math.sin(Math.min(1, k) * Math.PI); U.sprite.position.x = Math.sin(k * 30) * (strong ? 0.16 : 0.08) * (1 - k) + dir.x * kb * a; U.sprite.position.z = dir.z * kb * a; U.sprite.scale.set(U.size * (1 + sq * a), U.size * (1 - sq * a), 1); }).then(() => { if (this.units.has(uid)) { U.sprite.position.x = 0; U.sprite.position.z = 0; U.sprite.scale.set(U.size, U.size, 1); } });
   }
   async fadeOut(uid, ms = 600) {
     const U = this.units.get(uid); if (!U) return;
@@ -568,6 +585,20 @@ export class World {
       const a = Math.random() * Math.PI * 2, sp = speed * (0.3 + Math.random() * 0.7);
       this.particle(pos, { color, size: size * (0.5 + Math.random()), life: life * (0.6 + Math.random() * 0.6), vel: new THREE.Vector3(Math.cos(a) * sp * spread, up * (0.4 + Math.random()), Math.sin(a) * sp * spread), gravity });
     }
+  }
+  // Bits thrown out of a blow, the way the blow was going: a fan of them, opened a little.
+  spray(pos, dir, { color = 0xffffff, count = 12, speed = 5, size = 0.3, life = 420, fan = 0.6 } = {}) {
+    const base = Math.atan2(dir.z, dir.x);
+    for (let i = 0; i < count; i++) {
+      const a = base + (Math.random() - 0.5) * 2 * fan, sp = speed * (0.45 + Math.random() * 0.75);
+      this.particle(pos, { color, size: size * (0.5 + Math.random()), life: life * (0.6 + Math.random() * 0.7), vel: new THREE.Vector3(Math.cos(a) * sp, 0.6 + Math.random() * 2.2, Math.sin(a) * sp), gravity: 6, drag: 0.94 });
+    }
+  }
+  // The one who struck is thrown back a little by its own blow.
+  recoil(uid, awayFrom, amount = 0.2) {
+    const U = this.units.get(uid); if (!U) return;
+    const dir = U.group.position.clone().sub(awayFrom).setY(0); if (dir.lengthSq() < 0.001) return; dir.normalize();
+    tween(190, (e, k) => { const a = Math.sin(Math.min(1, k) * Math.PI) * amount; U.sprite.position.x = dir.x * a; U.sprite.position.z = dir.z * a; }).then(() => { if (this.units.has(uid)) { U.sprite.position.x = 0; U.sprite.position.z = 0; } });
   }
   rise(pos, { color = 0xffffff, count = 12, radius = 0.5, speed = 1.6, size = 0.28, life = 800 } = {}) {
     for (let i = 0; i < count; i++) {
