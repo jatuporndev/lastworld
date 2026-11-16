@@ -467,6 +467,27 @@ export function cardArt(id) {
   url = cv.toDataURL('image/jpeg', 0.86); cache.set(id, url); return url;
 }
 
+// ───── a monster's move ─────
+// The small card on a monster's slip: the same painters and finish as a skill card, on a wide strip with the
+// subject at the left and dark ground to the right for the words. Chosen by the kind of move, coloured by the
+// monster's element, so a new monster or move needs no art of its own. Painted once per look, then reused.
+const MOVE_PIC = { strike: 'sword', shoot: 'arrow', aoe: 'meteor', guard: 'shield', buff: 'roar', heal: 'heart', summon: 'skull', wait: 'orb',
+  burrow: 'quake', emerge: 'quake', gather: 'snow', zero: 'snow', ascend: 'wind', dive: 'meteor', charge: 'bolt', overload: 'bolt', stagger: 'smoke', erupt: 'flame', echo: 'eye', idle: 'eye' };
+const AOE_PIC = { ice: 'snow', earth: 'quake', wind: 'whirl', holy: 'sun', shadow: 'orb', poison: 'smoke' };
+const MOVE_PAL = { guard: 'defense', buff: 'buff', heal: 'holy', stagger: 'special', idle: 'special' };
+export function moveArt(kind, el) {
+  const pic = (kind === 'aoe' && AOE_PIC[el]) || MOVE_PIC[kind] || 'star'; const pal = MOVE_PAL[kind] || (PAL[el] ? el : 'attack');
+  const key = 'move:' + pic + ':' + pal; let url = cache.get(key); if (url) return url;
+  const w = 360, h = 120, k = 0.2; // the 600 × 860 painter space, drawn small at the left of the strip
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const c = cv.getContext('2d', { willReadFrequently: true });
+  const P = PAL[pal]; const R = seeded(hash(key));
+  c.fillStyle = P.bg; c.fillRect(0, 0, w, h); glow(c, 62, 60, 190, P.rgb, 0.4);
+  c.save(); c.beginPath(); c.rect(0, 0, 150, h); c.clip(); c.translate(2, 0); c.scale(k, k); PIC[pic](c, P, R, { shape: 'area' }); c.restore();
+  const fade = c.createLinearGradient(96, 0, 156, 0); fade.addColorStop(0, 'rgba(0,0,0,0)'); fade.addColorStop(1, P.bg); c.fillStyle = fade; c.fillRect(96, 0, w - 96, h);
+  finish(c, w, h);
+  url = cv.toDataURL('image/jpeg', 0.86); cache.set(key, url); return url;
+}
+
 // ───── item pictures ─────
 // Equipment, potions and materials are painted the same way as the cards, as a small square: the object in
 // steel, wood or leather, lit by the colour of its rarity (or of the potion). Painted once per look, then reused.

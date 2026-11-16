@@ -1,7 +1,7 @@
 // What the player sees of an MVP's rule (game/bossRules.js). Three layers, most important first:
 //   1 · the board shows it: light flows from a root to the boss, the safe shadow behind a pillar is lit, the rot creeps
 //   2 · the entrance scene points at it (ruleCaption, used by bossIntro.js)
-//   3 · one line under the turn order says where things stand (ruleLine)
+//   3 · a note at the right edge of the board says where things stand (ruleLine)
 // A piece or the boss, when tapped, explains the rule on its slip (ruleTip). Nothing here changes the fight.
 import * as THREE from 'three';
 import * as Hex from '../engine/hex.js';
@@ -97,6 +97,14 @@ export function ruleIntentText(u, i, pw) {
     default: return i.name;
   }
 }
+
+// The same step in a few words, for the small card on the slip (the sentence above is its tooltip).
+const NOTE = {
+  burrow: 'Goes under the sand', emerge: 'Comes up on the marked hexes', gather: 'Strikes next round. Hide behind a pillar', zero: 'Strikes every hex she can see',
+  ascend: 'Takes to the sky', dive: 'Stars fall on the marked hexes', charge: 'Charging. Damage breaks it', overload: 'Strikes the marked hexes',
+  stagger: 'Does nothing this turn', erupt: 'Strikes the whole board', echo: 'Your own card, thrown back', idle: 'Waits for a card to remember',
+};
+export const ruleIntentNote = (i) => (NOTE[i.k] ? t(NOTE[i.k]) : '');
 
 // ── 1 · the board ──
 const LINK = { forest_guardian: 0x8aff6a, lich_king: 0x40ffa0, abyssal_overlord: 0xff4a3a };

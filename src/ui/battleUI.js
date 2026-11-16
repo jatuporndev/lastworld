@@ -8,7 +8,7 @@ const tr = t; // for scopes with a local variable named t
 import { audio } from '../core/audio.js';
 import { elColor } from '../engine/renderer.js';
 import { bossIntro } from './bossIntro.js';
-import { ruleLine, ruleEvent, ruleSync, ruleTip, ruleIntentText, ruleDispose } from './bossRuleUI.js';
+import { ruleLine, ruleEvent, ruleSync, ruleTip, ruleIntentText, ruleIntentNote, ruleDispose } from './bossRuleUI.js';
 import { castVfx, dashFx, blinkFx, critFx, poofFx, fxDecal, fxSheetsFor, ALWAYS_SHEETS } from '../engine/vfx.js';
 import { preloadSheets, releaseSheets } from '../engine/pixfx.js';
 import { Battle, DICE } from '../game/combat.js';
@@ -21,7 +21,7 @@ import { CLASSES } from '../data/classes.js';
 import { MONSTERS } from '../data/monsters.js';
 import { Coop } from '../net/coop.js';
 import { bus } from '../core/util.js';
-import { cardArt } from './cardArt.js';
+import { cardArt, moveArt } from './cardArt.js';
 import { partyTiles } from './exploreUI.js';
 import { itemPic, ui, cardEl, unitSprite, statusChips, bar, btn, icon, toast, banner, openModal, diceChip, die } from './components.js';
 
@@ -185,7 +185,7 @@ export class BattleScene {
     } else { it.className = 'ul-intent'; it.replaceChildren(); }
   }
   syncAll() { for (const u of this.battle.units) this.syncLabel(u); this.renderParty(); this.renderInfo(); this.updateDanger(); this.syncRule(); }
-  // The MVP's rule: one line under the turn order saying where it stands, and its marks on the board.
+  // The MVP's rule: a note at the right edge of the board saying where it stands, and its marks on the board.
   syncRule() { const s = ruleLine(this.battle); this.el.rule.textContent = s || ''; this.el.rule.classList.toggle('on', !!s); ruleSync(this); }
   // ── impact feedback ──
   // A full-screen flash (hurt = red edges, crit = warm burst, kill = white), and a buzz on phones.
@@ -218,6 +218,34 @@ export class BattleScene {
     }
   }
 
+  // A monster's next move as a small card on its slip: a painted strip, the name, and its numbers as dice and tokens
+  // instead of a sentence. The sentence is its tooltip; on a touch screen, a tap unfolds it under the card.
+  moveCard(u) {
+    const i = u.intent; const K = i.k;
+    const type = K === 'guard' ? 'Defense' : K === 'buff' || K === 'heal' ? 'Buff' : K === 'strike' || K === 'shoot' || K === 'aoe' ? 'Attack' : 'Special';
+    const stTok = (st, n) => h('i.im-st', { style: { background: STATUS_INFO[st].color } }, STATUS_INFO[st].icon, n > 1 ? h('b', n) : null);
+    const toks = [];
+    if (i.power != null) toks.push(h('span.im-num', ...pwEl(i)));
+    if (K === 'shoot' && i.range) toks.push(h('span.im-tok', icon('arrow', '#fbe9c4', 14), i.range));
+    if (K === 'aoe' && i.shape) toks.push(h('span.im-tok', t(i.shape)));
+    if (K === 'guard') toks.push(h('span.im-num', icon('shield', '#ffe08a', 14), i.blockValue));
+    if (K === 'buff') toks.push(stTok(i.st, i.n));
+    if (K === 'wait' && !i.full) toks.push(h('span.im-num', t('{n} round(s)', { n: i.turns })));
+    if (i.status) toks.push(stTok(i.status.st, i.status.n));
+    const note = i.rule ? ruleIntentNote(i)
+      : K === 'aoe' && i.cells ? t('Marked on the board')
+        : K === 'heal' ? t('Heals a wounded ally')
+          : K === 'summon' ? (u.nest ? t('A monster hatches this round') : t('Calls reinforcements'))
+            : K === 'wait' ? (i.full ? t('Its brood is full') : t('Until a monster hatches'))
+              : K === 'buff' && i.allies ? t('To nearby allies') : '';
+    const full = this.intentText(u);
+    return h('div.i-move.k-' + K, { 'data-tip': full, onclick: (e) => e.currentTarget.classList.toggle('open') },
+      h('div.im-card', { style: { backgroundImage: `url(${moveArt(K, u.el)})` } },
+        h('div.im-type', t('Next move') + ' · ' + t(type)), h('div.im-name', i.name),
+        toks.length ? h('div.im-toks', ...toks) : null, note ? h('div.im-note', note) : null),
+      h('div.im-full', full));
+  }
+
   // ───────── HUD ─────────
   buildHud() {
     const b = this.battle;
@@ -231,8 +259,8 @@ export class BattleScene {
       hint: h('div.b-hint'), rule: h('div.b-rule'),
     };
     this.hud = h('div.battle-hud', this.el.log, this.world.camControls({ fit: true }),
-      h('div.b-top', h('div.b-title', h('div.b-stage', this.stage.name), this.el.round), this.el.order, this.el.rule),
-      this.el.party, this.el.info, this.el.hint,
+      h('div.b-top', h('div.b-title', h('div.b-stage', this.stage.name), this.el.round), this.el.order),
+      this.el.party, this.el.info, this.el.hint, this.el.rule,
       h('div.b-bottom',
         h('div.b-left', this.el.heroTag),
         h('div.b-center', h('div.slots-wrap', h('div.slots-label', t('ACTION SLOTS')), this.el.slots), this.el.whose, this.el.hand),
@@ -266,9 +294,9 @@ export class BattleScene {
     box.classList.add('on');
     const rows = [];
     if (u.def) {
-      if (u.weak.length) rows.push(h('div.i-line.weak', t('Weak: '), ...u.weak.map((e) => h('span', { style: { color: ELEMENTS[e].color } }, ELEMENTS[e].name + ' '))));
-      if (u.resist.length) rows.push(h('div.i-line.res', t('Resists: '), ...u.resist.map((e) => h('span', { style: { color: ELEMENTS[e].color } }, ELEMENTS[e].name + ' '))));
-      if (u.intent) rows.push(h('div.i-intent', h('b', t('Intent — ')), this.intentText(u)));
+      const els = (label, list) => h('div.i-line', label, ...list.map((e) => h('b', h('i', { style: { background: ELEMENTS[e].color } }), ELEMENTS[e].name)));
+      if (u.weak.length || u.resist.length) rows.push(h('div.i-traits', u.weak.length ? els(t('Weak: '), u.weak) : null, u.resist.length ? els(t('Resists: '), u.resist) : null));
+      if (u.intent) rows.push(this.moveCard(u));
       { const tip = ruleTip(this.battle, u); if (tip) rows.push(h('div.i-rule', tip)); }
     } else if (u.cls) rows.push(h('div.i-line', CLASSES[u.cls].role));
     box.replaceChildren(
@@ -276,8 +304,8 @@ export class BattleScene {
         h('div', h('div.i-name', u.name), h('div.i-sub', `Lv ${u.level}${u.rank === 'mvp' ? t(' · MVP BOSS') : u.rank === 'mini' ? t(' · Mini Boss') : ''}${u.phase === 2 ? t(' · ENRAGED') : ''}`))),
       bar('hp', u.hp, u.maxHp), u.maxMp ? bar('mp', u.mp, u.maxMp) : null,
       h('div.i-stats', h('span', { 'data-tip': t('Attack') }, `ATK ${Math.round(u.stats.atk)}`), u.hero ? h('span', `MATK ${Math.round(u.stats.matk)}`) : null, h('span', `DEF ${Math.round(u.stats.def)}`), h('span', t('MOV {n}', { n: u.stats.move })), u.block ? h('span.blk', t('Block {n}', { n: Math.round(u.block) })) : null),
-      h('div.i-status', ...Object.entries(u.status).map(([st, s]) => h('div.i-st', { style: { color: STATUS_INFO[st].color } }, `${STATUS_INFO[st].icon} ${STATUS_INFO[st].name}${s.n > 1 ? ' ' + s.n : ''}`, h('small', STATUS_INFO[st].desc)))),
-      ...rows);
+      ...rows,
+      h('div.i-status', ...Object.entries(u.status).map(([st, s]) => h('div.i-st', h('i.i-tok', { style: { background: STATUS_INFO[st].color } }, STATUS_INFO[st].icon), h('div', h('b', `${STATUS_INFO[st].name}${s.n > 1 ? ' ' + s.n : ''}`), h('small', STATUS_INFO[st].desc))))));
   }
 
   // Co-op: a small slip over a friend's head while they have their bag open, so nobody wonders why they stand still.

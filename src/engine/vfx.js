@@ -256,13 +256,16 @@ function fly(w, name, from, to, { s = 1, ms = flightMs(from, to), arc = 0, trail
     } });
 }
 
-// ───────── signature spells: one per element, told in more beats than the rest ─────────
+// ───────── signature spells: told in more beats than the rest, each travelling in a way no other card does ─────────
 // Each is built the same way: it gathers (the shared wind-up), it travels in a way of its own, it lands with one big
 // finish, and it leaves something behind in the air or on the ground. A signature returns when the blow lands (the
 // damage is shown then); what it leaves behind plays on by itself.
 const SIGN_SHEETS = {
   m_frostshard: ['hit_ice', 'frostnova'], m_fireball: ['fireball', 'blast'], m_stonespike: ['hit_earth'], m_lance: ['beam_wind', 'zap'],
   p_smite: ['holypillar', 'hit_holy'], m_voidbolt: ['orb_shadow', 'darkblast', 'hit_shadow'], a_poison: ['arrow', 'hit_poison'],
+  m_chain: ['zap'], m_flamewave: ['hit_fire'],
+  r_eruption: ['blast', 'hit_fire'], r_sporebloom: ['spores', 'hit_poison'], m_earthquake: ['slam', 'hit_earth'], p_radiance: ['hit_holy'],
+  s_shuriken: ['spin', 'flurry'], k_earthsplit: ['smash', 'hit_earth'], b_meteorhammer: ['fireball', 'smash', 'blast'],
 };
 const beat = (ms) => tween(ms, () => {});
 const sideways = (a, b) => { const v = V(-(b.z - a.z), 0, b.x - a.x); return v.lengthSq() > 1e-6 ? v.normalize() : V(1, 0, 0); };
@@ -277,7 +280,244 @@ function spike(w, at, { color, h = 1, wd = 0.4, tilt = 0, up = 110, hold = 400, 
     .then(() => { w.fxGroup.remove(sp); mat.dispose(); });
   return beat(up);
 }
+// One stroke of lightning from a to b: a coloured stroke with a white core, which jumps once to its mirror image
+// (lightning never holds still) and is gone.
+function stroke(w, a, b, { color, wd = 0.5, ms = 170, name = 'bolt' } = {}) { // (name 'pillar': a steady ray of light instead)
+  const ang = screenAngle(w, a, b), len = Math.max(0.3, screenLen(w, a, b)), mid = a.clone().lerp(b, 0.5);
+  for (const [c, k] of [[color, 1], [0xffffff, 0.45]]) {
+    const mat = new THREE.SpriteMaterial({ map: tex(name), color: c, transparent: true, depthWrite: false, fog: false, toneMapped: false, blending: THREE.AdditiveBlending, rotation: ang - Math.PI / 2 });
+    const sp = new THREE.Sprite(mat); sp.position.copy(mid); sp.renderOrder = 33; sp.scale.set(wd * K * k, len, 1); w.fxGroup.add(sp);
+    tween(ms, (e, t) => { sp.scale.x = wd * K * k * (name === 'bolt' && t > 0.4 ? -1 : 1); mat.opacity = t < 0.55 ? 1 : 1 - (t - 0.55) / 0.45; }).then(() => { w.fxGroup.remove(sp); mat.dispose(); });
+  }
+}
 const SIGN = {
+  // WIND · Chain Lightning: not a ray. The bolt leaps from the caster to the first enemy, and from each enemy up
+  // and over to the next, one jump at a time; where it lands the hex flashes and forks stand on the victim. When the
+  // last link is made the whole chain lights once more together, and sparks go on crawling over everyone it touched.
+  async m_chain(w, x) {
+    const { from, cells, targets, color } = x; if (!cells.length) return; const lite = pale(color);
+    const near = (a, b) => x.chest(a).distanceToSquared(from) - x.chest(b).distanceToSquared(from);
+    const line = cells.slice(0, 12).sort(near);
+    // the links: every enemy on the line; where there is none, the hexes themselves (every second one, and the last)
+    const hit = targets.filter((t) => t.uid !== x.u.uid).sort(near);
+    const nodes = hit.length ? hit : line.filter((c, i) => i % 2 === 1 || i === line.length - 1);
+    const pts = [from, ...nodes.map((c) => x.chest(c))];
+    const leap = (a, b, i, o) => { // up and over, to one side and then the other
+      const top = a.clone().lerp(b, 0.5).add(sideways(a, b).multiplyScalar((i % 2 ? -1 : 1) * 0.45)).add(V(0, 0.85 + a.distanceTo(b) * 0.12, 0));
+      stroke(w, a, top, o); stroke(w, top, b, o);
+    };
+    for (let i = 0; i < nodes.length; i++) {
+      const a = pts[i], b = pts[i + 1], c = nodes[i];
+      leap(a, b, i, { color: lite, wd: 0.55 });
+      audio.sfx('zap'); w.flashCells([c], 0xffffff, 200); w.shake(0.16 + i * 0.05, 130);
+      x.land('zap', c, { s: 0.9 });
+      spr(w, 'spark', b, { color: 0xffffff, size: 0.35, to: 1.1, ms: 160, add: true });
+      [-1, 1].forEach((sg) => spr(w, 'bolt', b.clone().add(V(sg * 0.3, 0.45, 0)), { color: lite, size: 0.4, to: 0.6, sy: 1.3, ms: 170, add: true, rot: sg * (0.5 + Math.random() * 0.5) }));
+      decal(w, 'shock', x.floor(c), { color: lite, size: 0.5, to: 1.9, ms: 300, opacity: 0.8, add: true });
+      await beat(i === nodes.length - 1 ? 110 : 125);
+    }
+    // the whole chain, lit at once
+    for (let i = 0; i < nodes.length; i++) leap(pts[i], pts[i + 1], i, { color, wd: 0.85, ms: 230 });
+    w.flashCells(cells, color, 420); w.shake(0.34, 240); audio.sfx('zap');
+    await beat(120);
+    for (let i = 0; i < 14; i++) after(120 + i * 60, () => { const p = pts[1 + Math.floor(Math.random() * nodes.length)];
+      if (i % 4 === 0 && nodes.length > 1) { const j = 1 + Math.floor(Math.random() * (nodes.length - 1)); stroke(w, pts[j], pts[j + 1], { color: lite, wd: 0.22, ms: 110 }); }
+      bit(w, 'spark', p.clone().add(V(R(0.8), R(0.9), R(0.5))), { color: i % 2 ? lite : 0xffffff, size: 0.08 + Math.random() * 0.1, life: 160, spin: R(8) }); });
+  },
+
+  // FIRE · Eruption: nothing falls from the sky. The ground under the target glows and shakes three times, then a
+  // column of fire breaks out of it and throws burning rock onto every hex round it; the crater smokes for a while.
+  async r_eruption(w, x) {
+    const { target, cells, targets, color } = x; const g = x.floor(target), mid = x.chest(target);
+    const struck = new Set(targets.map((t) => t.q + ',' + t.r));
+    const order = cells.slice(0, 19).sort((a, b) => x.floor(a).distanceToSquared(g) - x.floor(b).distanceToSquared(g));
+    audio.sfx('earth');
+    decal(w, 'crack', g, { color: 0xff9a3a, size: 0.6, to: 2.6, ms: 640, hold: 0.9, opacity: 0.95, add: true });
+    decal(w, 'shock', g, { color: 0xff7a2a, size: 3.6, to: 0.6, ms: 540, opacity: 0.8, add: true, ease: Ease.inQuad });
+    for (let i = 0; i < 3; i++) after(i * 160, () => { w.shake(0.12 + i * 0.1, 150);
+      for (let k = 0; k < 3; k++) { const q = x.floor(order[Math.floor(Math.random() * order.length)]).add(V(R(0.5), 0.2, R(0.4)));
+        bit(w, 'flame', q, { color: k ? color : 0xffe9a0, size: 0.12 + i * 0.05, life: 420, vel: V(R(0.5), 1.6 + i, R(0.5)) }); } });
+    await beat(540);
+    audio.sfx('explosion'); w.shake(0.62, 480);
+    spr(w, 'pillar', g.clone().add(V(0, 2.6, 0)), { color, size: 0.7, to: 1.5, sy: 4, ms: 640, add: true, hold: 0.5, opacity: 0.95 });
+    spr(w, 'pillar', g.clone().add(V(0, 3, 0)), { color: 0xfff0b0, size: 0.3, to: 0.7, sy: 8, ms: 460, add: true, hold: 0.4 });
+    for (let k = 0; k < 5; k++) spr(w, 'flame', g.clone().add(V(R(0.5), 0.8 + k * 0.5, 0)), { color: k % 2 ? color : 0xffc050, size: 0.7, to: 1.3, sy: 1.8, ms: 420 + k * 40, add: true, rise: 1.2, hold: 0.3 });
+    x.land('blast', target, { s: 1.25 });
+    decal(w, 'shock', g, { color: 0xffe0a0, size: 0.8, to: 5, ms: 460, opacity: 0.9, add: true });
+    decal(w, 'crack', g, { color: 0x1a0c06, size: 2, to: 2.8, ms: 2800, hold: 0.8, opacity: 0.9 });
+    order.forEach((c, i) => { const q = x.floor(c); if (q.distanceToSquared(g) < 0.05) return;
+      shot(w, mid.clone().add(V(0, 1.4, 0)), q, 0xff8a2a, { name: 'rock', size: 0.3, arc: 1.7, spin: 9, ms: 300 + i * 14 }).then(() => {
+        spr(w, 'flame', q.clone().add(V(0, 0.5, 0)), { color, size: 0.4, to: 0.8, sy: 1.6, ms: 380, add: true, rise: 0.4, hold: 0.3 });
+        decal(w, 'crack', q, { color: 0x1a0c06, size: 0.7, to: 1, ms: 2000, hold: 0.75, opacity: 0.75 });
+        w.flashCells([c], color, 320); if (struck.has(c.q + ',' + c.r)) { x.land('hit_fire', c, { s: 0.9 }); audio.sfx('burn'); } }); });
+    if (struck.has(target.q + ',' + target.r)) x.land('hit_fire', target, { s: 1.1 });
+    await beat(440);
+    for (let i = 0; i < 18; i++) after(100 + i * 70, () => { const q = g.clone().add(V(R(2.4), 0.2, R(1.5)));
+      if (i % 3 === 0) bit(w, 'smoke', q, { color: 0x3a2a26, size: 0.6, life: 1200, vel: V(R(0.3), 0.9, R(0.3)), add: false, opacity: 0.5 });
+      else bit(w, 'flame', q, { color: i % 2 ? color : 0xffe9a0, size: 0.09 + Math.random() * 0.09, life: 900, vel: V(R(0.7), 1.3 + Math.random() * 1.4, R(0.7)), gravity: -0.5 }); });
+  },
+
+  // POISON · Spore Bloom: toadstools push up out of every hex, ring by ring out from the caster, and stand a moment;
+  // then every cap bursts at once, and the cloud hangs over the ground and goes on bubbling.
+  async r_sporebloom(w, x) {
+    const { u, feet, cells, targets, color } = x; const lite = pale(color);
+    const order = cells.slice(0, 19).map((c) => ({ c, g: x.floor(c) })).filter((o) => o.g.distanceToSquared(feet) > 0.05).sort((a, b) => a.g.distanceToSquared(feet) - b.g.distanceToSquared(feet));
+    if (!order.length) return; const T = Math.min(520, order[order.length - 1].g.distanceTo(feet) * 150) + 380;
+    audio.sfx('poison');
+    order.forEach(({ g }, i) => { const d = Math.min(520, g.distanceTo(feet) * 150) + (i % 3) * 25; const hgt = 0.45 + Math.random() * 0.3;
+      after(d, () => { spike(w, g, { color: 0x6a8a3a, h: hgt, wd: 0.13, tilt: R(0.3), up: 170, hold: Math.max(120, T - d - 170), out: 160 });
+        spr(w, 'smoke', g.clone().add(V(0, hgt * K * 0.95, 0)), { color: i % 2 ? 0xb04a8a : 0x8a3fb0, size: 0.16, to: 0.5, ms: Math.max(200, T - d), hold: 0.92, opacity: 0.95 }); // the cap, swelling
+        bit(w, 'bubble', g.clone().add(V(R(0.3), 0.2, R(0.2))), { color: lite, size: 0.08, life: 400, vel: V(0, 0.8, 0), add: false }); }); });
+    await beat(T);
+    audio.sfx('poison'); w.shake(0.3, 260); w.flashCells(cells, color, 520);
+    x.land('spores', u, { s: 1.15 });
+    order.forEach(({ g }, i) => { spr(w, 'smoke', g.clone().add(V(0, 0.8, 0)), { color: i % 2 ? color : 0x6aa82a, size: 0.4, to: 1.5, ms: 700, hold: 0.3, opacity: 0.7 });
+      for (let k = 0; k < 3; k++) bit(w, 'spark', g.clone().add(V(R(0.4), 0.8, R(0.3))), { color: lite, size: 0.07, life: 520, vel: V(R(2.4), 1 + Math.random() * 2, R(2.4)), gravity: 2, spin: R(5) }); });
+    targets.forEach((t) => x.land('hit_poison', t, { s: 0.9 }));
+    await beat(140);
+    for (let i = 0; i < 16; i++) after(150 + i * 100, () => { const g = order[Math.floor(Math.random() * order.length)].g.clone().add(V(R(0.7), 0.1, R(0.5)));
+      if (i % 4 === 0) decal(w, 'smoke', g, { color: 0x6aa82a, size: 0.8, to: 1.7, ms: 1800, hold: 0.7, opacity: 0.55 });
+      else bit(w, 'bubble', g, { color: i % 3 ? color : lite, size: 0.08 + Math.random() * 0.1, life: 640, vel: V(R(0.2), 0.7 + Math.random() * 0.6, R(0.2)), add: false, grow: 0.5 }); });
+  },
+
+  // EARTH · Earthquake: three heaves, each reaching one ring further out: the hexes of that ring crack and slabs of
+  // rock tip up out of them. The third is the hardest, and the dust takes a while to settle.
+  async m_earthquake(w, x) {
+    const { u, feet, cells, targets, color } = x;
+    const all = cells.slice(0, 19).map((c) => ({ c, g: x.floor(c) })).filter((o) => o.g.distanceToSquared(feet) > 0.05); if (!all.length) return;
+    const far = Math.max(...all.map((o) => o.g.distanceTo(feet))); const struck = new Set(targets.map((t) => t.q + ',' + t.r));
+    for (let p = 0; p < 3; p++) {
+      audio.sfx('earth'); w.shake(0.22 + p * 0.17, 260);
+      decal(w, 'shock', feet, { color: 0xd0a060, size: 0.6, to: 1.5 + (p + 1) * (far / K) * 0.75, ms: 360, opacity: 0.75 });
+      all.filter((o) => Math.min(2, Math.floor((o.g.distanceTo(feet) / far) * 2.999)) === p).forEach(({ c, g }, i) => after(i * 14, () => {
+        decal(w, 'crack', g, { color: 0x3a2a1a, size: 0.8, to: 1.3, ms: 1900, hold: 0.75, opacity: 0.85 });
+        spike(w, g.clone().add(V(R(0.25), 0, R(0.15))), { color: i % 2 ? 0xa88458 : 0x8a6a48, h: 0.55 + p * 0.3 + Math.random() * 0.2, wd: 0.5 + p * 0.1, tilt: R(1.3), up: 90, hold: 520 - p * 110, bits: color });
+        for (let k = 0; k < 2; k++) bit(w, 'rock', g.clone().add(V(R(0.4), 0.2, R(0.3))), { color: k ? color : 0x6a5238, size: 0.1 + Math.random() * 0.1, life: 560, vel: V(R(2.6), 2.6 + Math.random() * 2.4, R(2.6)), gravity: 11, spin: R(9), add: false });
+        if (struck.has(c.q + ',' + c.r)) x.land('hit_earth', c, { s: 0.9 }); }));
+      await beat(p === 2 ? 150 : 240);
+    }
+    x.land('slam', u, { s: 1.1 }); audio.sfx('smash'); w.shake(0.55, 380); w.flashCells(cells, color, 520);
+    await beat(130);
+    for (let i = 0; i < 12; i++) after(200 + i * 80, () => bit(w, 'smoke', all[Math.floor(Math.random() * all.length)].g.clone().add(V(R(0.6), 0.2 + Math.random() * 0.5, R(0.4))), { color: 0xb09870, size: 0.6, life: 1000, vel: V(R(0.4), 0.45, R(0.4)), add: false, opacity: 0.45 }));
+  },
+
+  // HOLY · Radiance: a small sun is raised over the caster's head and a circle turns on the ground; then it sends a
+  // ray to each enemy in turn, round the circle; one last flash, and gold dust rises wherever the light fell.
+  async p_radiance(w, x) {
+    const { from, feet, cells, targets, color } = x; const lite = pale(color); const sun = from.clone().add(V(0, 1.9, 0));
+    audio.sfx('holy');
+    spr(w, 'smoke', sun, { color: 0xffe27a, size: 0.3, to: 1.5, ms: 1100, add: true, hold: 0.85 });
+    spr(w, 'spark', sun, { color: 0xffffff, size: 0.3, to: 1.3, ms: 1100, add: true, spin: 3, hold: 0.85 });
+    decal(w, 'circle', feet, { color: lite, size: 1, to: 4.2, ms: 1400, spin: 1.6, hold: 0.75, opacity: 0.9, add: true });
+    for (let k = 0; k < 12; k++) after(k * 24, () => { const a = Math.random() * 6.28, st = feet.clone().add(V(Math.cos(a) * 2, 0.15, Math.sin(a) * 1.3));
+      bit(w, 'spark', st, { color: lite, size: 0.1, life: 320, vel: sun.clone().sub(st).multiplyScalar(2.6), drag: 1 }); });
+    await beat(400);
+    const ang = (c) => { const g = x.floor(c); return Math.atan2(g.z - feet.z, g.x - feet.x); };
+    const outer = cells.filter((c) => x.floor(c).distanceToSquared(feet) > 3).sort((a, b) => ang(a) - ang(b));
+    const marks = targets.length ? targets.slice().sort((a, b) => ang(a) - ang(b)) : outer.filter((c, i) => i % 2 === 0).slice(0, 6);
+    const gap = Math.min(80, 420 / Math.max(1, marks.length));
+    marks.forEach((c, i) => after(i * gap, () => { const q = x.chest(c);
+      stroke(w, sun, q, { name: 'pillar', color: lite, wd: 0.5, ms: 260 }); audio.sfx('holy');
+      if (targets.length) x.land('hit_holy', c, { s: 0.85 });
+      spr(w, 'cross', q.clone().add(V(0, 0.9, 0)), { color: 0xffffff, size: 0.2, to: 0.5, ms: 360, add: true, rise: 0.4, hold: 0.4 });
+      w.flashCells([c], 0xffffff, 220); }));
+    await beat(marks.length * gap + 120);
+    spr(w, 'spark', sun, { color: 0xffffff, size: 1.3, to: 3.2, ms: 280, add: true });
+    decal(w, 'shock', feet, { color: 0xfff6c8, size: 0.8, to: 5.4, ms: 480, opacity: 0.9, add: true });
+    w.flashCells(cells, color, 520); w.shake(0.34, 280);
+    await beat(130);
+    for (let i = 0; i < 16; i++) after(120 + i * 65, () => bit(w, 'spark', x.floor(cells[Math.floor(Math.random() * cells.length)]).add(V(R(0.6), 0.2 + Math.random() * 0.4, R(0.4))), { color: i % 3 ? lite : 0xffffff, size: 0.07 + Math.random() * 0.08, life: 800, vel: V(R(0.3), 1 + Math.random() * 0.9, R(0.3)), gravity: -0.3, spin: R(3) }));
+  },
+
+  // STEEL · Shuriken Storm: the caster turns once and the blades leave the hand one after another, round the whole
+  // circle, each spinning out to its own hex; where one finds an enemy it cuts, and a second follows it in.
+  async s_shuriken(w, x) {
+    const { from, feet, cells, targets, sc } = x; const steel = 0xe6ecf6;
+    const struck = new Set(targets.map((t) => t.q + ',' + t.r));
+    const ang = (c) => { const g = x.floor(c); return Math.atan2(g.z - feet.z, g.x - feet.x); };
+    const order = cells.slice(0, 19).filter((c) => x.floor(c).distanceToSquared(feet) > 0.05).sort((a, b) => ang(a) - ang(b)); if (!order.length) return;
+    const gap = Math.min(26, 420 / order.length);
+    play(w, 'spin', feet, { s: sc * 0.75 }); audio.sfx('slash');
+    const blade = (c, ms, arc) => { const q = x.chest(c);
+      return shot(w, from, q, steel, { name: 'spark', size: 0.42, arc, spin: 34, ms, trail: { color: 0xffffff, size: 0.1, life: 110 } }).then(() => {
+        if (struck.has(c.q + ',' + c.r)) { x.land('flurry', c, { s: 0.9 }); const dir = q.clone().sub(from).setY(0); if (dir.lengthSq() > 1e-4) w.spray(q, dir.normalize(), { color: 0xc0392b, count: 7, speed: 4.5, fan: 0.7 }); }
+        else { w.particle(q.clone().add(V(0, -0.5, 0)), { color: 0xffffff, size: 0.22, life: 150 }); bit(w, 'spark', q.clone().add(V(0, -0.55, 0)), { color: steel, size: 0.12, life: 260, add: false, spin: 3 }); } }); };
+    order.forEach((c, i) => after(i * gap, () => { if (i % 4 === 0) audio.sfx('slash'); blade(c, 190 + x.chest(c).distanceTo(from) * 45, 0.2); }));
+    targets.forEach((t, i) => after(order.length * gap * 0.5 + 120 + i * 40, () => blade(t, 200, 0.9))); // the second blade comes in high
+    await beat(order.length * gap + 330);
+    w.flashCells(cells, 0xffffff, 300); w.shake(0.3, 240);
+    await beat(110);
+  },
+
+  // EARTH · Earthsplitter: the blow goes into the ground and the ground opens: a fissure runs down the line with fire
+  // in it, and the rock on either side is thrown up and outward; it ends in one tall spike, and closes in dust.
+  async k_earthsplit(w, x) {
+    const { u, feet, cells, targets, aim, color } = x; if (!cells.length) return;
+    const order = cells.slice(0, 12).sort((a, b) => x.floor(a).distanceToSquared(feet) - x.floor(b).distanceToSquared(feet));
+    const far = x.floor(order[order.length - 1]); const side = sideways(feet, far); const struck = new Set(targets.map((t) => t.q + ',' + t.r)); const gap = 58;
+    await w.strike(u.uid, aim, { heavy: true });
+    x.land('smash', order[0], { s: 0.9 }); audio.sfx('smash'); w.shake(0.42, 260);
+    order.forEach((c, i) => after(i * gap, () => { const g = x.floor(c), t = (i + 1) / order.length;
+      decal(w, 'crack', g, { color: 0x1a0f08, size: 1.1, to: 1.5, ms: 2000, hold: 0.8, opacity: 0.9 });
+      decal(w, 'crack', g, { color: 0xff8a2a, size: 0.5, to: 0.95, ms: 760, hold: 0.5, opacity: 0.9, add: true }); // the fire down in it
+      [-1, 1].forEach((sg) => spike(w, g.clone().add(side.clone().multiplyScalar(sg * 0.36)), { color: sg > 0 ? 0xa88458 : 0x8a6a48, h: 0.7 + t * 0.7, wd: 0.5, tilt: -sg * 0.8, up: 100, hold: 380 + (order.length - i) * 30, bits: color }));
+      for (let k = 0; k < 3; k++) bit(w, 'rock', g.clone().add(V(R(0.3), 0.2, R(0.2))), { color: k ? color : 0x6a5238, size: 0.1 + Math.random() * 0.12, life: 600, vel: V(R(3), 3 + Math.random() * 2.6, R(3)), gravity: 11, spin: R(9), add: false });
+      w.flashCells([c], color, 300); w.shake(0.1, 100); if (i % 2 === 0) audio.sfx('earth');
+      if (struck.has(c.q + ',' + c.r)) x.land('hit_earth', c, { s: 0.95 }); }));
+    await beat(order.length * gap + 60);
+    spike(w, far, { color: 0xb89462, h: 2.1, wd: 1, up: 120, hold: 420, bits: color }); w.shake(0.5, 320); audio.sfx('smash');
+    await beat(150);
+    for (let i = 0; i < 10; i++) after(260 + i * 80, () => bit(w, 'smoke', x.floor(order[Math.floor(Math.random() * order.length)]).add(V(R(0.6), 0.2 + Math.random() * 0.4, R(0.4))), { color: 0xb09870, size: 0.6, life: 1000, vel: V(R(0.4), 0.45, R(0.4)), add: false, opacity: 0.45 }));
+  },
+
+  // FIRE · Meteor Hammer: fire is drawn up onto the raised hammer; as it comes down a burning rock comes down out of
+  // the sky with it, and the two land together: a crater, a ring of fire, and rock thrown the way the enemy is knocked.
+  async b_meteorhammer(w, x) {
+    const { u, from, aim, target, color, sc } = x; const g = x.floor(target); const top = from.clone().add(V(0, 1.4 * sc, 0));
+    audio.sfx('fire');
+    spr(w, 'flame', top, { color, size: 0.3, to: 0.9, sy: 1.4, ms: 380, add: true, hold: 0.7 });
+    for (let k = 0; k < 10; k++) after(k * 20, () => { const a = Math.random() * 6.28, st = top.clone().add(V(Math.cos(a) * 1.5, R(1.2), Math.sin(a) * 1));
+      bit(w, 'flame', st, { color: k % 2 ? color : 0xffe9a0, size: 0.12, life: 240, vel: top.clone().sub(st).multiplyScalar(4), drag: 1 }); });
+    await beat(250);
+    fly(w, 'fireball', aim.clone().add(V(-2.4, 6.5, -0.8)), aim, { s: 1.5, ms: 270, trail: color });
+    await beat(110); await w.strike(u.uid, aim, { heavy: true });
+    const left = w.project(aim).x < w.project(from).x;
+    x.land('smash', target, { s: sc * 1.1, flipX: left }); x.land('blast', target, { s: 0.6 }); audio.sfx('explosion'); w.shake(0.6, 380);
+    decal(w, 'shock', g, { color: 0xffe0a0, size: 0.7, to: 3.6, ms: 400, opacity: 0.9, add: true });
+    decal(w, 'crack', g, { color: 0x1a0c06, size: 1.4, to: 2.1, ms: 2400, hold: 0.78, opacity: 0.9 });
+    decal(w, 'crack', g, { color: 0xff8a2a, size: 0.7, to: 1.3, ms: 800, hold: 0.5, opacity: 0.9, add: true });
+    const dir = aim.clone().sub(from).setY(0); if (dir.lengthSq() > 1e-4) w.spray(aim, dir.normalize(), { color, count: 18, speed: 6.5, fan: 0.7 });
+    for (let k = 0; k < 8; k++) bit(w, 'rock', g.clone().add(V(R(0.5), 0.3, R(0.4))), { color: k % 2 ? 0xff8a2a : 0x4a2a1a, size: 0.12 + Math.random() * 0.12, life: 700, vel: V(R(4.5), 3.5 + Math.random() * 3, R(4.5)), gravity: 11, spin: R(10), add: false });
+    await beat(160);
+    for (let i = 0; i < 10; i++) after(120 + i * 75, () => bit(w, 'flame', g.clone().add(V(R(1.2), 0.2, R(0.8))), { color: i % 2 ? color : 0xffe9a0, size: 0.09 + Math.random() * 0.08, life: 800, vel: V(R(0.6), 1.2 + Math.random() * 1.2, R(0.6)), gravity: -0.5 }));
+  },
+
+  // FIRE · Flame Wave: not a ray either. A wall of fire rolls down the line hex by hex: at each one a tall tongue
+  // with two lower ones at its sides, taller the further it runs; it breaks over whoever stands in the way, and
+  // behind it the ground is left scorched and smoking.
+  async m_flamewave(w, x) {
+    const { feet, cells, targets, color } = x; if (!cells.length) return;
+    const order = cells.slice(0, 12).sort((a, b) => x.floor(a).distanceToSquared(feet) - x.floor(b).distanceToSquared(feet));
+    const far = x.floor(order[order.length - 1]); const side = sideways(feet, far); const gap = 75;
+    const struck = new Set(targets.map((t) => t.q + ',' + t.r));
+    audio.sfx('fire');
+    order.forEach((c, i) => after(i * gap, () => { const g = x.floor(c), t = (i + 1) / order.length, hgt = 1.5 + t * 1.3;
+      [0, -1, 1].forEach((sg) => { const q = g.clone().add(side.clone().multiplyScalar(sg * 0.42)).add(V(0, 0.5, 0)); const k = sg ? 0.62 : 1;
+        spr(w, 'flame', q, { color: sg ? 0xff5a1a : color, size: 0.55 * k, to: 1.05 * k, sy: hgt * k, ms: 460, add: true, rise: 0.5 * k, hold: 0.35 });
+        spr(w, 'flame', q, { color: 0xfff0b0, size: 0.26 * k, to: 0.52 * k, sy: hgt * 0.8 * k, ms: 340, add: true, rise: 0.4 * k, hold: 0.25 }); });
+      decal(w, 'shock', g, { color: 0xffc070, size: 0.5, to: 2.1, ms: 300, opacity: 0.7, add: true });
+      decal(w, 'crack', g, { color: 0x1a0c06, size: 0.9, to: 1.25, ms: 2200, hold: 0.78, opacity: 0.8 });
+      w.flashCells([c], color, 380);
+      for (let n = 0; n < 3; n++) bit(w, 'flame', g.clone().add(V(R(0.6), 0.4, R(0.4))), { color: n ? color : 0xffe9a0, size: 0.1 + Math.random() * 0.08, life: 520, vel: V(R(1.6), 2.2 + Math.random() * 1.6, R(1.6)), gravity: 3 });
+      if (struck.has(c.q + ',' + c.r)) { x.land('hit_fire', c, { s: 1 }); audio.sfx('burn'); w.shake(0.26, 200); }
+      else if (i % 2) w.shake(0.07, 90); }));
+    await beat(order.length * gap + 90); // (the blow is shown when the wave has run its length)
+    audio.sfx('explosion'); w.shake(0.3, 260);
+    for (let i = 0; i < 14; i++) after(100 + i * 70, () => { const g = x.floor(order[Math.floor(Math.random() * order.length)]).add(V(R(0.7), 0.2, R(0.5)));
+      if (i % 3 === 0) bit(w, 'smoke', g, { color: 0x3a2a26, size: 0.5, life: 1000, vel: V(R(0.3), 0.8, R(0.3)), add: false, opacity: 0.5 });
+      else bit(w, 'flame', g, { color: i % 2 ? color : 0xffe9a0, size: 0.08 + Math.random() * 0.08, life: 800, vel: V(R(0.6), 1.1 + Math.random() * 1.2, R(0.6)), gravity: -0.5 }); });
+  },
+
   // ICE · Frost Shard: spikes break out of the ground in a line toward the enemy, bigger the nearer they get, smaller
   // ones fanned out at their sides; the floor cracks round the enemy and a great cluster comes up under it; the spikes
   // shatter from the top, and snow, mist and sparkles hang in the air.
@@ -441,7 +681,7 @@ export async function castVfx(w, d) {
 
   if (P.self) play(w, P.self, feet, { s: sc, order: 34 });
   if (P.mode === 'support') { supportFx(w, d, P, sc); await tween(200, () => {}); return; }
-  if (!d.monster && SIGN[card.id] && target && aim) { await SIGN[card.id](w, { u, card, cells, target, from, feet, aim, color, sc, chest, floor, land }); return; } // this element's signature spell
+  if (!d.monster && SIGN[card.id] && (aim || card.tg === 'self')) { await SIGN[card.id](w, { u, card, cells, targets, target: target || u, from, feet, aim, color, sc, chest, floor, land }); return; } // a spell with a staging of its own
 
   // beats 2 and 3 · it travels, and it lands
   const wait = (name, s = 1) => tween(Math.max(1, hitMs(name, s)), () => {});
