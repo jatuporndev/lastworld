@@ -47,7 +47,7 @@ export const unitSprite = (u, opts) => spriteCanvas(u.spriteKey, u.look, opts);
 export const icon = (name, color = '#fff', size = 20) => h('img.icon', { src: iconCanvas(name, color, 64), width: size, height: size, draggable: 'false', decoding: 'sync' });
 
 // An item's painted picture (equipment by rarity colour, potions and materials by their own colour).
-export const itemPic = (name, color, size = 34) => h('img.icon.pic', { src: itemArt(name, color), width: size, height: size, draggable: 'false', decoding: 'sync' });
+export const itemPic = (name, color, size = 34, item = null) => h('img.icon.pic', { src: itemArt(name, color, item), width: size, height: size, draggable: 'false', decoding: 'sync' });
 
 // ───── cards ─────
 // A dice chip such as [■■ red ×2]; card text marks dice as ⟦red:2⟧ (see describeCard).
@@ -84,7 +84,7 @@ export function itemStats(item) {
 export function itemEl(item, { onClick = null, tag = null } = {}) {
   const r = ITEM_RARITY[item.rarity];
   return h('div.item', { style: { '--rar': r.color }, onclick: onClick, 'data-tip-html': itemTip(item) },
-    h('div.item-icon', itemPic(item.icon, r.color, 34)),
+    h('div.item-icon', itemPic(item.icon, r.color, 34, item)),
     h('div.item-info', h('div.item-name', item.name), h('div.item-sub', `${r.name} · ${t('Tier {n}', { n: item.tier })} ${t(item.type)}`)),
     tag ? h('div.item-tag', tag) : null);
 }
@@ -183,10 +183,10 @@ export function pieceEl(p) {
     case 'hurt': return token(icon('skull', '#d9482f', 46), '-' + Math.round(p.pct * 100) + '%', t('HP lost'), '.bad');
     case 'mp': return token(icon('drop', '#2f6fb0', 46), '+' + p.n, 'MP');
     case 'buff': { const info = STATUS_INFO[p.st]; return info ? token(h('span.rv-glyph', info.icon), '+' + p.n, t('{name} next battle', { name: info.name })) : null; }
-    case 'mat': { const m = MATERIALS[p.id]; return m ? token(itemPic('gem', m.color, 52), '×' + p.n, m.name) : null; }
+    case 'mat': { const m = MATERIALS[p.id]; return m ? token(itemPic('gem', m.color, 52, { mat: p.id }), '×' + p.n, m.name) : null; }
     case 'cons': { const c = CONSUMABLES[p.id]; return c ? token(itemPic(c.icon, c.color, 52), null, c.name) : null; }
     case 'item': { const r = ITEM_RARITY[p.item.rarity];
-      return h('div.rv-piece', h('div.rv-token.gear', { style: { '--rar': r.color }, 'data-tip-html': itemTip(p.item) }, itemPic(p.item.icon, r.color, 56)), h('div.rv-label', p.item.name), h('div.rv-sub', `${r.name} · ${t(p.item.type)}`)); }
+      return h('div.rv-piece', h('div.rv-token.gear', { style: { '--rar': r.color }, 'data-tip-html': itemTip(p.item) }, itemPic(p.item.icon, r.color, 56, p.item)), h('div.rv-label', p.item.name), h('div.rv-sub', `${r.name} · ${t(p.item.type)}`)); }
     case 'card': return CARDS[p.id] ? h('div.rv-piece.rv-card', cardEl(p.id, p.lv || 0), h('div.rv-label', t('New card'))) : null;
     case 'upgrade': return CARDS[p.id] ? h('div.rv-piece.rv-up',
       h('div.rv-was', cardEl(p.id, p.lv - 1), h('div.rv-label', t('Before'))),

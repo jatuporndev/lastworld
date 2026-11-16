@@ -586,7 +586,8 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .modal.auth-modal { background: var(--paper); }
 .modal small, .wm-detail small, .ps-col small { color: var(--dim-d); }
 /* the journey to the next realm: a painted handscroll fills the screen, the party walks along its lower edge */
-.travel { position: absolute; inset: 0; z-index: 38; overflow: hidden; background: #f1e4c5; opacity: 0; transition: opacity 0.5s; } .travel.in { opacity: 1; }
+/* (above everything the battle left on screen: its Action Slots and hand sit at 70 to 80) */
+.travel { position: absolute; inset: 0; z-index: 88; overflow: hidden; background: #f1e4c5; opacity: 0; transition: opacity 0.5s; } .travel.in { opacity: 1; }
 .tv-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .tv-foot { position: absolute; left: 0; right: 0; top: 100%; height: 55%; margin-top: -1px; visibility: hidden; } .travel.lift { overflow: visible; will-change: transform; } .travel.lift .tv-foot { visibility: visible; }
 .tv-walkers { position: absolute; left: 0; right: 0; bottom: 16%; height: 0; }
@@ -905,6 +906,10 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .drag-piece { position: fixed; left: 0; top: 0; z-index: 200; margin: 0; pointer-events: none; transition: none; animation: none; box-shadow: 0 0.5em 0 rgba(0, 0, 0, 0.3); }
 .cell.ghost { background: var(--paper); box-shadow: 0 0.4em 0 rgba(0, 0, 0, 0.3); }
 .cell.drop-over, .bag-grid.drop-over, .card-grid.drop-over { box-shadow: inset 0 0 0 0.2em var(--coin); border-radius: var(--radius); }
+/* the bag's dividers: paper tabs standing on the tray, the open one joined to it and marked in coin */
+.bag-tabs { display: flex; gap: 0.2em; padding-left: 0.4em; flex: none; } .bag-tabs + .bag-grid { border-top-left-radius: 0; }
+.bag-tab { padding: 0.4em 1em 0.35em; border: 0; border-radius: 0.45em 0.45em 0 0; background: none; color: var(--dim-d); font-family: var(--f-head); font-size: 0.95em; cursor: pointer; } .bag-tab:hover { background: var(--paper3); color: var(--ink-d); }
+.bag-tab.on { background: var(--paper2); color: var(--ink-d); box-shadow: inset 0 0.22em 0 var(--coin); cursor: default; }
 .bag-doll { display: flex; flex-direction: column; align-items: center; gap: 0.5em; padding: 0.3em 0 0.8em; }
 .bag-slots { display: flex; gap: 0.9em; } .eq-slot { display: flex; flex-direction: column; align-items: center; gap: 0.2em; margin: 0; }
 .cell.slot { width: 4.4em; height: 4.4em; } .eq-slot .cell { width: 4.4em; height: 4.4em; } .eq-slot .cell .icon { width: 3em; height: 3em; }
@@ -1068,7 +1073,7 @@ html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent
   .hand .card:hover, .hand .card.selected, .hand .card.peeked { transform: translateY(-3.4em) scale(1.3); }
   .dice-tray { top: 36%; gap: 0.3em; } .die { width: 3em; height: 3em; } .ds-total { font-size: 1.6em; }
   /* the bag on a short screen: no portrait, so the slots and the picked item's actions fit without scrolling */
-  .bag-doll .hero-stage { display: none; } .bag-doll { padding: 0 0 0.5em; } .tab-equip .eq-col { flex-basis: 17em; } .bag-detail { padding: 0.5em 0.7em; font-size: 0.92em; } .bag-detail .btn { padding: 0.7em 1em; }
+  .bag-tab { padding: 0.75em 1em 0.7em; } .bag-doll .hero-stage { display: none; } .bag-doll { padding: 0 0 0.5em; } .tab-equip .eq-col { flex-basis: 17em; } .bag-detail { padding: 0.5em 0.7em; font-size: 0.92em; } .bag-detail .btn { padding: 0.7em 1em; }
   .banner { top: 22%; padding: 0.6em 0; }
   .slot-peek { font-size: 1.15em; bottom: calc(100% + 0.5em); }
   .cam-ctl { left: 0.6em; top: 30%; gap: 0.4em; display: grid; grid-template-columns: auto auto; grid-auto-flow: column; grid-template-rows: auto auto; } .cam-btn { width: 2.9em; height: 2.9em; }

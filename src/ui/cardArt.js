@@ -490,7 +490,7 @@ export function moveArt(kind, el) {
 
 // ───── item pictures ─────
 // Equipment, potions and materials are painted the same way as the cards, as a small square: the object in
-// steel, wood or leather, lit by the colour of its rarity (or of the potion). Painted once per look, then reused.
+// materials of its tier, lit by the colour of its rarity (or of the potion). Painted once per look, then reused.
 const S = 600;
 const mix = (hex, to, k) => { const n = parseInt(hex.slice(1), 16), a = [n >> 16, (n >> 8) & 255, n & 255]; return a.map((v, i) => Math.round(v + (to[i] - v) * k)); };
 const css = (a) => `rgb(${a.join(',')})`;
@@ -499,90 +499,365 @@ const wood = (c, x1, y1, x2, y2) => lin(c, x1, y1, x2, y2, ['#c49a64', '#7a5230'
 const leather = (c, x1, y1, x2, y2) => lin(c, x1, y1, x2, y2, ['#c89868', '#8a5a34', '#40281a']);
 const gold = (c, x1, y1, x2, y2) => lin(c, x1, y1, x2, y2, ['#fff3c0', '#e0a834', '#6a4410']);
 const shape = (c, col, draw) => { c.beginPath(); draw(); c.closePath(); c.fillStyle = col; c.fill(); };
+// What a tier is made of. Every kind of equipment is painted in these: plain iron and wood, then steel and gold,
+// then frost, grave-bone, starmetal and last the black iron of the abyss, each with its own mark and light.
+const BONE = ['#fff8e0', '#d8c8a0', '#7a6848'], GOLD = ['#fff3c0', '#e0a834', '#6a4410'];
+const TIER = [null,
+  { n: 1, metal: ['#e4e8f0', '#8e96a4', '#3a4050'], trim: ['#a8aeb8', '#5a606c', '#2e323a'], band: ['#f0b890', '#b06a3a', '#4a2410'], cloth: ['#d8c8a0', '#9a8a64', '#40382a'] },
+  { n: 2, metal: ['#f2f6ff', '#9aa8c4', '#3c4866'], trim: GOLD, band: ['#ffffff', '#b8c0d0', '#4a5266'], cloth: ['#f0c880', '#c07a30', '#5a3010'] },
+  { n: 3, metal: ['#ffffff', '#8fdcff', '#2a6aa8'], trim: ['#e8f6ff', '#9ab8d8', '#3c5a80'], band: ['#ffffff', '#a8dcff', '#3a6a9a'], cloth: ['#f4fbff', '#a8cfe8', '#3a5a80'], gem: '#7fd4ff', rim: 'rgba(190,234,255,0.9)', deco: 'ice' },
+  { n: 4, metal: ['#d8e0c8', '#74846a', '#1c281c'], trim: BONE, band: BONE, cloth: ['#9a8aaa', '#4a3c5c', '#1a1424'], gem: '#8fe060', rim: 'rgba(216,240,176,0.8)', deco: 'bone' },
+  { n: 5, metal: ['#6a80e8', '#1e2a78', '#080a20'], trim: GOLD, band: GOLD, cloth: ['#9aacf8', '#3a4aa8', '#141c50'], gem: '#ffe08a', rim: 'rgba(255,233,160,0.9)', deco: 'star' },
+  { n: 6, metal: ['#5a3848', '#1c0c14', '#000000'], trim: ['#ff7a3a', '#8a1c14', '#1a0608'], band: ['#6a4252', '#1c0c14', '#000000'], cloth: ['#6a2434', '#240a12', '#000000'], gem: '#ff3a1a', rim: 'rgba(255,110,50,0.95)', deco: 'fire' },
+];
+const cut = (c, pts) => { c.globalCompositeOperation = 'destination-out'; poly(c, pts, '#000'); c.globalCompositeOperation = 'source-over'; };
+const star4 = (c, x, y, r, col) => poly(c, [[x, y - r], [x + r * 0.24, y - r * 0.24], [x + r, y], [x + r * 0.24, y + r * 0.24], [x, y + r], [x - r * 0.24, y + r * 0.24], [x - r, y], [x - r * 0.24, y - r * 0.24]], col);
+const skull = (c, x, y, r) => { disc(c, x, y, r, '#fff8e0'); c.fillStyle = '#d8c8a0'; c.fillRect(x - r * 0.5, y + r * 0.45, r, r * 0.65); disc(c, x - r * 0.38, y - r * 0.05, r * 0.27, '#0c0a10'); disc(c, x + r * 0.38, y - r * 0.05, r * 0.27, '#0c0a10'); };
+const tongue = (c, x, y, w, hgt, col) => shape(c, col, () => { c.moveTo(x, y - hgt); c.bezierCurveTo(x + w * 1.3, y - hgt * 0.35, x + w, y, x, y); c.bezierCurveTo(x - w, y, x - w * 0.5, y - hgt * 0.5, x, y - hgt); });
+const fire = (c, x, y, w, hgt) => { tongue(c, x, y, w, hgt, '#ff3a1a'); tongue(c, x, y, w * 0.62, hgt * 0.7, '#ffb040'); tongue(c, x, y, w * 0.3, hgt * 0.42, '#fff0b0'); };
+const heartAt = (c, x, y, k) => { c.moveTo(x, y + 210 * k); c.bezierCurveTo(x - 330 * k, y + 10 * k, x - 160 * k, y - 230 * k, x, y - 70 * k); c.bezierCurveTo(x + 160 * k, y - 230 * k, x + 330 * k, y + 10 * k, x, y + 210 * k); };
+const leafAt = (c, x, y, rot, len, col, vein = 'rgba(255,255,255,0.5)') => at(c, x, y, rot, () => { shape(c, col, () => { c.moveTo(0, 0); c.bezierCurveTo(len * 0.5, -len * 0.3, len * 0.5, -len * 0.8, 0, -len); c.bezierCurveTo(-len * 0.5, -len * 0.8, -len * 0.5, -len * 0.3, 0, 0); }); line(c, 0, -len * 0.1, 0, -len * 0.85, len * 0.04, vein); });
+// A wing of four slim gold feathers, fanned up and out from (x, y) to the side `sd`.
+const wing = (c, x, y, sd, k = 1) => [[1.35, 150], [1.0, 210], [0.65, 250], [0.3, 230]].forEach(([a, len], i) => at(c, x, y, sd * a, () => { shape(c, '#6a4410', () => { c.moveTo(0, 0); c.quadraticCurveTo(46, -len * 0.5, 0, -len - 10); c.quadraticCurveTo(-46, -len * 0.5, 0, 0); }); shape(c, i % 2 ? '#e0a834' : '#fff3c0', () => { c.moveTo(0, -6); c.quadraticCurveTo(34, -len * 0.5, 0, -len); c.quadraticCurveTo(-34, -len * 0.5, 0, -6); }); }, k));
+// The mark of a tier, set on an item at (x, y): a spray of rime, a skull, a star or a flame. Nothing for the plain tiers.
+const mark = (c, T, x, y, k = 1) => at(c, x, y, 0, () => {
+  if (T.deco === 'ice') for (const [a, hgt] of [[-0.62, 60], [0.62, 60], [0, 88]]) at(c, 0, 14, a, () => { poly(c, [[-16, 0], [0, -hgt], [16, 0], [0, 16]], '#8fdcff'); poly(c, [[-16, 0], [0, -hgt], [0, 16]], '#ffffff'); });
+  else if (T.deco === 'bone') skull(c, 0, -4, 36);
+  else if (T.deco === 'star') { star4(c, 0, 0, 52, '#ffe08a'); star4(c, 0, 0, 25, '#ffffff'); }
+  else if (T.deco === 'fire') fire(c, 0, 40, 36, 100);
+}, k);
+// The light a tier gives off, and the motes in it.
+const aura = (c, T, R, x, y, r = 230) => { if (!T.gem) return; const A = palOf(T.gem); halo(c, A, x, y, r, 0.5); sparks(c, A, R, x, y, 14, r * 0.8); };
+const tm = (c, T, x1, y1, x2, y2) => lin(c, x1, y1, x2, y2, T.metal), tt = (c, T, x1, y1, x2, y2) => lin(c, x1, y1, x2, y2, T.trim);
+
 const ITEM = {
-  sword(c, P) {
-    at(c, 300, 310, 0.72, () => {
-      poly(c, [[-30, 110], [30, 110], [24, -200], [0, -262], [-24, -200]], steel(c, -30, 0, 30, 0)); poly(c, [[0, 110], [30, 110], [24, -200], [0, -262]], 'rgba(16,24,52,0.4)'); line(c, -8, 90, -8, -190, 5, 'rgba(255,255,255,0.7)');
-      shape(c, gold(c, 0, 104, 0, 140), () => { c.moveTo(-96, 104); c.lineTo(96, 104); c.lineTo(84, 138); c.lineTo(-84, 138); }); c.fillStyle = leather(c, -16, 0, 16, 0); c.fillRect(-15, 138, 30, 88); ball(c, P, 0, 246, 28);
+  // ── the six swords, each made of what its name says ──
+  sword1(c) { // Iron Sword: short, broad and dull, with a plain iron hilt
+    at(c, 300, 300, 0.72, () => {
+      poly(c, [[-36, 110], [36, 110], [32, -150], [0, -206], [-32, -150]], lin(c, -36, 0, 36, 0, ['#eef2f8', '#9aa2b0', '#444a5a'])); poly(c, [[0, 110], [36, 110], [32, -150], [0, -206]], 'rgba(10,12,20,0.3)');
+      cut(c, [[40, -20], [16, -36], [40, -52]]); line(c, -14, 90, -12, -140, 5, 'rgba(255,255,255,0.6)');
+      c.fillStyle = lin(c, 0, 100, 0, 134, ['#b0b6c2', '#4a505c']); c.fillRect(-76, 102, 152, 30);
+      c.fillStyle = leather(c, -16, 0, 16, 0); c.fillRect(-16, 132, 32, 86); for (let i = 0; i < 4; i++) line(c, -16, 146 + i * 20, 16, 156 + i * 20, 5, '#2a180e');
+      disc(c, 0, 238, 27, '#4a505c'); disc(c, -4, 234, 17, '#b0b6c2');
     });
   },
-  dagger(c, P) {
+  sword2(c, P) { // Steel Longsword: long and slender, bright, with a gilded guard
+    at(c, 300, 316, 0.72, () => {
+      poly(c, [[-24, 110], [24, 110], [18, -226], [0, -282], [-18, -226]], steel(c, -24, 0, 24, 0)); poly(c, [[0, 110], [24, 110], [18, -226], [0, -282]], 'rgba(16,24,52,0.4)');
+      line(c, 0, 96, 0, -200, 7, 'rgba(20,28,60,0.55)'); line(c, -11, 90, -9, -214, 4, 'rgba(255,255,255,0.8)');
+      shape(c, gold(c, 0, 96, 0, 144), () => { c.moveTo(-112, 92); c.quadraticCurveTo(-60, 112, 0, 104); c.quadraticCurveTo(60, 112, 112, 92); c.lineTo(104, 128); c.quadraticCurveTo(0, 150, -104, 128); });
+      c.fillStyle = leather(c, -14, 0, 14, 0); c.fillRect(-14, 138, 28, 92); ball(c, P, 0, 250, 28);
+    });
+  },
+  sword3(c, P, R, T) { // Frostbrand: a blade of clear ice, rimed at the guard
+    const I = palOf('#7fd4ff');
+    at(c, 300, 316, 0.72, () => {
+      poly(c, [[-30, 110], [30, 110], [42, -60], [22, -206], [0, -280], [-22, -206], [-42, -60]], lin(c, -40, 0, 40, 0, T.metal));
+      poly(c, [[0, 110], [30, 110], [42, -60], [0, -40]], 'rgba(20,70,140,0.45)'); poly(c, [[0, -40], [42, -60], [22, -206], [0, -280]], 'rgba(255,255,255,0.35)'); poly(c, [[-42, -60], [0, -40], [-22, -206]], 'rgba(255,255,255,0.6)');
+      for (const sd of [-1, 1]) for (const [x, hgt, k] of [[38, 96, 0.5], [78, 70, 0.9], [112, 44, 1.3]]) at(c, sd * x, 118, sd * k, () => poly(c, [[-18, 0], [0, -hgt], [18, 0], [0, 22]], sd < 0 ? '#ffffff' : '#8fdcff'));
+      c.fillStyle = lin(c, -14, 0, 14, 0, ['#e8f6ff', '#5a8ab8', '#1c3a60']); c.fillRect(-14, 126, 28, 98); ball(c, I, 0, 246, 30);
+    });
+    aura(c, T, R, 380, 190, 250);
+  },
+  sword4(c, P, R, T) { // Gravecleaver: a notched butcher's blade with a hilt of bone
+    at(c, 286, 310, 0.72, () => {
+      poly(c, [[-30, 110], [44, 110], [96, -50], [102, -190], [34, -270], [-30, -206]], lin(c, -30, 0, 100, 0, T.metal));
+      poly(c, [[34, 110], [44, 110], [96, -50], [102, -190], [34, -270], [74, -190], [70, -50]], '#e8f4d0');
+      for (const y of [40, -40, -120]) cut(c, [[112, y + 26], [66, y], [112, y - 26]]);
+      c.globalCompositeOperation = 'destination-out'; disc(c, 30, -196, 17, '#000'); c.globalCompositeOperation = 'source-over'; line(c, -14, 90, -14, -170, 6, 'rgba(10,20,10,0.55)');
+      c.fillStyle = lin(c, 0, 104, 0, 164, BONE); c.fillRect(-84, 104, 176, 30); disc(c, -88, 119, 22, '#fff8e0'); disc(c, 96, 119, 22, '#d8c8a0');
+      c.fillStyle = lin(c, -14, 0, 14, 0, ['#5a4a3a', '#20160e']); c.fillRect(-14, 134, 28, 80); skull(c, 0, 244, 40);
+    });
+    aura(c, T, R, 360, 200, 230);
+  },
+  sword5(c, P, R, T) { // Starforged Blade: night-blue metal edged in gold, with stars caught in it
+    at(c, 300, 316, 0.72, () => {
+      poly(c, [[-42, 110], [42, 110], [36, -206], [0, -290], [-36, -206]], gold(c, -42, 0, 42, 0));
+      poly(c, [[-29, 104], [29, 104], [24, -200], [0, -256], [-24, -200]], lin(c, -29, 0, 29, 0, T.metal));
+      for (const [x, y, r] of [[0, 40, 24], [0, -70, 30], [0, -176, 20]]) star4(c, x, y, r, '#ffffff');
+      for (const sd of [-1, 1]) shape(c, gold(c, 0, 60, 0, 140), () => { c.moveTo(0, 100); c.quadraticCurveTo(sd * 70, 128, sd * 124, 56); c.quadraticCurveTo(sd * 96, 150, 0, 140); });
+      c.fillStyle = lin(c, -14, 0, 14, 0, ['#5a70d8', '#141c50']); c.fillRect(-14, 138, 28, 84); star4(c, 0, 250, 42, '#ffe08a'); star4(c, 0, 250, 20, '#ffffff');
+    });
+    aura(c, T, R, 390, 180, 260);
+  },
+  sword6(c, P, R, T) { // Doomedge: black and wave-edged, red-hot along the edge, horned at the guard
+    const F = palOf('#ff3a1a');
+    const wave = (k) => [[-30 * k, 110], [30 * k, 110], [46 * k, 40], [24 * k, -30], [44 * k, -100], [20 * k, -170], [32 * k, -226], [0, -290 - (k - 1) * 60], [-32 * k, -226], [-20 * k, -170], [-44 * k, -100], [-24 * k, -30], [-46 * k, 40]];
+    at(c, 300, 320, 0.72, () => {
+      poly(c, wave(1.34), '#ffb040'); poly(c, wave(1.16), '#ff3a1a'); poly(c, wave(0.84), lin(c, -40, 0, 40, 0, T.metal));
+      line(c, 0, 90, 0, -230, 7, '#ff6a2a'); line(c, 0, 20, 14, -30, 5, '#ff6a2a'); line(c, 0, -90, -14, -140, 5, '#ff6a2a');
+      for (const sd of [-1, 1]) shape(c, lin(c, 0, 20, 0, 140, ['#ff6a2a', '#5a1818', '#1a0608']), () => { c.moveTo(0, 104); c.quadraticCurveTo(sd * 120, 120, sd * 132, 10); c.quadraticCurveTo(sd * 96, 104, 0, 142); });
+      c.fillStyle = '#2a141c'; c.fillRect(-15, 136, 30, 88); for (let i = 0; i < 4; i++) line(c, -15, 150 + i * 20, 15, 160 + i * 20, 4, '#ff3a1a');
+      ball(c, F, 0, 248, 32); c.fillStyle = '#000000'; c.beginPath(); c.ellipse(0, 248, 6, 22, 0, 0, TAU); c.fill(); // an eye for a pommel
+    });
+    aura(c, T, R, 370, 210, 280);
+  },
+  sword(c, P, R, T) { return ITEM['sword' + T.n](c, P, R, T); },
+
+  // ── the other weapons: one shape each, grown and re-made tier by tier ──
+  dagger(c, P, R, T) {
     at(c, 300, 300, -0.75, () => {
-      shape(c, steel(c, -30, 0, 34, 0), () => { c.moveTo(-26, 60); c.lineTo(30, 60); c.quadraticCurveTo(40, -110, -6, -230); c.quadraticCurveTo(-30, -90, -26, 60); }); line(c, -8, 40, -4, -150, 5, 'rgba(255,255,255,0.7)');
-      shape(c, gold(c, 0, 56, 0, 86), () => { c.moveTo(-70, 56); c.lineTo(70, 56); c.lineTo(56, 86); c.lineTo(-56, 86); }); c.fillStyle = leather(c, -14, 0, 14, 0); c.fillRect(-14, 86, 28, 96); ball(c, P, 0, 200, 24);
+      const L = 0.8 + T.n * 0.05;
+      shape(c, tm(c, T, -30, 0, 34, 0), () => { c.moveTo(-26, 60); c.lineTo(30, 60);
+        if (T.n === 2) { c.bezierCurveTo(76, 0, -14, -70, 36, -130); c.quadraticCurveTo(30, -200, -6, -246); c.bezierCurveTo(-56, -160, 14, -100, -40, -20); c.quadraticCurveTo(-34, 30, -26, 60); } // a kris, waved
+        else { c.quadraticCurveTo(42, -110 * L, -6, -236 * L); c.quadraticCurveTo(-32, -90 * L, -26, 60); } });
+      line(c, -8, 40, -4, -150 * L, 5, T.n === 6 ? '#ff6a2a' : 'rgba(255,255,255,0.7)');
+      if (T.n >= 4) for (const y of [-10, -60, -110]) cut(c, [[48, y + 16], [16, y], [48, y - 16]]);
+      shape(c, tt(c, T, 0, 56, 0, 86), () => { c.moveTo(-70, 56); c.lineTo(70, 56); c.lineTo(56, 86); c.lineTo(-56, 86); });
+      c.fillStyle = T.n === 6 ? '#2a141c' : leather(c, -14, 0, 14, 0); c.fillRect(-14, 86, 28, 96); ball(c, P, 0, 200, 24);
+      mark(c, T, 0, 70, 0.5);
     });
+    aura(c, T, R, 190, 190, 210);
   },
-  mace(c, P) {
+  mace(c, P, R, T) {
     at(c, 300, 300, 0.7, () => {
-      c.fillStyle = wood(c, -16, 0, 16, 0); c.fillRect(-15, -40, 30, 290); ball(c, P, 0, 250, 22);
-      for (let i = 0; i < 8; i++) at(c, 0, -130, (i / 8) * TAU, () => poly(c, [[-26, -70], [0, -150], [26, -70]], i % 2 ? '#9aa8c4' : '#eef2ff'));
-      c.fillStyle = steel(c, -80, -210, 80, -50); c.beginPath(); c.arc(0, -130, 92, 0, TAU); c.fill(); disc(c, -30, -160, 20, '#ffffff'); c.strokeStyle = P.mid; c.lineWidth = 12; c.beginPath(); c.arc(0, -130, 60, 0, TAU); c.stroke();
+      c.fillStyle = T.n >= 3 ? tt(c, T, -16, 0, 16, 0) : wood(c, -16, 0, 16, 0); c.fillRect(-15, -40, 30, 290); ball(c, P, 0, 250, 22);
+      const r = 72 + T.n * 5;
+      if (T.n === 1) { // an oak club, studded
+        disc(c, 0, -130, r + 9, '#2a180e'); c.fillStyle = wood(c, -80, -210, 80, -50); c.beginPath(); c.arc(0, -130, r, 0, TAU); c.fill();
+        for (let i = 0; i < 6; i++) at(c, 0, -130, (i / 6) * TAU, () => { disc(c, 0, -r * 0.62, 15, '#3a4050'); disc(c, -3, -r * 0.62 - 3, 9, '#e4e8f0'); }); disc(c, 0, -130, 15, '#3a4050'); disc(c, -3, -133, 9, '#e4e8f0'); return;
+      }
+      for (let i = 0; i < 8; i++) at(c, 0, -130, (i / 8) * TAU, () => poly(c, [[-26, -r + 22], [0, -r - 40 - T.n * 9], [26, -r + 22]], T.metal[i % 2]));
+      c.fillStyle = tm(c, T, -80, -210, 80, -50); c.beginPath(); c.arc(0, -130, r, 0, TAU); c.fill(); disc(c, -r * 0.36, -130 - r * 0.36, r * 0.2, 'rgba(255,255,255,0.8)');
+      c.strokeStyle = P.mid; c.lineWidth = 12; c.beginPath(); c.arc(0, -130, r * 0.66, 0, TAU); c.stroke();
+      mark(c, T, 0, -130, 0.72);
     });
+    aura(c, T, R, 384, 200, 230);
   },
-  hammer(c, P) {
+  hammer(c, P, R, T) {
     at(c, 300, 300, 0.7, () => {
-      c.fillStyle = wood(c, -16, 0, 16, 0); c.fillRect(-16, -60, 32, 310); ball(c, P, 0, 250, 22);
-      poly(c, [[-150, -210], [150, -210], [150, -60], [-150, -60]], '#1a2030'); c.fillStyle = steel(c, 0, -200, 0, -70); c.fillRect(-140, -200, 280, 130); c.fillStyle = 'rgba(255,255,255,0.85)'; c.fillRect(-140, -200, 280, 22);
-      c.fillStyle = P.mid; c.fillRect(-36, -206, 72, 142); c.fillStyle = P.hot; c.fillRect(-36, -206, 72, 20);
+      c.fillStyle = T.n >= 3 ? tt(c, T, -16, 0, 16, 0) : wood(c, -16, 0, 16, 0); c.fillRect(-16, -60, 32, 310); ball(c, P, 0, 250, 22);
+      const hw = 92 + T.n * 9, hh = T.n === 1 ? 50 : 68, y = -135;
+      c.fillStyle = '#10141e'; c.fillRect(-hw - 9, y - hh - 9, hw * 2 + 18, hh * 2 + 18);
+      if (T.n >= 5) for (const sd of [-1, 1]) poly(c, [[sd * hw, y - hh - 9], [sd * (hw + 70), y], [sd * hw, y + hh + 9]], T.metal[1]);
+      c.fillStyle = tm(c, T, 0, y - hh, 0, y + hh); c.fillRect(-hw, y - hh, hw * 2, hh * 2); c.fillStyle = 'rgba(255,255,255,0.7)'; c.fillRect(-hw, y - hh, hw * 2, 18);
+      if (T.deco) mark(c, T, 0, y + 4, 0.95); else { c.fillStyle = P.mid; c.fillRect(-36, y - hh - 6, 72, hh * 2 + 12); c.fillStyle = P.hot; c.fillRect(-36, y - hh - 6, 72, 20); }
     });
+    aura(c, T, R, 388, 196, 240);
   },
-  staff(c, P, R) {
+  staff(c, P, R, T) {
+    const A = T.gem ? palOf(T.gem) : P;
     at(c, 300, 300, 0.5, () => {
-      c.fillStyle = wood(c, -12, 0, 12, 0); c.fillRect(-12, -150, 24, 410);
-      for (const sd of [-1, 1]) shape(c, gold(c, 0, -260, 0, -140), () => { c.moveTo(sd * 10, -140); c.quadraticCurveTo(sd * 96, -180, sd * 70, -290); c.quadraticCurveTo(sd * 60, -210, sd * 10, -170); });
-      ball(c, P, 0, -226, 54); disc(c, -18, -246, 12, '#ffffff');
+      c.fillStyle = T.n >= 3 ? tt(c, T, -12, 0, 12, 0) : wood(c, -12, 0, 12, 0); c.fillRect(-12, -150, 24, 410);
+      if (T.n === 1) { disc(c, 0, -160, 36, '#3c2616'); disc(c, -6, -166, 24, '#a87a48'); poly(c, [[-24, -180], [0, -276], [24, -180], [0, -160]], P.mid); poly(c, [[-24, -180], [0, -276], [0, -160]], P.core); return; } // a knot of ash with a chip of crystal
+      for (const sd of [-1, 1]) shape(c, tt(c, T, 0, -260, 0, -140), () => { c.moveTo(sd * 10, -140); c.quadraticCurveTo(sd * 96, -180, sd * 70, -290); c.quadraticCurveTo(sd * 60, -210, sd * 10, -170); });
+      if (T.n === 2) { fire(c, 0, -190, 50, 150); ball(c, P, 0, -206, 34); } // an ember rod
+      else { disc(c, 0, -226, 58, 'rgba(8,6,14,0.55)'); mark(c, T, 0, -226, 1.35); }
     });
-    halo(c, P, 410, 100, 220, 0.6); sparks(c, P, R, 410, 100, 14, 120);
+    halo(c, A, 410, 100, 220, 0.6); sparks(c, A, R, 410, 100, 14, 120);
   },
-  bow(c, P) {
-    c.lineCap = 'round'; c.strokeStyle = '#2a180e'; c.lineWidth = 40; c.beginPath(); c.arc(130, 300, 290, -0.98, 0.98); c.stroke();
-    c.strokeStyle = wood(c, 250, 60, 430, 540); c.lineWidth = 28; c.beginPath(); c.arc(130, 300, 290, -0.98, 0.98); c.stroke();
-    const ex = 130 + Math.cos(0.98) * 290, ey = Math.sin(0.98) * 290; line(c, ex, 300 - ey, 200, 300, 4, '#f4ecd8'); line(c, ex, 300 + ey, 200, 300, 4, '#f4ecd8');
-    c.strokeStyle = P.mid; c.lineWidth = 32; c.beginPath(); c.arc(130, 300, 290, -0.12, 0.12); c.stroke();
-    line(c, 200, 300, 520, 300, 9, '#d8c090'); poly(c, [[560, 300], [506, 274], [518, 300], [506, 326]], steel(c, 500, 270, 560, 330)); poly(c, [[200, 300], [168, 276], [226, 290]], P.hot); poly(c, [[200, 300], [168, 324], [226, 310]], P.mid);
+  bow(c, P, R, T) {
+    const limb = T.n >= 3 ? tm(c, T, 250, 60, 430, 540) : wood(c, 250, 60, 430, 540), a = 0.98, wd = 18 + Math.min(T.n, 3) * 4;
+    c.lineCap = 'round'; c.strokeStyle = '#1a1010'; c.lineWidth = wd + 12; c.beginPath(); c.arc(130, 300, 290, -a, a); c.stroke();
+    c.strokeStyle = limb; c.lineWidth = wd; c.beginPath(); c.arc(130, 300, 290, -a, a); c.stroke();
+    const ex = 130 + Math.cos(a) * 290, ey = Math.sin(a) * 290;
+    if (T.n >= 2) for (const sd of [-1, 1]) line(c, ex, 300 + sd * ey, ex + 44, 300 + sd * (ey + 26), wd * 0.7, T.n >= 3 ? T.metal[1] : '#7a5230'); // recurved tips
+    line(c, ex, 300 - ey, 200, 300, 4, '#f4ecd8'); line(c, ex, 300 + ey, 200, 300, 4, '#f4ecd8');
+    c.strokeStyle = P.mid; c.lineWidth = wd + 4; c.beginPath(); c.arc(130, 300, 290, -0.12, 0.12); c.stroke();
+    line(c, 200, 300, 520, 300, 9, '#d8c090'); poly(c, [[566, 300], [506, 270], [518, 300], [506, 330]], tm(c, T, 500, 270, 560, 330)); poly(c, [[200, 300], [168, 276], [226, 290]], P.hot); poly(c, [[200, 300], [168, 324], [226, 310]], P.mid);
+    if (T.deco) { mark(c, T, ex + 16, 300 - ey - 4, 0.6); mark(c, T, ex + 16, 300 + ey + 30, 0.6); }
+    aura(c, T, R, 430, 300, 230);
   },
-  armor(c, P) {
+
+  // ── armour ──
+  armor(c, P, R, T) {
     shape(c, '#141a28', () => { c.moveTo(150, 130); c.lineTo(450, 130); c.lineTo(486, 250); c.lineTo(430, 290); c.lineTo(420, 500); c.lineTo(180, 500); c.lineTo(170, 290); c.lineTo(114, 250); });
-    shape(c, steel(c, 160, 120, 440, 500), () => { c.moveTo(164, 142); c.lineTo(250, 142); c.quadraticCurveTo(300, 200, 350, 142); c.lineTo(436, 142); c.lineTo(470, 244); c.lineTo(418, 280); c.lineTo(408, 488); c.lineTo(192, 488); c.lineTo(182, 280); c.lineTo(130, 244); });
-    poly(c, [[300, 190], [408, 300], [408, 488], [300, 488]], 'rgba(16,24,52,0.3)'); line(c, 300, 196, 300, 480, 8, 'rgba(20,28,52,0.6)');
-    c.fillStyle = P.mid; c.fillRect(192, 400, 216, 26); c.fillStyle = P.hot; c.fillRect(192, 400, 216, 8); ball(c, P, 300, 290, 34);
-    for (const x of [150, 450]) { disc(c, x, 180, 62, '#141a28'); c.fillStyle = steel(c, x - 50, 130, x + 50, 230); c.beginPath(); c.arc(x, 180, 52, 0, TAU); c.fill(); disc(c, x - 16, 162, 12, '#ffffff'); }
+    shape(c, tm(c, T, 160, 120, 440, 500), () => { c.moveTo(164, 142); c.lineTo(250, 142); c.quadraticCurveTo(300, 200, 350, 142); c.lineTo(436, 142); c.lineTo(470, 244); c.lineTo(418, 280); c.lineTo(408, 488); c.lineTo(192, 488); c.lineTo(182, 280); c.lineTo(130, 244); });
+    poly(c, [[300, 190], [408, 300], [408, 488], [300, 488]], 'rgba(16,24,52,0.3)');
+    if (T.n === 1) { for (let i = 0; i < 9; i++) { line(c, 196, 214 + i * 30, 404, 214 + i * 30, 3, 'rgba(20,28,52,0.5)'); line(c, 200 + i * 25, 200, 200 + i * 25, 480, 3, 'rgba(20,28,52,0.35)'); } } // chain links
+    else line(c, 300, 196, 300, 480, 8, 'rgba(20,28,52,0.6)');
+    c.fillStyle = P.mid; c.fillRect(192, 400, 216, 26); c.fillStyle = P.hot; c.fillRect(192, 400, 216, 8);
+    for (const x of [150, 450]) { if (T.n >= 4) poly(c, [[x - 34, 150], [x + (x < 300 ? -30 : 30), 50], [x + 34, 150]], T.metal[1]); disc(c, x, 180, 62, '#141a28'); c.fillStyle = tm(c, T, x - 50, 130, x + 50, 230); c.beginPath(); c.arc(x, 180, 52, 0, TAU); c.fill(); disc(c, x - 16, 162, 12, 'rgba(255,255,255,0.85)'); }
+    if (T.deco) mark(c, T, 300, 296, 0.95); else ball(c, P, 300, 290, 34);
+    aura(c, T, R, 300, 290, 250);
   },
-  vest(c, P) {
+  vest(c, P, R, T) {
     shape(c, '#20140c', () => { c.moveTo(170, 120); c.lineTo(430, 120); c.lineTo(470, 230); c.lineTo(424, 262); c.lineTo(432, 500); c.lineTo(168, 500); c.lineTo(176, 262); c.lineTo(130, 230); });
-    shape(c, leather(c, 170, 120, 430, 500), () => { c.moveTo(182, 134); c.lineTo(258, 134); c.lineTo(300, 220); c.lineTo(342, 134); c.lineTo(418, 134); c.lineTo(454, 224); c.lineTo(410, 254); c.lineTo(418, 486); c.lineTo(182, 486); c.lineTo(190, 254); c.lineTo(146, 224); });
-    line(c, 300, 224, 300, 480, 7, '#2a180e'); for (let i = 0; i < 5; i++) { line(c, 276, 250 + i * 46, 324, 272 + i * 46, 6, '#f0e0c0'); line(c, 324, 250 + i * 46, 276, 272 + i * 46, 6, '#f0e0c0'); }
+    shape(c, T.n >= 3 ? lin(c, 170, 120, 430, 500, T.cloth) : leather(c, 170, 120, 430, 500), () => { c.moveTo(182, 134); c.lineTo(258, 134); c.lineTo(300, 220); c.lineTo(342, 134); c.lineTo(418, 134); c.lineTo(454, 224); c.lineTo(410, 254); c.lineTo(418, 486); c.lineTo(182, 486); c.lineTo(190, 254); c.lineTo(146, 224); });
+    line(c, 300, 224, 300, 480, 7, 'rgba(20,12,8,0.7)');
+    if (T.deco) mark(c, T, 300, 350, 0.95); else for (let i = 0; i < 5; i++) { line(c, 276, 250 + i * 46, 324, 272 + i * 46, 6, '#f0e0c0'); line(c, 324, 250 + i * 46, 276, 272 + i * 46, 6, '#f0e0c0'); }
     c.fillStyle = P.mid; c.fillRect(182, 440, 236, 22); poly(c, [[182, 134], [258, 134], [246, 160], [190, 160]], P.hot); poly(c, [[418, 134], [342, 134], [354, 160], [410, 160]], P.mid);
+    if (T.n === 2) for (const x of [164, 436]) poly(c, [[x - 30, 232], [x, 300], [x + 30, 232]], '#4f7a3a'); // a ranger's green at the shoulder
+    if (T.n === 3) for (let i = 0; i < 7; i++) disc(c, 188 + i * 37, 146 - Math.abs(3 - i) * 4, 24, '#ffffff'); // a fur collar
+    aura(c, T, R, 300, 320, 250);
   },
-  robe(c, P) {
+  robe(c, P, R, T) {
     shape(c, '#0e0a14', () => { c.moveTo(214, 96); c.lineTo(386, 96); c.lineTo(500, 250); c.lineTo(440, 300); c.lineTo(470, 530); c.lineTo(130, 530); c.lineTo(160, 300); c.lineTo(100, 250); });
-    shape(c, lin(c, 160, 100, 440, 520, [P.hot, P.mid, P.deep]), () => { c.moveTo(222, 110); c.lineTo(378, 110); c.lineTo(482, 246); c.lineTo(424, 290); c.lineTo(454, 516); c.lineTo(146, 516); c.lineTo(176, 290); c.lineTo(118, 246); });
-    shape(c, 'rgba(10,6,16,0.75)', () => { c.moveTo(250, 110); c.lineTo(350, 110); c.lineTo(300, 230); }); c.fillStyle = gold(c, 0, 300, 0, 330); c.fillRect(190, 304, 220, 24);
-    line(c, 300, 328, 286, 500, 9, 'rgba(255,255,255,0.35)'); line(c, 240, 330, 206, 510, 7, 'rgba(0,0,0,0.3)'); line(c, 360, 330, 394, 510, 7, 'rgba(0,0,0,0.3)');
+    shape(c, lin(c, 160, 100, 440, 520, T.cloth), () => { c.moveTo(222, 110); c.lineTo(378, 110); c.lineTo(482, 246); c.lineTo(424, 290); c.lineTo(454, 516); c.lineTo(146, 516); c.lineTo(176, 290); c.lineTo(118, 246); });
+    shape(c, 'rgba(10,6,16,0.75)', () => { c.moveTo(250, 110); c.lineTo(350, 110); c.lineTo(300, 230); }); c.fillStyle = tt(c, T, 0, 300, 0, 330); c.fillRect(190, 304, 220, 24);
+    line(c, 300, 328, 286, 500, 9, 'rgba(255,255,255,0.3)'); line(c, 240, 330, 206, 510, 7, 'rgba(0,0,0,0.3)'); line(c, 360, 330, 394, 510, 7, 'rgba(0,0,0,0.3)');
+    poly(c, [[150, 484], [450, 484], [454, 516], [146, 516]], P.mid); poly(c, [[150, 484], [450, 484], [451, 492], [149, 492]], P.hot);
+    if (T.deco) mark(c, T, 300, 410, 0.95); else ball(c, P, 300, 316, 22);
+    aura(c, T, R, 300, 380, 250);
   },
-  ring(c, P) {
-    c.lineWidth = 62; c.strokeStyle = '#2a1a08'; c.beginPath(); c.arc(300, 350, 140, 0, TAU); c.stroke(); c.lineWidth = 48; c.strokeStyle = gold(c, 160, 210, 440, 490); c.beginPath(); c.arc(300, 350, 140, 0, TAU); c.stroke();
+
+  // ── trinkets ──
+  ring(c, P, R, T) {
+    c.lineWidth = 62; c.strokeStyle = '#1a1010'; c.beginPath(); c.arc(300, 350, 140, 0, TAU); c.stroke(); c.lineWidth = 48; c.strokeStyle = lin(c, 160, 210, 440, 490, T.band); c.beginPath(); c.arc(300, 350, 140, 0, TAU); c.stroke();
     c.lineWidth = 8; c.strokeStyle = 'rgba(255,255,255,0.8)'; c.beginPath(); c.arc(300, 350, 152, 3.5, 4.6); c.stroke();
-    poly(c, [[300, 96], [372, 168], [300, 250], [228, 168]], '#2a1a08'); poly(c, [[300, 110], [360, 168], [300, 236], [240, 168]], P.mid); poly(c, [[300, 110], [360, 168], [300, 168]], P.hot); poly(c, [[300, 110], [240, 168], [300, 168]], P.core); halo(c, P, 300, 168, 170, 0.6);
+    if (T.deco) { mark(c, T, 300, 170, 1.7); for (const sd of [-1, 1]) ball(c, P, 300 + sd * 96, 250, 16); }
+    else { poly(c, [[300, 96], [372, 168], [300, 250], [228, 168]], '#1a1010'); poly(c, [[300, 110], [360, 168], [300, 236], [240, 168]], P.mid); poly(c, [[300, 110], [360, 168], [300, 168]], P.hot); poly(c, [[300, 110], [240, 168], [300, 168]], P.core); }
+    if (T.gem) aura(c, T, R, 300, 176, 200); else halo(c, P, 300, 168, 170, 0.6);
   },
-  amulet(c, P) {
-    c.lineWidth = 12; c.strokeStyle = gold(c, 120, 60, 480, 300); c.setLineDash([22, 12]); c.beginPath(); c.moveTo(110, 60); c.quadraticCurveTo(300, 380, 490, 60); c.stroke(); c.setLineDash([]);
-    poly(c, [[300, 210], [404, 360], [300, 520], [196, 360]], '#2a1a08'); poly(c, [[300, 228], [388, 360], [300, 500], [212, 360]], gold(c, 212, 228, 388, 500));
-    poly(c, [[300, 268], [360, 360], [300, 456], [240, 360]], P.mid); poly(c, [[300, 268], [360, 360], [300, 360]], P.hot); poly(c, [[300, 268], [240, 360], [300, 360]], P.core); halo(c, P, 300, 360, 200, 0.6);
+  amulet(c, P, R, T) {
+    c.lineWidth = 12; c.strokeStyle = lin(c, 120, 60, 480, 300, T.n === 1 ? ['#c89868', '#8a5a34', '#40281a'] : T.band); c.setLineDash(T.n === 1 ? [] : [22, 12]); c.beginPath(); c.moveTo(110, 60); c.quadraticCurveTo(300, 380, 490, 60); c.stroke(); c.setLineDash([]);
+    if (T.n === 1) { disc(c, 300, 370, 122, '#2a180e'); c.fillStyle = wood(c, 200, 270, 400, 470); c.beginPath(); c.arc(300, 370, 108, 0, TAU); c.fill(); c.strokeStyle = '#3c2616'; c.lineWidth = 9; c.beginPath(); c.arc(300, 370, 76, 0, TAU); c.stroke(); ball(c, P, 300, 370, 30); } // a carved charm
+    else if (T.n === 2) { for (let i = 0; i < 12; i++) at(c, 300, 370, (i / 12) * TAU, () => poly(c, [[-24, -90], [0, -(140 + (i % 2) * 30)], [24, -90]], i % 2 ? '#fff3c0' : '#e0a834')); disc(c, 300, 370, 100, '#6a4410'); c.fillStyle = gold(c, 220, 290, 380, 450); c.beginPath(); c.arc(300, 370, 90, 0, TAU); c.fill(); ball(c, P, 300, 370, 44); } // a sun
+    else { poly(c, [[300, 210], [404, 360], [300, 520], [196, 360]], '#1a1010'); poly(c, [[300, 228], [388, 360], [300, 500], [212, 360]], lin(c, 212, 228, 388, 500, T.band)); poly(c, [[300, 268], [360, 360], [300, 456], [240, 360]], 'rgba(8,6,14,0.7)'); mark(c, T, 300, 364, 1.05); ball(c, P, 300, 470, 14); }
+    if (T.gem) aura(c, T, R, 300, 360, 220); else halo(c, P, 300, 360, 200, 0.6);
   },
-  boots(c, P) {
+  boots(c, P, R, T) {
     const boot = (ox, oy, s) => at(c, ox, oy, 0, () => {
       shape(c, '#20140c', () => { c.moveTo(-90, -200); c.lineTo(50, -200); c.lineTo(56, 20); c.quadraticCurveTo(190, 50, 200, 130); c.lineTo(200, 170); c.lineTo(-96, 170); });
-      shape(c, leather(c, -90, -200, 190, 160), () => { c.moveTo(-78, -188); c.lineTo(38, -188); c.lineTo(44, 30); c.quadraticCurveTo(176, 58, 188, 130); c.lineTo(-84, 130); });
+      shape(c, T.n >= 3 ? lin(c, -90, -200, 190, 160, T.cloth) : leather(c, -90, -200, 190, 160), () => { c.moveTo(-78, -188); c.lineTo(38, -188); c.lineTo(44, 30); c.quadraticCurveTo(176, 58, 188, 130); c.lineTo(-84, 130); });
       c.fillStyle = '#1a100a'; c.fillRect(-90, 130, 284, 32); c.fillStyle = P.mid; c.fillRect(-84, -188, 128, 36); c.fillStyle = P.hot; c.fillRect(-84, -188, 128, 12); line(c, -50, -120, -46, 100, 8, 'rgba(255,255,255,0.3)');
+      if (T.n === 2) for (let i = 0; i < 3; i++) line(c, -70, -110 + i * 50, 30, -96 + i * 50, 9, '#f0c880'); // wrapped against the sand
+      if (T.n === 3) for (let i = 0; i < 5; i++) disc(c, -76 + i * 30, -176, 24, '#ffffff'); // fur at the cuff
+      if (T.deco) mark(c, T, -20, -40, 0.62);
     }, s);
-    boot(210, 300, 0.9); boot(330, 350, 1.05);
+    boot(210, 300, 0.9); boot(330, 350, 1.05); aura(c, T, R, 300, 300, 250);
   },
+
+  // ── what the great bosses leave behind: each its own object, not the stock ring or amulet ──
+  u_guardian_heart(c, P, R) { // Guardian's Heartwood: a heart carved by no hand, still putting out leaves
+    const G = palOf('#6fd06f');
+    shape(c, '#2a180e', () => heartAt(c, 300, 350, 1.02)); shape(c, wood(c, 180, 190, 440, 560), () => heartAt(c, 300, 350, 0.92));
+    c.lineCap = 'round'; for (const [r, w] of [[40, 8], [84, 7], [128, 6]]) { c.strokeStyle = 'rgba(40,22,10,0.55)'; c.lineWidth = w; c.beginPath(); c.arc(300, 370, r, 0.3, 2.9); c.stroke(); }
+    line(c, 236, 280, 222, 360, 10, 'rgba(255,230,180,0.5)');
+    line(c, 300, 286, 306, 180, 12, '#4f7a3a'); leafAt(c, 306, 190, 0.9, 130, '#6fd06f'); leafAt(c, 306, 210, -0.8, 110, '#4f9a4a'); leafAt(c, 306, 180, 0.05, 90, '#a8e88a');
+    halo(c, G, 300, 330, 300, 0.4); sparks(c, G, R, 300, 300, 14, 260);
+  },
+  u_tyrant_fang(c) { // Tyrant Fang Ring: a band of dark bronze set with the beast's tooth
+    const B = palOf('#e0301a');
+    c.lineWidth = 64; c.strokeStyle = '#140c08'; c.beginPath(); c.arc(300, 400, 124, 0, TAU); c.stroke();
+    c.lineWidth = 48; c.strokeStyle = lin(c, 170, 280, 430, 520, ['#e0a060', '#7a4420', '#2a1408']); c.beginPath(); c.arc(300, 400, 124, 0, TAU); c.stroke();
+    c.lineWidth = 7; c.strokeStyle = 'rgba(255,230,190,0.75)'; c.beginPath(); c.arc(300, 400, 136, 3.5, 4.5); c.stroke();
+    shape(c, '#140c08', () => { c.moveTo(214, 300); c.quadraticCurveTo(230, 120, 396, 44); c.quadraticCurveTo(378, 210, 386, 300); });
+    shape(c, lin(c, 220, 60, 390, 300, ['#fffdf0', '#ead8a8', '#8a7040']), () => { c.moveTo(230, 292); c.quadraticCurveTo(246, 136, 380, 66); c.quadraticCurveTo(360, 210, 370, 292); });
+    shape(c, 'rgba(90,60,20,0.4)', () => { c.moveTo(320, 292); c.quadraticCurveTo(326, 170, 380, 66); c.quadraticCurveTo(360, 210, 370, 292); });
+    line(c, 258, 260, 300, 150, 6, 'rgba(255,255,255,0.8)');
+    c.fillStyle = '#140c08'; c.fillRect(206, 284, 188, 34); c.fillStyle = lin(c, 0, 288, 0, 314, ['#e0a060', '#7a4420']); c.fillRect(214, 290, 172, 22);
+    for (const x of [240, 300, 360]) ball(c, B, x, 301, 13);
+    shape(c, B.mid, () => { c.moveTo(380, 66); c.quadraticCurveTo(404, 120, 384, 138); c.quadraticCurveTo(364, 120, 380, 66); }); halo(c, B, 330, 200, 240, 0.4); // blood still on the point
+  },
+  u_queen_tiara(c, P, R) { // Tiara of Endless Winter: a silver circlet grown over with spires of ice
+    const I = palOf('#7fd4ff'); const ice = (x, base, hgt, w) => { poly(c, [[x - w, base], [x, base - hgt], [x + w, base]], lin(c, x - w, 0, x + w, 0, ['#ffffff', '#8fdcff', '#2a6aa8'])); poly(c, [[x, base], [x, base - hgt], [x + w, base]], 'rgba(20,70,140,0.4)'); };
+    for (const [x, hgt, w] of [[120, 120, 30], [196, 200, 36], [404, 200, 36], [480, 120, 30]]) ice(x, 400 + Math.abs(x - 300) * 0.16, hgt, w);
+    ice(300, 386, 320, 46);
+    c.lineCap = 'round'; c.lineWidth = 62; c.strokeStyle = '#141a28'; c.beginPath(); c.moveTo(84, 456); c.quadraticCurveTo(300, 356, 516, 456); c.stroke();
+    c.lineWidth = 46; c.strokeStyle = steel(c, 0, 380, 0, 470); c.beginPath(); c.moveTo(84, 456); c.quadraticCurveTo(300, 356, 516, 456); c.stroke();
+    c.lineWidth = 6; c.strokeStyle = 'rgba(255,255,255,0.9)'; c.beginPath(); c.moveTo(100, 440); c.quadraticCurveTo(300, 344, 500, 440); c.stroke();
+    poly(c, [[300, 356], [344, 406], [300, 460], [256, 406]], '#141a28'); poly(c, [[300, 368], [334, 406], [300, 448], [266, 406]], I.mid); poly(c, [[300, 368], [334, 406], [300, 406]], I.hot); poly(c, [[300, 368], [266, 406], [300, 406]], I.core);
+    for (const x of [170, 430]) ball(c, I, x, 428, 15);
+    halo(c, I, 300, 240, 300, 0.5); sparks(c, I, R, 300, 220, 22, 260);
+  },
+  u_lich_phylactery(c, P, R) { // Shattered Phylactery: a soul-jar broken open, and what was in it getting out
+    const V = palOf('#a070ff'), S = palOf('#8fe0c0');
+    for (const [x, w, hgt, col] of [[300, 70, 300, 'rgba(143,224,192,0.55)'], [270, 40, 220, 'rgba(160,112,255,0.7)'], [326, 30, 170, '#ffffff']]) tongue(c, x, 300, w, hgt, col);
+    shape(c, '#140c1c', () => { c.moveTo(196, 250); c.bezierCurveTo(110, 330, 150, 520, 240, 548); c.lineTo(360, 548); c.bezierCurveTo(450, 520, 490, 330, 404, 250); });
+    shape(c, lin(c, 170, 250, 430, 540, [V.hot, V.mid, V.deep]), () => { c.moveTo(206, 262); c.bezierCurveTo(132, 336, 166, 506, 246, 534); c.lineTo(354, 534); c.bezierCurveTo(434, 506, 468, 336, 394, 262); });
+    cut(c, [[190, 240], [236, 300], [270, 262], [304, 322], [340, 268], [372, 304], [412, 240]]); // the broken rim
+    c.fillStyle = gold(c, 0, 420, 0, 450); c.fillRect(170, 420, 260, 24); skull(c, 300, 372, 34);
+    for (const [pts] of [[[[236, 300], [220, 372], [250, 420]]], [[[372, 304], [392, 380]]]]) { c.strokeStyle = '#140c1c'; c.lineWidth = 7; c.beginPath(); pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); c.stroke(); }
+    line(c, 196, 330, 190, 450, 9, 'rgba(255,255,255,0.4)'); halo(c, S, 300, 180, 260, 0.5); sparks(c, S, R, 300, 160, 18, 220);
+  },
+  u_dragon_scale(c, P, R) { // Aurelion Scale Treads: boots scaled in dragon-gold, winged at the heel
+    const Y = palOf('#ffe08a');
+    wing(c, 220, 330, -1, 0.9);
+    at(c, 290, 330, 0, () => {
+      shape(c, '#2a1a08', () => { c.moveTo(-90, -200); c.lineTo(50, -200); c.lineTo(56, 20); c.quadraticCurveTo(190, 50, 200, 130); c.lineTo(200, 170); c.lineTo(-96, 170); });
+      c.save(); c.beginPath(); c.moveTo(-78, -188); c.lineTo(38, -188); c.lineTo(44, 30); c.quadraticCurveTo(176, 58, 188, 130); c.lineTo(-84, 130); c.closePath(); c.clip();
+      c.fillStyle = '#8a5a14'; c.fillRect(-100, -200, 320, 360);
+      for (let r = 0; r < 9; r++) for (let i = 0; i < 9; i++) { const x = -90 + i * 36 + (r % 2) * 18, y = -180 + r * 38; c.fillStyle = gold(c, x - 20, y - 20, x + 20, y + 24); c.beginPath(); c.arc(x, y, 22, 0, Math.PI); c.fill(); }
+      c.restore(); c.fillStyle = '#1a100a'; c.fillRect(-90, 130, 284, 32); c.fillStyle = '#fff3c0'; c.fillRect(-84, -188, 128, 14); line(c, -54, -150, -50, 90, 9, 'rgba(255,255,255,0.45)');
+    }, 1.1);
+    halo(c, Y, 300, 320, 300, 0.4); sparks(c, Y, R, 300, 300, 18, 260);
+  },
+  u_overlord_crown(c, P, R) { // Crown of the Last World: black iron, five spikes, and a red stone that watches
+    const F = palOf('#ff3a1a'); const spike = (x, base, hgt, w) => { poly(c, [[x - w - 8, base], [x, base - hgt - 16], [x + w + 8, base]], '#ff3a1a'); poly(c, [[x - w, base], [x, base - hgt], [x + w, base]], lin(c, x - w, 0, x + w, 0, ['#6a4a5a', '#1c0c14', '#000000'])); };
+    for (const [x, hgt, w] of [[130, 150, 30], [214, 220, 34], [386, 220, 34], [470, 150, 30]]) spike(x, 380, hgt, w);
+    spike(300, 380, 300, 40);
+    c.fillStyle = '#ff3a1a'; c.fillRect(82, 364, 436, 128); c.fillStyle = lin(c, 0, 372, 0, 484, ['#6a4a5a', '#1c0c14', '#000000']); c.fillRect(90, 372, 420, 112); c.fillStyle = 'rgba(255,255,255,0.25)'; c.fillRect(90, 372, 420, 12);
+    for (const x of [160, 440]) ball(c, F, x, 428, 22); ball(c, F, 300, 428, 40); c.fillStyle = '#000000'; c.beginPath(); c.ellipse(300, 428, 8, 28, 0, 0, TAU); c.fill();
+    halo(c, F, 300, 300, 320, 0.45); sparks(c, F, R, 300, 240, 18, 260);
+  },
+  u_mother_cap(c, P, R) { // Sporemother's Cap: a toadstool the size of a helm, still shedding
+    const V = palOf('#c060e0'), G = palOf('#8fe060');
+    shape(c, '#1a1010', () => { c.moveTo(232, 330); c.quadraticCurveTo(210, 470, 190, 540); c.lineTo(410, 540); c.quadraticCurveTo(390, 470, 368, 330); });
+    shape(c, lin(c, 220, 0, 390, 0, ['#fff8e0', '#d8c8a0', '#8a7858']), () => { c.moveTo(244, 330); c.quadraticCurveTo(224, 470, 208, 528); c.lineTo(392, 528); c.quadraticCurveTo(376, 470, 356, 330); });
+    shape(c, '#1a0c20', () => { c.moveTo(60, 352); c.bezierCurveTo(70, 60, 530, 60, 540, 352); c.quadraticCurveTo(300, 400, 60, 352); });
+    shape(c, lin(c, 120, 90, 480, 360, [V.core, V.mid, V.deep]), () => { c.moveTo(76, 340); c.bezierCurveTo(90, 84, 510, 84, 524, 340); c.quadraticCurveTo(300, 384, 76, 340); });
+    for (const [x, y, r] of [[200, 200, 34], [330, 150, 44], [430, 250, 28], [270, 290, 22], [130, 290, 20], [380, 320, 16]]) { c.fillStyle = '#fff8e0'; c.beginPath(); c.ellipse(x, y, r, r * 0.72, 0, 0, TAU); c.fill(); }
+    for (let i = 0; i < 9; i++) line(c, 120 + i * 45, 356, 250 + i * 12.5, 334, 4, 'rgba(20,10,24,0.5)');
+    halo(c, G, 300, 440, 240, 0.4); sparks(c, G, R, 300, 460, 20, 220);
+  },
+  u_regent_gear(c, P, R) { // Regent's Mainspring: a brass wheel, and the coiled spring that drives it
+    const B = palOf('#8fd0ff'); const brass = lin(c, 120, 120, 480, 480, ['#fff0b0', '#c89030', '#5a3a10']);
+    for (let i = 0; i < 12; i++) at(c, 300, 300, (i / 12) * TAU, () => { poly(c, [[-40, -180], [-28, -256], [28, -256], [40, -180]], '#2a1a08'); poly(c, [[-30, -180], [-20, -244], [20, -244], [30, -180]], i % 2 ? '#c89030' : '#fff0b0'); });
+    disc(c, 300, 300, 206, '#2a1a08'); c.fillStyle = brass; c.beginPath(); c.arc(300, 300, 194, 0, TAU); c.fill(); disc(c, 300, 300, 138, '#1a1408');
+    c.strokeStyle = steel(c, 180, 180, 420, 420); c.lineWidth = 20; c.lineCap = 'round'; c.beginPath(); for (let a = 0; a < TAU * 2.6; a += 0.15) { const r = 14 + a * 7; c.lineTo(300 + Math.cos(a) * r, 300 + Math.sin(a) * r); } c.stroke();
+    disc(c, 300, 300, 22, '#fff0b0'); c.lineWidth = 9; c.strokeStyle = 'rgba(255,255,255,0.7)'; c.beginPath(); c.arc(300, 300, 176, 3.5, 4.5); c.stroke();
+    halo(c, B, 300, 300, 240, 0.3); sparks(c, B, R, 300, 300, 14, 260);
+  },
+  u_leviathan_pearl(c, P, R) { // Leviathan Pearl: the great shell open, and the moon-white thing inside it
+    const W = palOf('#7fe0e0'); const fan = (y, sd, hgt, cols, rib) => { shape(c, '#0a2028', () => { c.moveTo(60, y); c.bezierCurveTo(70, y + sd * (hgt + 24), 530, y + sd * (hgt + 24), 540, y); }); shape(c, lin(c, 0, y, 0, y + sd * hgt * 0.75, cols), () => { c.moveTo(78, y); c.bezierCurveTo(92, y + sd * hgt, 508, y + sd * hgt, 522, y); });
+      for (let i = -4; i <= 4; i++) line(c, 300 + i * 10, y, 300 + i * 50, y + sd * hgt * (0.7 - Math.abs(i) * 0.075), 7, rib); };
+    fan(350, -1, 400, ['#2a8088', '#7fe0e0', '#e8ffff'], 'rgba(10,50,60,0.5)'); fan(380, 1, 200, ['#2a8088', '#1a5a66', '#0a2a34'], 'rgba(127,224,224,0.35)');
+    disc(c, 300, 366, 92, '#0a2028'); const g = c.createRadialGradient(274, 336, 8, 300, 366, 84); g.addColorStop(0, '#ffffff'); g.addColorStop(0.5, '#f4e8f4'); g.addColorStop(1, '#a898c8'); disc(c, 300, 366, 82, g); disc(c, 270, 334, 14, '#ffffff');
+    halo(c, W, 300, 360, 280, 0.5); sparks(c, W, R, 300, 300, 18, 260);
+  },
+  u_pyre_heart(c, P, R) { // Heart of the Pyre: a heart of black cinder, still burning from inside
+    const F = palOf('#ff7a1a');
+    for (const [x, hgt, w] of [[210, 200, 60], [390, 180, 56], [300, 260, 74]]) fire(c, x, 250, w, hgt);
+    shape(c, '#ffb040', () => heartAt(c, 300, 330, 1.06)); shape(c, lin(c, 180, 180, 420, 540, ['#6a3830', '#1c0c0c', '#000000']), () => heartAt(c, 300, 330, 0.96));
+    c.lineJoin = 'round'; c.lineCap = 'round'; for (const [pts, w] of [[[[300, 250], [270, 320], [318, 370], [286, 440], [300, 520]], 15], [[[270, 320], [200, 340], [176, 300]], 11], [[[318, 370], [392, 350], [420, 300]], 11], [[[286, 440], [230, 450]], 9]]) {
+      for (const [col, k] of [['#ff3a1a', 1], ['#fff0b0', 0.4]]) { c.strokeStyle = col; c.lineWidth = w * k; c.beginPath(); pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); c.stroke(); } }
+    halo(c, F, 300, 330, 320, 0.45); sparks(c, F, R, 300, 200, 24, 260);
+  },
+  u_unmaker_sigil(c, P, R) { // Sigil of Making: the sign the world was drawn with, on a disc of night
+    const V = palOf('#b9a8ff');
+    disc(c, 300, 300, 232, '#fff3c0'); disc(c, 300, 300, 218, '#0c0a1c'); c.lineCap = 'round'; c.lineJoin = 'round';
+    const draw = (col, w) => { c.strokeStyle = col; c.lineWidth = w; c.beginPath(); c.arc(300, 300, 170, 0, TAU); c.stroke();
+      c.beginPath(); for (let i = 0; i < 3; i++) { const a = -Math.PI / 2 + (i / 3) * TAU; c.lineTo(300 + Math.cos(a) * 170, 300 + Math.sin(a) * 170); } c.closePath(); c.stroke();
+      c.beginPath(); for (let i = 0; i < 3; i++) { const a = Math.PI / 2 + (i / 3) * TAU; c.lineTo(300 + Math.cos(a) * 170, 300 + Math.sin(a) * 170); } c.closePath(); c.stroke(); };
+    draw(V.mid, 20); draw('#ffffff', 7); star4(c, 300, 300, 74, '#ffe08a'); star4(c, 300, 300, 36, '#ffffff');
+    halo(c, V, 300, 300, 300, 0.55); sparks(c, V, R, 300, 300, 22, 260);
+  },
+
+  // ── potions and the like: a different vessel for each, so they are told apart without reading ──
   potion(c, P) {
     c.fillStyle = wood(c, 268, 60, 332, 60); c.fillRect(266, 62, 68, 60); c.fillStyle = 'rgba(220,235,255,0.5)'; c.fillRect(256, 116, 88, 100); c.fillStyle = 'rgba(255,255,255,0.7)'; c.fillRect(244, 108, 112, 20);
     disc(c, 300, 370, 176, 'rgba(210,228,255,0.35)'); c.save(); c.beginPath(); c.arc(300, 370, 160, 0, TAU); c.clip(); c.fillStyle = lin(c, 0, 280, 0, 540, [P.hot, P.mid, P.deep]); c.fillRect(100, 290, 400, 300); c.fillStyle = P.core; c.fillRect(100, 290, 400, 12);
     for (const [x, y, r] of [[250, 400, 16], [340, 450, 22], [300, 350, 10], [370, 380, 12]]) disc(c, x, y, r, 'rgba(255,255,255,0.35)'); c.restore();
     c.strokeStyle = 'rgba(255,255,255,0.85)'; c.lineWidth = 12; c.lineCap = 'round'; c.beginPath(); c.arc(300, 370, 140, 3.5, 4.4); c.stroke(); halo(c, P, 300, 400, 230, 0.5);
+  },
+  hipotion(c, P) { // the greater potion: a heart-shaped flask, stoppered in gold
+    c.fillStyle = gold(c, 0, 60, 0, 130); c.fillRect(262, 56, 76, 50); c.fillStyle = 'rgba(220,235,255,0.5)'; c.fillRect(260, 104, 80, 110); c.fillStyle = gold(c, 0, 100, 0, 124); c.fillRect(244, 100, 112, 22);
+    shape(c, 'rgba(210,228,255,0.4)', () => heartAt(c, 300, 360, 1.02)); c.save(); c.beginPath(); heartAt(c, 300, 360, 0.93); c.closePath(); c.clip();
+    c.fillStyle = lin(c, 0, 250, 0, 560, [P.hot, P.mid, P.deep]); c.fillRect(60, 262, 480, 320); c.fillStyle = P.core; c.fillRect(60, 262, 480, 12);
+    for (const [x, y, r] of [[230, 340, 18], [360, 400, 24], [300, 460, 14], [400, 320, 12]]) disc(c, x, y, r, 'rgba(255,255,255,0.35)'); c.restore();
+    line(c, 176, 300, 200, 400, 13, 'rgba(255,255,255,0.8)'); halo(c, P, 300, 380, 260, 0.55);
+  },
+  ether(c, P, R) { // ether: a tall narrow cone, with stars turning in it
+    c.fillStyle = wood(c, 272, 30, 328, 30); c.fillRect(272, 34, 56, 50); c.fillStyle = 'rgba(255,255,255,0.7)'; c.fillRect(250, 78, 100, 18);
+    const body = () => { c.moveTo(266, 92); c.lineTo(334, 92); c.lineTo(340, 230); c.lineTo(470, 520); c.quadraticCurveTo(476, 546, 446, 548); c.lineTo(154, 548); c.quadraticCurveTo(124, 546, 130, 520); c.lineTo(260, 230); };
+    shape(c, 'rgba(210,228,255,0.4)', body); c.save(); c.beginPath(); body(); c.closePath(); c.clip();
+    c.fillStyle = lin(c, 0, 290, 0, 550, [P.hot, P.mid, P.deep]); c.fillRect(100, 300, 400, 260); c.fillStyle = P.core; c.fillRect(100, 300, 400, 10);
+    for (const [x, y, r] of [[300, 380, 30], [230, 470, 20], [380, 480, 24]]) star4(c, x, y, r, 'rgba(255,255,255,0.85)'); c.restore();
+    line(c, 244, 300, 176, 470, 11, 'rgba(255,255,255,0.8)'); halo(c, P, 300, 420, 240, 0.5); sparks(c, P, R, 300, 380, 10, 220);
+  },
+  antidote(c, P) { // panacea: a square apothecary's bottle with a paper label
+    c.fillStyle = wood(c, 262, 50, 338, 50); c.fillRect(262, 50, 76, 56); c.fillStyle = 'rgba(220,235,255,0.5)'; c.fillRect(250, 100, 100, 70);
+    c.fillStyle = 'rgba(210,228,255,0.4)'; c.beginPath(); c.roundRect(130, 160, 340, 390, 34); c.fill(); c.save(); c.beginPath(); c.roundRect(146, 176, 308, 358, 22); c.clip();
+    c.fillStyle = lin(c, 0, 220, 0, 540, [P.hot, P.mid, P.deep]); c.fillRect(140, 232, 320, 310); c.fillStyle = P.core; c.fillRect(140, 232, 320, 10); c.restore();
+    c.fillStyle = '#f1e4c5'; c.fillRect(196, 300, 208, 170); c.fillStyle = '#3a2a20'; c.fillRect(196, 300, 208, 8); c.fillRect(196, 462, 208, 8);
+    c.fillStyle = P.mid; c.fillRect(280, 326, 40, 118); c.fillRect(241, 365, 118, 40); line(c, 166, 210, 166, 500, 11, 'rgba(255,255,255,0.75)'); halo(c, P, 300, 380, 240, 0.4);
+  },
+  elixir(c, P, R) { // the phoenix elixir: a round flask borne up on wings of gold, burning at the mouth
+    for (const sd of [-1, 1]) wing(c, 300 + sd * 96, 400, sd, 0.95);
+    fire(c, 300, 170, 50, 150); c.fillStyle = gold(c, 0, 150, 0, 220); c.fillRect(260, 160, 80, 70);
+    disc(c, 300, 370, 150, '#6a4410'); disc(c, 300, 370, 138, 'rgba(255,244,214,0.5)'); c.save(); c.beginPath(); c.arc(300, 370, 126, 0, TAU); c.clip(); c.fillStyle = lin(c, 0, 290, 0, 500, [P.core, P.hot, P.mid]); c.fillRect(160, 300, 280, 220); c.restore();
+    c.strokeStyle = 'rgba(255,255,255,0.9)'; c.lineWidth = 11; c.lineCap = 'round'; c.beginPath(); c.arc(300, 370, 108, 3.5, 4.4); c.stroke(); halo(c, P, 300, 360, 280, 0.6); sparks(c, P, R, 300, 300, 16, 260);
   },
   bomb(c, P, R) {
     disc(c, 290, 370, 176, '#06070a'); c.fillStyle = lin(c, 150, 220, 430, 520, ['#5a6274', '#1c2030', '#06070a']); c.beginPath(); c.arc(290, 370, 164, 0, TAU); c.fill(); disc(c, 232, 306, 30, 'rgba(255,255,255,0.55)');
@@ -596,19 +871,108 @@ const ITEM = {
     for (const y of [230, 310, 390]) { line(c, 300, y, 212, y - 62, 6, 'rgba(255,255,255,0.5)'); line(c, 300, y, 388, y - 62, 6, 'rgba(255,255,255,0.5)'); }
     halo(c, P, 300, 300, 260, 0.6);
   },
-  gem(c, P) { // a raw material
+
+  // ── materials: the thing itself, in its own colour ──
+  gem(c, P) { // (anything without a picture of its own)
     poly(c, [[300, 110], [470, 250], [400, 500], [200, 500], [130, 250]], P.deep); poly(c, [[300, 130], [448, 254], [300, 300]], P.hot); poly(c, [[300, 130], [152, 254], [300, 300]], P.core); poly(c, [[152, 254], [300, 300], [210, 486]], P.mid); poly(c, [[448, 254], [300, 300], [390, 486]], P.mid); poly(c, [[300, 300], [390, 486], [210, 486]], P.hot);
     line(c, 300, 130, 300, 300, 4, 'rgba(255,255,255,0.6)'); halo(c, P, 300, 300, 260, 0.45);
   },
+  m_heartwood(c) { // a billet of heartwood, sawn across
+    shape(c, '#2a180e', () => { c.moveTo(120, 250); c.lineTo(420, 150); c.lineTo(510, 330); c.lineTo(210, 470); });
+    shape(c, lin(c, 200, 180, 400, 440, ['#8a5a34', '#5a3a20', '#2a180e']), () => { c.moveTo(150, 260); c.lineTo(412, 172); c.lineTo(486, 322); c.lineTo(224, 440); });
+    for (let i = 0; i < 4; i++) line(c, 230 + i * 50, 250 - i * 16, 290 + i * 50, 380 - i * 22, 5, 'rgba(20,10,4,0.5)');
+    at(c, 186, 356, -0.42, () => { c.fillStyle = '#2a180e'; c.beginPath(); c.ellipse(0, 0, 92, 124, 0, 0, TAU); c.fill(); c.fillStyle = '#e8c890'; c.beginPath(); c.ellipse(0, 0, 78, 110, 0, 0, TAU); c.fill();
+      for (const [k, col] of [[0.74, '#c08a50'], [0.48, '#d8623a'], [0.22, '#8a2a1a']]) { c.fillStyle = col; c.beginPath(); c.ellipse(0, 0, 78 * k, 110 * k, 0, 0, TAU); c.fill(); } });
+  },
+  m_spiritmoss(c, P, R) { // a clump of moss that glows
+    for (const [x, y, r, col] of [[220, 380, 110, P.deep], [380, 390, 120, P.deep], [300, 300, 130, P.deep], [230, 360, 86, P.mid], [372, 372, 96, P.mid], [300, 290, 104, P.mid], [262, 270, 50, P.hot], [350, 320, 44, P.hot], [220, 330, 30, P.hot], [300, 240, 24, P.core]]) disc(c, x, y, r, col);
+    for (let i = 0; i < 16; i++) disc(c, 180 + R() * 240, 220 + R() * 220, 6 + R() * 8, 'rgba(255,255,255,0.7)');
+    halo(c, P, 300, 320, 280, 0.6); sparks(c, P, R, 300, 280, 16, 240);
+  },
+  m_sunstone(c, P, R) { // a stone with a small sun shut inside it
+    for (let i = 0; i < 12; i++) at(c, 300, 300, (i / 12) * TAU, () => poly(c, [[-22, -150], [0, -(220 + (i % 2) * 40)], [22, -150]], i % 2 ? P.hot : P.mid));
+    const hex = (r) => Array.from({ length: 6 }, (_, i) => [300 + Math.cos((i / 6) * TAU) * r, 300 + Math.sin((i / 6) * TAU) * r]);
+    poly(c, hex(170), '#3a1c06'); poly(c, hex(152), P.mid); const h = hex(152); poly(c, [h[3], h[4], h[5], [300, 300]], P.hot); poly(c, [h[4], h[5], [300, 300]], P.core); poly(c, [h[0], h[1], h[2], [300, 300]], P.deep);
+    disc(c, 300, 300, 50, '#fff8d0'); halo(c, P, 300, 300, 300, 0.6); sparks(c, P, R, 300, 300, 12, 260);
+  },
+  m_chitin(c, P) { // a scorpion's claw, shell and all
+    const sh = lin(c, 120, 80, 480, 520, [P.core, P.mid, P.deep]);
+    shape(c, '#2a1206', () => { c.moveTo(60, 470); c.lineTo(190, 340); c.lineTo(300, 440); c.lineTo(170, 570); }); shape(c, sh, () => { c.moveTo(84, 470); c.lineTo(190, 364); c.lineTo(276, 440); c.lineTo(170, 546); });
+    shape(c, '#2a1206', () => { c.moveTo(150, 330); c.bezierCurveTo(150, 60, 420, 20, 540, 90); c.bezierCurveTo(400, 130, 360, 200, 372, 300); c.bezierCurveTo(470, 300, 520, 250, 548, 190); c.bezierCurveTo(580, 380, 420, 500, 290, 470); });
+    shape(c, sh, () => { c.moveTo(172, 330); c.bezierCurveTo(176, 90, 400, 50, 486, 86); c.bezierCurveTo(380, 130, 336, 210, 350, 322); c.bezierCurveTo(450, 330, 510, 290, 536, 250); c.bezierCurveTo(540, 380, 410, 470, 296, 448); });
+    for (let i = 0; i < 4; i++) cut(c, [[392 - i * 34, 196 + i * 30], [370 - i * 34, 170 + i * 30], [352 - i * 30, 206 + i * 30]]);
+    c.lineCap = 'round'; c.strokeStyle = 'rgba(255,255,255,0.65)'; c.lineWidth = 11; c.beginPath(); c.moveTo(214, 280); c.quadraticCurveTo(230, 140, 360, 100); c.stroke(); line(c, 112, 466, 186, 392, 9, 'rgba(255,255,255,0.5)');
+  },
+  m_frostcrystal(c, P, R) { // a cluster of ice that does not melt
+    const ice = (x, base, hgt, w, a) => at(c, x, base, a, () => { poly(c, [[-w - 8, 0], [-w - 8, -hgt * 0.7], [0, -hgt - 12], [w + 8, -hgt * 0.7], [w + 8, 0]], '#12304a'); poly(c, [[-w, 0], [-w, -hgt * 0.7], [0, -hgt], [w, -hgt * 0.7], [w, 0]], P.mid); poly(c, [[-w, 0], [-w, -hgt * 0.7], [0, -hgt], [0, 0]], P.core); poly(c, [[0, 0], [0, -hgt], [w, -hgt * 0.7], [w, 0]], 'rgba(20,70,140,0.35)'); });
+    ice(190, 500, 250, 44, -0.5); ice(410, 500, 270, 46, 0.45); ice(250, 510, 190, 36, -0.15); ice(300, 520, 400, 60, 0.04); ice(360, 520, 170, 34, 0.2);
+    halo(c, P, 300, 300, 300, 0.5); sparks(c, P, R, 300, 260, 16, 250);
+  },
+  m_rimesilk(c, P) { // a spool of thread spun from frost
+    c.fillStyle = '#2a180e'; c.fillRect(130, 96, 340, 66); c.fillRect(130, 438, 340, 66); c.fillStyle = wood(c, 140, 0, 460, 0); c.fillRect(140, 104, 320, 50); c.fillRect(140, 446, 320, 50);
+    c.fillStyle = '#5a6a80'; c.fillRect(168, 154, 264, 292); c.fillStyle = lin(c, 176, 0, 424, 0, ['#ffffff', P.mid, '#7a90b0']); c.fillRect(176, 154, 248, 292);
+    for (let i = 0; i < 11; i++) line(c, 180, 170 + i * 26, 420, 184 + i * 26, 5, 'rgba(60,80,120,0.4)');
+    c.strokeStyle = '#ffffff'; c.lineWidth = 9; c.lineCap = 'round'; c.beginPath(); c.moveTo(420, 300); c.bezierCurveTo(520, 320, 470, 420, 540, 470); c.stroke(); halo(c, P, 300, 300, 260, 0.35);
+  },
+  m_bonedust(c, P) { // old bone, and the powder it is ground to
+    c.fillStyle = '#3a3020'; c.beginPath(); c.ellipse(300, 446, 230, 96, 0, 0, TAU); c.fill(); c.fillStyle = lin(c, 0, 360, 0, 540, ['#fff8e0', P.mid, '#8a7c60']); c.beginPath(); c.ellipse(300, 440, 214, 82, 0, Math.PI, TAU); c.fill(); c.beginPath(); c.ellipse(300, 440, 214, 50, 0, 0, Math.PI); c.fill();
+    at(c, 300, 260, -0.5, () => { for (const [w, col] of [[0, '#3a3020'], [1, null]]) { const k = w ? 0 : 10; c.fillStyle = col || lin(c, 0, -40, 0, 40, BONE); c.fillRect(-150, -24 - k, 300, 48 + k * 2); for (const [x, y] of [[-160, -30], [-160, 30], [160, -30], [160, 30]]) { c.beginPath(); c.arc(x, y, 40 + k, 0, TAU); c.fill(); } } line(c, -130, -8, 120, -8, 7, 'rgba(255,255,255,0.7)'); });
+    for (const [x, y] of [[180, 420], [420, 430], [330, 470], [240, 480]]) disc(c, x, y, 9, '#ffffff');
+  },
+  m_soulshard(c, P, R) { // a splinter of someone, still looking out
+    const pts = [[300, 60], [392, 220], [356, 330], [430, 480], [290, 548], [196, 420], [240, 300], [186, 200]];
+    poly(c, pts.map(([x, y]) => [300 + (x - 300) * 1.1, 304 + (y - 304) * 1.06]), '#140c24'); poly(c, pts, P.mid);
+    poly(c, [[300, 60], [392, 220], [356, 330], [300, 300]], P.hot); poly(c, [[300, 60], [186, 200], [240, 300], [300, 300]], P.core); poly(c, [[300, 300], [356, 330], [430, 480], [290, 548]], P.deep);
+    for (const x of [262, 338]) { c.fillStyle = '#140c24'; c.beginPath(); c.ellipse(x, 300, 20, 30, 0, 0, TAU); c.fill(); disc(c, x, 292, 7, '#ffffff'); }
+    halo(c, P, 300, 300, 300, 0.55); sparks(c, P, R, 300, 300, 18, 260);
+  },
+  m_starfragment(c, P, R) { // a piece broken off a star
+    const pts = Array.from({ length: 10 }, (_, i) => { const a = -Math.PI / 2 + (i / 10) * TAU, r = i % 2 ? 104 : 238 - (i % 4) * 14; return [300 + Math.cos(a) * r, 310 + Math.sin(a) * r]; });
+    poly(c, pts.map(([x, y]) => [300 + (x - 300) * 1.09, 310 + (y - 310) * 1.09]), '#4a3a08'); poly(c, pts, P.mid);
+    for (let i = 0; i < 10; i += 2) { poly(c, [pts[i], pts[i + 1], [300, 310]], P.core); poly(c, [pts[i], pts[(i + 9) % 10], [300, 310]], P.hot); }
+    star4(c, 300, 310, 60, '#ffffff'); halo(c, P, 300, 310, 320, 0.6); sparks(c, P, R, 300, 310, 24, 270);
+  },
+  m_aetherfeather(c, P, R) { // a feather too light to fall
+    at(c, 300, 310, 0.6, () => {
+      shape(c, '#1a2040', () => { c.moveTo(0, 230); c.bezierCurveTo(150, 120, 130, -160, 0, -270); c.bezierCurveTo(-130, -160, -150, 120, 0, 230); });
+      shape(c, lin(c, -120, 0, 120, 0, ['#ffffff', P.hot, P.mid]), () => { c.moveTo(0, 214); c.bezierCurveTo(132, 112, 114, -150, 0, -250); c.bezierCurveTo(-114, -150, -132, 112, 0, 214); });
+      for (let i = 0; i < 9; i++) { const y = 160 - i * 46; line(c, 0, y, 96 - Math.abs(i - 4) * 12, y - 50, 5, 'rgba(40,60,120,0.4)'); line(c, 0, y, -96 + Math.abs(i - 4) * 12, y - 50, 5, 'rgba(40,60,120,0.4)'); }
+      cut(c, [[70, 60], [140, 40], [120, 100]]); line(c, 0, 290, 0, -240, 9, '#fff8e0');
+    });
+    halo(c, P, 300, 300, 300, 0.5); sparks(c, P, R, 300, 300, 14, 260);
+  },
+  m_voidichor(c, P) { // a drop of the dark between the realms; it does not sit still
+    shape(c, P.hot, () => { c.moveTo(300, 50); c.bezierCurveTo(330, 200, 490, 290, 490, 400); c.bezierCurveTo(490, 600, 110, 600, 110, 400); c.bezierCurveTo(110, 290, 270, 200, 300, 50); });
+    shape(c, lin(c, 180, 120, 420, 540, ['#3a1450', '#12061c', '#000000']), () => { c.moveTo(300, 96); c.bezierCurveTo(326, 220, 468, 300, 468, 400); c.bezierCurveTo(468, 576, 132, 576, 132, 400); c.bezierCurveTo(132, 300, 274, 220, 300, 96); });
+    c.strokeStyle = P.mid; c.lineWidth = 14; c.lineCap = 'round'; c.beginPath(); for (let a = 0; a < TAU * 1.7; a += 0.2) { const r = 10 + a * 11; c.lineTo(300 + Math.cos(a) * r, 410 + Math.sin(a) * r); } c.stroke();
+    c.strokeStyle = 'rgba(255,255,255,0.8)'; c.lineWidth = 12; c.beginPath(); c.arc(300, 400, 140, 3.4, 4.2); c.stroke(); halo(c, P, 300, 400, 280, 0.45);
+  },
+  m_abyssiron(c) { // an ingot from the forges below, never quite cooled
+    const F = palOf('#ff3a1a');
+    poly(c, [[70, 330], [190, 200], [450, 200], [530, 330], [530, 440], [70, 440]], '#ff3a1a');
+    poly(c, [[190, 212], [444, 212], [514, 328], [86, 328]], '#6a4a5a'); poly(c, [[86, 328], [514, 328], [514, 428], [86, 428]], lin(c, 0, 328, 0, 428, ['#3a2430', '#0c0408']));
+    c.lineCap = 'round'; c.lineJoin = 'round'; for (const pts of [[[230, 220], [260, 280], [220, 328], [250, 420]], [[380, 216], [350, 290], [400, 328], [370, 420]], [[260, 280], [350, 290]]]) for (const [col, w] of [['#ff3a1a', 12], ['#ffd080', 4]]) { c.strokeStyle = col; c.lineWidth = w; c.beginPath(); pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); c.stroke(); }
+    line(c, 210, 228, 420, 228, 7, 'rgba(255,255,255,0.4)'); halo(c, F, 300, 320, 280, 0.4);
+  },
 };
+// Which painter an item gets: a material or a boss's relic has its own; the rest share the picture of their kind,
+// re-made for the tier.
+const lookOf = (icon, it) => (it && it.mat && ITEM['m_' + it.mat] ? 'm_' + it.mat : it && it.uniqueId && ITEM['u_' + it.uniqueId] ? 'u_' + it.uniqueId : ITEM[icon] ? icon : 'gem');
 const itemCache = new Map();
-/** The painted picture of an item, as an image URL: `icon` picks the object, `color` its light. */
-export function itemArt(icon, color = '#c8c0b0') {
-  const key = icon + color; let url = itemCache.get(key); if (url) return url;
-  const w = 132; const cv = document.createElement('canvas'); cv.width = w; cv.height = w; const c = cv.getContext('2d', { willReadFrequently: true });
-  const P = palOf(/^#[0-9a-f]{6}$/i.test(color) ? color : '#c8c0b0'); const R = seeded(hash(key));
-  c.save(); c.scale(w / S, w / S); c.fillStyle = P.bg; c.fillRect(0, 0, S, S); glow(c, 300, 300, 420, P.rgb, 0.5);
-  (ITEM[icon] || ITEM.gem)(c, P, R); c.restore(); finish(c, w, w);
+/** The painted picture of an item, as an image URL: `icon` picks the object and `color` its light (its rarity, or
+ *  the potion's own colour); `item` gives the tier it is made in, or names the relic or the material. */
+export function itemArt(icon, color = '#c8c0b0', item = null) {
+  const look = lookOf(icon, item), n = item && item.tier && look === icon ? Math.max(1, Math.min(6, item.tier)) : 0;
+  const key = look + color + n; let url = itemCache.get(key); if (url) return url;
+  const w = 132; const mk = () => { const cv = document.createElement('canvas'); cv.width = w; cv.height = w; return cv; };
+  const P = palOf(/^#[0-9a-f]{6}$/i.test(color) ? color : '#c8c0b0'); const R = seeded(hash(key)); const T = TIER[n || 2];
+  // the object is painted on a sheet of its own, then laid on the ground with a thin light round it, so that a dark
+  // thing still stands clear of the dark
+  const lay = mk(), l = lay.getContext('2d'); l.scale(w / S, w / S); ITEM[look](l, P, R, T);
+  const cv = mk(), c = cv.getContext('2d', { willReadFrequently: true });
+  c.save(); c.scale(w / S, w / S); c.fillStyle = P.bg; c.fillRect(0, 0, S, S); glow(c, 300, 300, 420, P.rgb, 0.5); c.restore();
+  c.shadowColor = (n && T.rim) || 'rgba(255,244,214,0.7)'; c.shadowBlur = 4; c.drawImage(lay, 0, 0); c.shadowColor = 'transparent'; c.shadowBlur = 0;
+  finish(c, w, w);
   url = cv.toDataURL('image/jpeg', 0.88); itemCache.set(key, url); return url;
 }
 

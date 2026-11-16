@@ -500,7 +500,7 @@ export const TH = {
   'Only usable in battle': 'ใช้ได้เฉพาะในการต่อสู้',
   'Cannot use that now': 'ใช้ตอนนี้ไม่ได้',
   'No consumables': 'ไม่มีไอเทม',
-  'Materials': 'วัตถุดิบ',
+  'Materials': 'วัตถุดิบ', 'Potions': 'ยา', 'All': 'ทั้งหมด',
   'No materials yet': 'ยังไม่มีวัตถุดิบ',
   'Inventory ({n})': 'ของในกระเป๋า ({n})',
   'Click to equip': 'คลิกเพื่อสวมใส่',

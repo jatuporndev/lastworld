@@ -79,10 +79,10 @@ export function makeUnique(id) { return { ...UNIQUES[id], stats: { ...UNIQUES[id
 
 export const CONSUMABLES = {
   potion: { name: 'Health Potion', desc: 'Restore 40% HP.', icon: 'potion', color: '#e04040', price: 30, use: { healPct: 0.4 } },
-  hipotion: { name: 'Greater Potion', desc: 'Restore 80% HP.', icon: 'potion', color: '#ff6080', price: 80, use: { healPct: 0.8 } },
-  ether: { name: 'Ether', desc: 'Restore 25 MP.', icon: 'potion', color: '#4080ff', price: 35, use: { mp: 25 } },
-  antidote: { name: 'Panacea', desc: 'Remove all debuffs and grant 2 Block.', icon: 'potion', color: '#60d060', price: 25, use: { cleanse: true, block: 2 } },
-  elixir: { name: 'Phoenix Elixir', desc: 'Fully restore HP and MP. Can revive a fallen ally outside battle.', icon: 'potion', color: '#ffb030', price: 200, use: { healPct: 1, mp: 999, revive: true } },
+  hipotion: { name: 'Greater Potion', desc: 'Restore 80% HP.', icon: 'hipotion', color: '#ff6080', price: 80, use: { healPct: 0.8 } },
+  ether: { name: 'Ether', desc: 'Restore 25 MP.', icon: 'ether', color: '#4080ff', price: 35, use: { mp: 25 } },
+  antidote: { name: 'Panacea', desc: 'Remove all debuffs and grant 2 Block.', icon: 'antidote', color: '#60d060', price: 25, use: { cleanse: true, block: 2 } },
+  elixir: { name: 'Phoenix Elixir', desc: 'Fully restore HP and MP. Can revive a fallen ally outside battle.', icon: 'elixir', color: '#ffb030', price: 200, use: { healPct: 1, mp: 999, revive: true } },
   leaf: { name: 'Leaf of Life', desc: 'Raise a fallen ally with 1 HP (battle only).', icon: 'leaf', color: '#6ad06a', price: 120, use: { raise: true } },
   bomb: { name: 'Alchemist Bomb', desc: 'Deal 8 Fire damage to an enemy (battle only).', icon: 'bomb', color: '#ff7020', price: 45, use: { bomb: 8 } },
 };

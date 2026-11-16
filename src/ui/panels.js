@@ -81,6 +81,8 @@ function heroTab(render) {
 // get its actions; drag gear onto a slot to wear it, off a slot to take it off, or onto the coin to sell it.
 let picked = null; // { k: 'gear' | 'slot' | 'cons' | 'mat', id }
 const BAG_MIN = 48;
+let bagTab = 'all'; // which kind of thing the bag shows: 'all' | 'gear' | 'cons' | 'mat'
+const BAG_TABS = [['all', 'All'], ['gear', 'Equipment'], ['cons', 'Potions'], ['mat', 'Materials']];
 function equipTab(render) {
   const st = G.state; const hero = myHeroes()[sel];
   const pick = (k, id) => { picked = picked && picked.k === k && picked.id === id ? null : { k, id }; audio.sfx('click'); render(); };
@@ -93,25 +95,28 @@ function equipTab(render) {
   const use = (id) => { const c = CONSUMABLES[id];
     if (useConsumable(id, hero)) { audio.sfx('heal'); toast(t('{hero} used {item}', { hero: hero.name, item: c.name })); if (!st.inv.cons[id]) picked = null; render(); }
     else { audio.sfx('error'); toast(t(c.use.bomb || c.use.raise ? 'Only usable in battle' : 'Cannot use that now'), 'bad'); } };
-  const ghost = (ic, color) => h('div.cell.ghost', itemPic(ic, color, 40));
+  const ghost = (it, color) => h('div.cell.ghost', itemPic(it.icon, color, 40, it));
   const gearCell = (it, extra = {}) => { const r = ITEM_RARITY[it.rarity];
     const el = h('div.cell.gear' + (canEquip(hero, it) ? '' : '.dim') + on(extra.slot ? 'slot' : 'gear', extra.slot || it.uid), { style: { '--rar': r.color }, 'data-tip-html': itemTip(it), 'data-drop': extra.slot ? 'slot:' + extra.slot : null,
-      onclick: () => pick(extra.slot ? 'slot' : 'gear', extra.slot || it.uid), ondblclick: () => (extra.slot ? takeOff(extra.slot) : wear(it)) }, itemPic(it.icon, r.color, 40), h('i.cell-rar'));
-    dragPiece(el, { ghost: () => ghost(it.icon, r.color), onDrop: (zone) => {
+      onclick: () => pick(extra.slot ? 'slot' : 'gear', extra.slot || it.uid), ondblclick: () => (extra.slot ? takeOff(extra.slot) : wear(it)) }, itemPic(it.icon, r.color, 40, it), h('i.cell-rar'));
+    dragPiece(el, { ghost: () => ghost(it, r.color), onDrop: (zone) => {
       if (extra.slot) { if (zone === 'bag') takeOff(extra.slot); }
       else if (zone.startsWith('slot:')) wear(it); else if (zone === 'sell') sell(it); } });
     return el; };
   const slot = (name) => { const it = hero.equip[name];
     return h('div.eq-slot', it ? gearCell(it, { slot: name }) : h('div.cell.empty.slot', { 'data-drop': 'slot:' + name }), h('div.eq-label', t(name))); };
-  const items = st.inv.equip.slice().sort((a, b) => b.tier - a.tier || b.value - a.value);
+  // what this hero can wear comes first, then the best of each
+  const items = st.inv.equip.slice().sort((a, b) => canEquip(hero, b) - canEquip(hero, a) || b.tier - a.tier || b.value - a.value);
+  const show = (k) => bagTab === 'all' || bagTab === k;
   const cells = [
-    ...items.map((it) => gearCell(it)),
-    ...Object.entries(st.inv.cons).map(([id, n]) => { const c = CONSUMABLES[id];
+    ...(show('gear') ? items : []).map((it) => gearCell(it)),
+    ...Object.entries(show('cons') ? st.inv.cons : {}).map(([id, n]) => { const c = CONSUMABLES[id];
       return h('div.cell' + on('cons', id), { style: { '--rar': c.color }, 'data-tip': `${c.name} — ${c.desc}`, onclick: () => pick('cons', id), ondblclick: () => use(id) }, itemPic(c.icon, c.color, 40), h('b.cell-n', n)); }),
-    ...Object.entries(st.inv.mats).map(([id, n]) => { const c = MATERIALS[id];
-      return h('div.cell' + on('mat', id), { style: { '--rar': c.color }, 'data-tip': t('{name} — a material for the Forge', { name: c.name }), onclick: () => pick('mat', id) }, itemPic('gem', c.color, 40), h('b.cell-n', n)); }),
+    ...Object.entries(show('mat') ? st.inv.mats : {}).map(([id, n]) => { const c = MATERIALS[id];
+      return h('div.cell' + on('mat', id), { style: { '--rar': c.color }, 'data-tip': t('{name} — a material for the Forge', { name: c.name }), onclick: () => pick('mat', id) }, itemPic('gem', c.color, 40, { mat: id }), h('b.cell-n', n)); }),
   ];
-  const used = cells.length;
+  const used = st.inv.equip.length + Object.keys(st.inv.cons).length + Object.keys(st.inv.mats).length;
+  const tabs = h('div.bag-tabs', ...BAG_TABS.map(([id, label]) => h('button.bag-tab' + (id === bagTab ? '.on' : ''), { onclick: () => { if (bagTab === id) return; bagTab = id; audio.sfx('click'); render(); } }, t(label))));
   while (cells.length < BAG_MIN || cells.length % 8) cells.push(h('div.cell.empty'));
   // the slip under the hero: what is picked, and what can be done with it
   let detail = h('div.bag-detail.none', t('Point at an item to read it. Press it for its actions, drag it onto a slot to wear it, or onto the coin to sell it.'));
@@ -132,7 +137,7 @@ function equipTab(render) {
         detail),
       h('div.eq-col.grow', h('div.sec-title', t('Inventory ({n})', { n: used }),
           h('div.cell.sell', { 'data-drop': 'sell', 'data-tip': t('Drag an item here to sell it') }, icon('coin', '#b07a10', 26), h('small', t('Sell')))),
-        h('div.bag-grid.scroll', { 'data-drop': 'bag' }, ...cells))));
+        tabs, h('div.bag-grid.scroll', { 'data-drop': 'bag' }, ...cells))));
 }
 
 // ───── Deck builder + card upgrades ─────
@@ -168,7 +173,7 @@ function forgeTab(render) {
   const root = h('div.tab-forge',
     h('div.deck-col.smith', h('div.sec-title', t('Smithing'), h('span.points', t('Forge equipment from materials'))),
       h('div.item-list.scroll', ...recipes.map((r) => { const B = BASES[r.base]; const ok = st.gold >= r.gold && Object.entries(r.mats).every(([m, n]) => (st.inv.mats[m] || 0) >= n);
-        return h('div.item.recipe' + (ok ? '' : '.dim'), { style: { '--rar': ITEM_RARITY[r.rarity].color } }, h('div.item-icon', itemPic(B.icon, ITEM_RARITY[r.rarity].color, 32)),
+        return h('div.item.recipe' + (ok ? '' : '.dim'), { style: { '--rar': ITEM_RARITY[r.rarity].color } }, h('div.item-icon', itemPic(B.icon, ITEM_RARITY[r.rarity].color, 32, r)),
           h('div.item-info', h('div.item-name', `${B.names[r.tier - 1]}`), h('div.item-sub', `${ITEM_RARITY[r.rarity].name} · ${t('Tier {n}', { n: r.tier })} ${t(B.type)}`),
             h('div.recipe-cost', ...Object.entries(r.mats).map(([m, n]) => h('span' + ((st.inv.mats[m] || 0) >= n ? '' : '.lack'), `${MATERIALS[m].name} ${st.inv.mats[m] || 0}/${n}`)), h('span' + (st.gold >= r.gold ? '' : '.lack'), t('{n} gold', { n: r.gold })))),
           h('button.mini.up', { disabled: !ok, onclick: () => { Object.entries(r.mats).forEach(([m, n]) => { st.inv.mats[m] -= n; if (st.inv.mats[m] <= 0) delete st.inv.mats[m]; }); st.gold -= r.gold; const it = makeEquipment(r.base, r.tier, r.rarity); addItem(it); progress('craft', 1); audio.sfx('place'); audio.sfx('levelup'); toast(t('Forged {name}!', { name: it.name }), 'good'); render(); } }, t('Forge'))); }))));
