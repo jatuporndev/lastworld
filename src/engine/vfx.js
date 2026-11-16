@@ -308,7 +308,7 @@ const SIGN = {
     };
     for (let i = 0; i < nodes.length; i++) {
       const a = pts[i], b = pts[i + 1], c = nodes[i];
-      leap(a, b, i, { color: lite, wd: 0.55 });
+      leap(a, b, i, { color: lite, wd: 0.9 });
       audio.sfx('zap'); w.flashCells([c], 0xffffff, 200); w.shake(0.16 + i * 0.05, 130);
       x.land('zap', c, { s: 0.9 });
       spr(w, 'spark', b, { color: 0xffffff, size: 0.35, to: 1.1, ms: 160, add: true });
@@ -317,7 +317,7 @@ const SIGN = {
       await beat(i === nodes.length - 1 ? 110 : 125);
     }
     // the whole chain, lit at once
-    for (let i = 0; i < nodes.length; i++) leap(pts[i], pts[i + 1], i, { color, wd: 0.85, ms: 230 });
+    for (let i = 0; i < nodes.length; i++) leap(pts[i], pts[i + 1], i, { color, wd: 1.3, ms: 230 });
     w.flashCells(cells, color, 420); w.shake(0.34, 240); audio.sfx('zap');
     await beat(120);
     for (let i = 0; i < 14; i++) after(120 + i * 60, () => { const p = pts[1 + Math.floor(Math.random() * nodes.length)];
@@ -364,14 +364,15 @@ const SIGN = {
     const order = cells.slice(0, 19).map((c) => ({ c, g: x.floor(c) })).filter((o) => o.g.distanceToSquared(feet) > 0.05).sort((a, b) => a.g.distanceToSquared(feet) - b.g.distanceToSquared(feet));
     if (!order.length) return; const T = Math.min(520, order[order.length - 1].g.distanceTo(feet) * 150) + 380;
     audio.sfx('poison');
-    order.forEach(({ g }, i) => { const d = Math.min(520, g.distanceTo(feet) * 150) + (i % 3) * 25; const hgt = 0.45 + Math.random() * 0.3;
-      after(d, () => { spike(w, g, { color: 0x6a8a3a, h: hgt, wd: 0.13, tilt: R(0.3), up: 170, hold: Math.max(120, T - d - 170), out: 160 });
-        spr(w, 'smoke', g.clone().add(V(0, hgt * K * 0.95, 0)), { color: i % 2 ? 0xb04a8a : 0x8a3fb0, size: 0.16, to: 0.5, ms: Math.max(200, T - d), hold: 0.92, opacity: 0.95 }); // the cap, swelling
+    order.forEach(({ g }, i) => { const d = Math.min(520, g.distanceTo(feet) * 150) + (i % 3) * 25; const hgt = 0.75 + Math.random() * 0.35;
+      after(d, () => { spike(w, g, { color: 0xe8e2c0, h: hgt, wd: 0.24, tilt: R(0.25), up: 170, hold: Math.max(120, T - d - 170), out: 160 });
+        spr(w, 'rock', g.clone().add(V(0, hgt * K * 0.95, 0)), { color: i % 2 ? 0xd9488f : 0xa24fd0, size: 0.3, to: 0.78, sy: 0.6, ms: Math.max(200, T - d), hold: 0.92 }); // the cap, swelling
+        spr(w, 'smoke', g.clone().add(V(0, hgt * K * 0.95, 0)), { color, size: 0.3, to: 0.9, ms: Math.max(200, T - d), hold: 0.7, opacity: 0.5, add: true });
         bit(w, 'bubble', g.clone().add(V(R(0.3), 0.2, R(0.2))), { color: lite, size: 0.08, life: 400, vel: V(0, 0.8, 0), add: false }); }); });
     await beat(T);
     audio.sfx('poison'); w.shake(0.3, 260); w.flashCells(cells, color, 520);
     x.land('spores', u, { s: 1.15 });
-    order.forEach(({ g }, i) => { spr(w, 'smoke', g.clone().add(V(0, 0.8, 0)), { color: i % 2 ? color : 0x6aa82a, size: 0.4, to: 1.5, ms: 700, hold: 0.3, opacity: 0.7 });
+    order.forEach(({ g }, i) => { spr(w, 'smoke', g.clone().add(V(0, 0.9, 0)), { color: i % 2 ? color : 0x6aa82a, size: 0.6, to: 1.9, ms: 760, hold: 0.35, opacity: 0.85 });
       for (let k = 0; k < 3; k++) bit(w, 'spark', g.clone().add(V(R(0.4), 0.8, R(0.3))), { color: lite, size: 0.07, life: 520, vel: V(R(2.4), 1 + Math.random() * 2, R(2.4)), gravity: 2, spin: R(5) }); });
     targets.forEach((t) => x.land('hit_poison', t, { s: 0.9 }));
     await beat(140);
@@ -406,9 +407,9 @@ const SIGN = {
   async p_radiance(w, x) {
     const { from, feet, cells, targets, color } = x; const lite = pale(color); const sun = from.clone().add(V(0, 1.9, 0));
     audio.sfx('holy');
-    spr(w, 'smoke', sun, { color: 0xffe27a, size: 0.3, to: 1.5, ms: 1100, add: true, hold: 0.85 });
-    spr(w, 'spark', sun, { color: 0xffffff, size: 0.3, to: 1.3, ms: 1100, add: true, spin: 3, hold: 0.85 });
-    decal(w, 'circle', feet, { color: lite, size: 1, to: 4.2, ms: 1400, spin: 1.6, hold: 0.75, opacity: 0.9, add: true });
+    spr(w, 'smoke', sun, { color: 0xffe27a, size: 0.8, to: 2.2, ms: 1100, add: true, hold: 0.85 });
+    spr(w, 'spark', sun, { color: 0xffffff, size: 0.7, to: 1.7, ms: 1100, add: true, spin: 3, hold: 0.85 });
+    decal(w, 'circle', feet, { color: lite, size: 2, to: 4.6, ms: 1400, spin: 1.6, hold: 0.75, opacity: 0.9, add: true });
     for (let k = 0; k < 12; k++) after(k * 24, () => { const a = Math.random() * 6.28, st = feet.clone().add(V(Math.cos(a) * 2, 0.15, Math.sin(a) * 1.3));
       bit(w, 'spark', st, { color: lite, size: 0.1, life: 320, vel: sun.clone().sub(st).multiplyScalar(2.6), drag: 1 }); });
     await beat(400);
@@ -417,7 +418,7 @@ const SIGN = {
     const marks = targets.length ? targets.slice().sort((a, b) => ang(a) - ang(b)) : outer.filter((c, i) => i % 2 === 0).slice(0, 6);
     const gap = Math.min(80, 420 / Math.max(1, marks.length));
     marks.forEach((c, i) => after(i * gap, () => { const q = x.chest(c);
-      stroke(w, sun, q, { name: 'pillar', color: lite, wd: 0.5, ms: 260 }); audio.sfx('holy');
+      stroke(w, sun, q, { name: 'pillar', color: lite, wd: 0.8, ms: 300 }); audio.sfx('holy');
       if (targets.length) x.land('hit_holy', c, { s: 0.85 });
       spr(w, 'cross', q.clone().add(V(0, 0.9, 0)), { color: 0xffffff, size: 0.2, to: 0.5, ms: 360, add: true, rise: 0.4, hold: 0.4 });
       w.flashCells([c], 0xffffff, 220); }));
@@ -439,7 +440,7 @@ const SIGN = {
     const gap = Math.min(26, 420 / order.length);
     play(w, 'spin', feet, { s: sc * 0.75 }); audio.sfx('slash');
     const blade = (c, ms, arc) => { const q = x.chest(c);
-      return shot(w, from, q, steel, { name: 'spark', size: 0.42, arc, spin: 34, ms, trail: { color: 0xffffff, size: 0.1, life: 110 } }).then(() => {
+      return shot(w, from, q, steel, { name: 'spark', size: 0.68, arc, spin: 34, ms, trail: { color: 0xffffff, size: 0.16, life: 130 } }).then(() => {
         if (struck.has(c.q + ',' + c.r)) { x.land('flurry', c, { s: 0.9 }); const dir = q.clone().sub(from).setY(0); if (dir.lengthSq() > 1e-4) w.spray(q, dir.normalize(), { color: 0xc0392b, count: 7, speed: 4.5, fan: 0.7 }); }
         else { w.particle(q.clone().add(V(0, -0.5, 0)), { color: 0xffffff, size: 0.22, life: 150 }); bit(w, 'spark', q.clone().add(V(0, -0.55, 0)), { color: steel, size: 0.12, life: 260, add: false, spin: 3 }); } }); };
     order.forEach((c, i) => after(i * gap, () => { if (i % 4 === 0) audio.sfx('slash'); blade(c, 190 + x.chest(c).distanceTo(from) * 45, 0.2); }));
@@ -501,10 +502,10 @@ const SIGN = {
     const far = x.floor(order[order.length - 1]); const side = sideways(feet, far); const gap = 75;
     const struck = new Set(targets.map((t) => t.q + ',' + t.r));
     audio.sfx('fire');
-    order.forEach((c, i) => after(i * gap, () => { const g = x.floor(c), t = (i + 1) / order.length, hgt = 1.5 + t * 1.3;
+    order.forEach((c, i) => after(i * gap, () => { const g = x.floor(c), t = (i + 1) / order.length, hgt = 1.7 + t * 1.2;
       [0, -1, 1].forEach((sg) => { const q = g.clone().add(side.clone().multiplyScalar(sg * 0.42)).add(V(0, 0.5, 0)); const k = sg ? 0.62 : 1;
-        spr(w, 'flame', q, { color: sg ? 0xff5a1a : color, size: 0.55 * k, to: 1.05 * k, sy: hgt * k, ms: 460, add: true, rise: 0.5 * k, hold: 0.35 });
-        spr(w, 'flame', q, { color: 0xfff0b0, size: 0.26 * k, to: 0.52 * k, sy: hgt * 0.8 * k, ms: 340, add: true, rise: 0.4 * k, hold: 0.25 }); });
+        spr(w, 'flame', q, { color: sg ? 0xff5a1a : color, size: 0.85 * k, to: 1.45 * k, sy: hgt * k, ms: 480, add: true, rise: 0.7 * k, hold: 0.4 });
+        spr(w, 'flame', q, { color: 0xfff0b0, size: 0.42 * k, to: 0.75 * k, sy: hgt * 0.8 * k, ms: 360, add: true, rise: 0.55 * k, hold: 0.3 }); });
       decal(w, 'shock', g, { color: 0xffc070, size: 0.5, to: 2.1, ms: 300, opacity: 0.7, add: true });
       decal(w, 'crack', g, { color: 0x1a0c06, size: 0.9, to: 1.25, ms: 2200, hold: 0.78, opacity: 0.8 });
       w.flashCells([c], color, 380);
