@@ -8,6 +8,7 @@ import { tween, Ease, sleep, clamp } from '../core/util.js';
 import { audio } from '../core/audio.js';
 import { elColor } from './renderer.js';
 import { play, hitMs } from './pixfx.js';
+import { MONSTERS } from '../data/monsters.js';
 
 const EL_SFX = { fire: 'fire', ice: 'ice', wind: 'wind', earth: 'earth', holy: 'holy', shadow: 'shadow', poison: 'poison', neutral: 'slash', arcane: 'magic' };
 
@@ -199,6 +200,7 @@ export function fxPlan(card, monster = false, hostile = card.cat === 'attack') {
     P.mode = 'support';
     P.kind = card.kind || (card.icon === 'smoke' ? 'smoke' : has('heal', 'revive') ? (has('revive') ? 'revive' : 'heal') : has('block') ? 'block' : has('summon') ? 'summon' : has('draw', 'energy', 'mp') ? 'boon' : !card.fx && card.cat === 'defense' ? 'block' : 'buff');
     P.main = SUPPORT[P.kind]; if (aoe && P.kind === 'heal') P.extra = 'heal_area';
+    if (P.kind === 'summon' && (card.fx || []).some((f) => f.t === 'summon' && MONSTERS[f.id]?.construct)) P.main = 'build'; // a turret or a barricade is put together where it stands: nothing comes through a door
     if (card.cat === 'movement' && P.kind === 'buff') P.main = has('teleport') ? (el === 'shadow' ? 'hit_shadow' : 'hit_arcane') : 'haste'; // a step is speed, not a blessing
   } else if (aoe) {
     P.mode = card.shape;
@@ -681,7 +683,7 @@ export async function castVfx(w, d) {
   } else if (P.mode === 'shot' && aim) { await w.gather(u.uid, 130, aim); w.release(u.uid, aim); } // an arrow or a thrown blade is drawn back first, too
 
   if (P.self) play(w, P.self, feet, { s: sc, order: 34 });
-  if (P.mode === 'support') { supportFx(w, d, P, sc); await tween(200, () => {}); return; }
+  if (P.mode === 'support') { supportFx(w, d, P, sc); await tween(P.main === 'build' ? 1200 : 200, () => {}); return; } // (what is built stands there only when the frame round it comes down)
   if (!d.monster && SIGN[card.id] && (aim || card.tg === 'self')) { await SIGN[card.id](w, { u, card, cells, targets, target: target || u, from, feet, aim, color, sc, chest, floor, land }); return; } // a spell with a staging of its own
 
   // beats 2 and 3 · it travels, and it lands

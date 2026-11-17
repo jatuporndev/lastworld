@@ -60,6 +60,7 @@ export const SHEETS = {
   "bless": {"w":54,"h":124,"cols":6,"rows":3,"n":18,"fps":15,"ox":27,"oy":113,"px":0.04},
   "smoke": {"w":140,"h":75,"cols":4,"rows":7,"n":28,"fps":12,"ox":70,"oy":49,"px":0.036},
   "portal": {"w":90,"h":134,"cols":7,"rows":5,"n":33,"fps":15,"ox":45,"oy":118,"px":0.032},
+  "build": {"w":176,"h":167,"cols":5,"rows":6,"n":27,"fps":15,"ox":81,"oy":136,"px":0.026},
   "revive": {"w":157,"h":199,"cols":8,"rows":6,"n":48,"fps":12,"ox":79,"oy":170,"px":0.04},
   "curse": {"w":74,"h":123,"cols":8,"rows":5,"n":36,"fps":15,"ox":37,"oy":109,"px":0.04},
   "snare": {"w":122,"h":59,"cols":4,"rows":8,"n":29,"fps":12,"ox":61,"oy":43,"px":0.04},

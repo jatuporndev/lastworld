@@ -489,6 +489,33 @@ fx('portal', { w: 150, h: 150, ox: 75, oy: 122, dur: 2.2, px: 0.032, floor: true
   for (let i = 0; i < 6; i++) { const a = (i / 6) * TAU + t * 2; p.diamond(Math.cos(a) * (rx + 12), cy + Math.sin(a) * (rx + 12) * 1.5, 2.5 * s, C[5]); }
   flash(p, 0, cy, 12, t, 0.1, C); flash(p, 0, cy, 9, t, 2.05, C);
 });
+// Something built, not called: a mark on the floor, a frame knocked together with three blows of a hammer, and the
+// frame falls away from what now stands there.
+fx('build', { w: 170, h: 180, ox: 85, oy: 146, dur: 1.8, px: 0.026, floor: true }, (k) => {
+  const S = RAMP.steel, Wd = RAMP.earth, F = RAMP.fire, hits = [[0.4, -30, -38, -1], [0.68, 30, -62, 1], [0.96, 0, -90, -1]];
+  for (const [t0, x, y] of hits) k.at(t0, () => { sparks(k, x, y, 12, 230, F, { g: 420 }); dust(k, x * 0.7, 0, 4, 90, smokeR, 3); });
+  k.at(1.24, () => { dust(k, 0, 0, 14, 160, smokeR, 3); rocks(k, 0, -40, 10, 260, S); });
+  return (p, t) => {
+    const mark = seg(t, 0, 0.24), end = seg(t, 1.22, 1.6), a = 1 - end, lean = end * end * 26, drop = end * end * 30;
+    p.ring(0, 0, 42, 2, S[3], 1 - seg(t, 1.4, 1.8), { sy: FY, sides: 6, rot: 0.26, keep: (an) => (an + Math.PI) / TAU < mark }); // chalked on the floor first
+    p.ink = false; p.plate(0, 0, 42 * mark, S[4], 0.16 * a, { sy: FY, sides: 6, rot: 0.26 }); p.ink = true;
+    k.ps.draw(p, true);
+    if (a > 0.02) {
+      const beam = (x0, y0, x1, y1, kk, C, w) => { if (kk <= 0) return; const ex = x0 + (x1 - x0) * kk, ey = y0 + (y1 - y0) * kk; p.line(x0, y0, ex, ey, C[1], a, w); p.ink = false; p.line(x0, y0 - 1, ex, ey - 1, C[3], a, Math.max(1, w - 3)); p.ink = true; };
+      for (const [sx, i] of [[-1, 0], [1, 1]]) beam(sx * 30, 0, sx * (30 + lean), -96 + drop, out(seg(t, 0.06 + i * 0.1, 0.34 + i * 0.1)), Wd, 6); // two posts go up
+      beam(-33 - lean * 0.4, -38 + drop * 0.5, 33 + lean * 0.4, -38 + drop * 0.5, out(seg(t, 0.3, 0.42)), S, 5); // a rail
+      beam(-30 - lean * 0.6, -40 + drop * 0.6, 30 + lean * 0.6, -86 + drop, out(seg(t, 0.56, 0.7)), Wd, 4); // a brace
+      beam(-35 - lean, -92 + drop * 1.4, 35 + lean, -92 + drop * 1.4, out(seg(t, 0.84, 0.98)), S, 5); // the top
+      for (const [t0, x, y] of hits) if (t >= t0 && end <= 0) { p.disc(x, y, 3, S[1]); p.ink = false; p.px(x - 1, y - 1, S[5]); p.ink = true; } // a rivet where each blow landed
+    }
+    for (const [t0, x, y, d] of hits) { const kk = seg(t, t0 - 0.16, t0), back = seg(t, t0, t0 + 0.14); if (kk <= 0 || back >= 1) continue; // the hammer: back, down, and off again
+      const sw = kk < 1 ? (1 - kk * kk) : back * 0.6, hx = x - d * (5 + sw * 26), hy = y - 3 - sw * 30;
+      p.line(hx - d * 4, hy + 2, hx - d * 24, hy + 20 - sw * 8, Wd[2], 1, 3); p.line(hx, hy - 7, hx, hy + 7, S[1], 1, 10); p.ink = false; p.line(hx + d * 2, hy - 5, hx + d * 2, hy + 5, S[3], 1, 3); p.ink = true; }
+    shock(p, 0, 0, t, 1.24, 0.4, 10, 78, S, { th: 3, rot: 0.26 }); k.ps.draw(p);
+    for (const [t0, x, y] of hits) flash(p, x, y, 9, t, t0, F);
+    flash(p, 0, -40, 12, t, 1.24, RAMP.holy);
+  };
+});
 fx('revive', { w: 170, h: 190, ox: 85, oy: 162, dur: 4.0, fps: 12, px: 0.04, floor: true }, (k) => {
   const C = RAMP.holy, R = k.R; for (let i = 0; i < 40; i++) k.ps.spawn({ kind: 'ember', ramp: C, x: R.range(-40, 40), y: -R.range(0, 20), vy: -R.range(18, 50), life: R.range(1.0, 2.0), delay: R.range(0.2, 2.8), s: 2 });
   k.at(2.0, () => sparks(k, 0, -40, 16, 220, C));
