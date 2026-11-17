@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <title>story scene test bench</title>
+  <link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/styles.css" />
+</head>
+<body>
+  <div id="game"><div id="ui"></div></div>
+  <script type="module">
+    // Plays story scenes outside the game, one simulated frame at a time, and posts small pictures of them to a local
+    // receiver (scratchpad/recv.py), so a scene can be checked without watching it at real speed.
+    import '/src/i18n/applyData.js'; // names of bosses and realms as the game shows them
+    import { playStory, skipStory, ORDER } from '/src/story/index.js';
+    const errs = (window.__errs = []);
+    addEventListener('error', (e) => errs.push('error: ' + e.message)); addEventListener('unhandledrejection', (e) => errs.push('rejection: ' + (e.reason?.message || e.reason)));
+    const mc = new MessageChannel(); const tick = () => new Promise((r) => { mc.port1.onmessage = r; mc.port2.postMessage(0); });
+    const small = document.createElement('canvas'); small.width = 420; small.height = 236; const sg = small.getContext('2d');
+    const hero = (cls, i) => ({ cls, gender: i % 2 ? 'f' : 'm', name: cls });
+    // id: the scene · party: 'knight,mage' · every: simulated ms between pictures (0: none) · skipAt: press skip at this simulated ms
+    window.__run = async (id, party = 'knight,mage,archer', { every = 1500, skipAt = 0, tag = '' } = {}) => {
+      const e0 = errs.length, p = playStory(id, party.split(',').map(hero), {}); let done = false, sim = 0, next = 0, n = 0, cost = 0, worst = 0, frames = 0; p.then(() => { done = true; });
+      const posts = [];
+      while (!done) {
+        const S = window.__story.state();
+        if (S && document.querySelector('.story canvas') && !(sim > 500 && S.waits.length === 0 && S.tweens.every((w) => w.ms >= 60000))) {
+          const t0 = performance.now(); window.__story.debug.step(33); const c = performance.now() - t0; cost += c; worst = Math.max(worst, c); frames++; sim += 33;
+          if (every && sim >= next) { next += every; sg.drawImage(document.querySelector('.story canvas'), 0, 0, 420, 236); posts.push(fetch('http://127.0.0.1:5198/' + id + tag + '_' + String(n++).padStart(4, '0'), { method: 'POST', body: small.toDataURL('image/jpeg', 0.72) }).catch(() => {})); }
+          if (skipAt && sim >= skipAt) { skipAt = 0; document.querySelector('.st-skip')?.click(); }
+          if (sim > 150000) { skipStory(); errs.push('ran past 150 s: ' + id); }
+        }
+        await tick();
+      }
+      await Promise.all(posts);
+      return { id, party, ms: sim, pictures: n, avg: +(cost / Math.max(1, frames)).toFixed(2), worst: +worst.toFixed(1), errors: errs.slice(e0), left: document.querySelectorAll('.story').length };
+    };
+    window.__order = ORDER;
+    document.title = 'ready';
+  </script>
+</body>
+</html>

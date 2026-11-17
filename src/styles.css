@@ -1020,6 +1020,14 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .wm-node.next .wm-pin { animation: bob 1.6s ease-in-out infinite; box-shadow: inset 0 0 0 0.22em var(--accent), 0 0.28em 0 #6b5a40, 0 0.55em 0.5em rgba(0, 0, 0, 0.45); }
 .wm-done { position: absolute; right: -0.35em; top: -0.35em; width: 1.25em; height: 1.25em; display: grid; place-items: center; border-radius: 50%; background: var(--accent2); color: #fff; font-style: normal; font-size: 0.7em; box-shadow: 0 0.12em 0 rgba(0, 0, 0, 0.35); }
 .wm-label { margin-top: 0.55em; padding: 0.12em 0.7em 0.16em; background: var(--paper); color: var(--ink-d); font-size: 0.86em; border-radius: 0.25em; box-shadow: 0 0.18em 0 rgba(0, 0, 0, 0.35); transform: rotate(-1.5deg); } .wm-node:nth-child(even) .wm-label { transform: rotate(1.5deg); } .wm-node.locked .wm-label { background: #4a3d34; color: #b8a890; }
+/* story scenes: the painted scene covers the whole table, with one paper tag to skip it; and the page that lists them */
+.story { position: absolute; inset: 0; z-index: 89; background: #0a0705; opacity: 0; transition: opacity 0.32s ease; pointer-events: auto; } .story.in { opacity: 1; }
+.st-frame { position: absolute; inset: 0; display: grid; place-items: center; } .st-frame canvas { display: block; transition: opacity 0.2s; }
+.st-skip { position: absolute; right: 1.1em; bottom: 1em; min-height: 3.2em; min-width: 6em; padding: 0.6em 1.3em; border: 0; border-radius: var(--radius); background: var(--paper3); color: var(--ink-d); font: 500 1.05em var(--f-head); cursor: pointer; box-shadow: 0 0.3em 0 rgba(0, 0, 0, 0.28); opacity: 0.86; }
+.st-skip:hover { background: var(--coin); opacity: 1; } .st-skip.note { cursor: default; background: transparent; box-shadow: none; color: var(--dim); text-shadow: var(--tshadow); font-size: 0.9em; min-height: 0; }
+.sp-list { display: flex; flex-direction: column; gap: 0.25em; max-height: 60vh; overflow-y: auto; padding-right: 0.3em; } .sp-row { display: flex; align-items: center; gap: 0.7em; padding: 0.3em 0.5em; border-radius: var(--radius); background: var(--paper2); color: var(--ink-d); min-height: 2.6em; }
+.sp-row.locked { color: var(--dim-d); background: transparent; } .sp-no { width: 2.6em; font-family: var(--f-head); color: var(--dim-d); } .sp-name { flex: 1; font-family: var(--f-head); }
+
 /* ── phones ──
    The game is a wide tabletop, so phones play it in landscape. A short screen gets a larger base
    font than the desktop formula would give (text stays readable) and a compact HUD to make room. */

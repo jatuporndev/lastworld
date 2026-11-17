@@ -746,7 +746,7 @@ export class World {
     this.applyCamera();
     for (const h of this.frameHooks) h(dt, T);
     for (const a of this.anchors) { const v = a.getPos(); if (!v) { a.el.style.display = 'none'; continue; } const p = this.project(v); a.el.style.display = ''; a.el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`; }
-    this.renderer.render(this.scene, this.camera);
+    if (!this.hidden) this.renderer.render(this.scene, this.camera); // (a story scene covers the whole board: nothing is drawn under it)
   }
 
   spawnAmbient(dt) {

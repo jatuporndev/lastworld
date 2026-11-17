@@ -49,6 +49,22 @@ export function getSheet(key, look, frameSize = 128) {
   return sheet;
 }
 
+// One picture of a figure in a pose given by hand, for story scenes: poses and faces the battle never uses (startled,
+// pointing, fallen). `pose` overrides the standing pose (arm, off, lean, bob, leg, squash…), `pose.mood` sets the face,
+// `pose.lie` (1 or -1) lays the figure on the ground. Painted once per figure, view and pose. The picture is two frames
+// wide with the feet at its middle, so that a raised staff or a figure lying down is not cut off at the frame's edge.
+const poseCache = new Map();
+export function posePicture(key, look, view, pose = {}, frameSize = 256) {
+  const ck = key + ':' + view + ':' + JSON.stringify(pose) + ':' + frameSize; if (poseCache.has(ck)) return poseCache.get(ck);
+  const canvas = document.createElement('canvas'); canvas.width = frameSize * 2; canvas.height = frameSize; const ctx = canvas.getContext('2d'); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.save(); ctx.translate(frameSize, frameSize * 0.96); ctx.scale(frameSize / 128, frameSize / 128);
+  if (pose.lie) { ctx.translate(-pose.lie * 34, -7); ctx.rotate(pose.lie * 1.42); }
+  const p = { bob: 0, leg: 0, arm: 0.35, off: 0.25, lean: 0, dx: 0, glow: 0, squash: 1, flap: 0, t: 0, ...pose };
+  (PAINTERS[look.body] || PAINTERS.blob)(ctx, look, view, p, 0, 'pose'); ctx.restore();
+  shadeFrame(ctx, 0, 0, frameSize); shadeFrame(ctx, frameSize, 0, frameSize); rimLight(canvas, ctx, frameSize);
+  poseCache.set(ck, canvas); return canvas;
+}
+
 // Volume: every figure is lit from above and falls into cool shadow toward its feet.
 function shadeFrame(ctx, x, y, size) {
   const g = ctx.createLinearGradient(0, y, 0, y + size);

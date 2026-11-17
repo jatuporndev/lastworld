@@ -104,6 +104,8 @@ function sleeve(c, L, P, sx, sy, hx, hy, o = {}) {
   blob(c, [[sx + nx * w0, sy + ny * w0], [hx + nx * w1 - dx * 0.12, hy + ny * w1 - dy * 0.12], [hx + dx * 0.02, hy + dy * 0.02], [hx - nx * w1 - dx * 0.12, hy - ny * w1 - dy * 0.12], [sx - nx * w0, sy - ny * w0]], P.sleeve, { line: 1.3, flip: o.flip });
   c.strokeStyle = P.trim; c.lineWidth = 1.7; c.beginPath(); c.moveTo(hx + nx * w1 * 0.8 - dx * 0.14, hy + ny * w1 * 0.8 - dy * 0.14); c.lineTo(hx - nx * w1 * 0.8 - dx * 0.14, hy - ny * w1 * 0.8 - dy * 0.14); c.stroke();
   disc(c, hx + dx * 0.05, hy + dy * 0.05, 2.6, 2.6, P.skin, { line: 1.1, shade: -0.12 });
+  if (o.wrap === 'void') { disc(c, hx + dx * 0.05, hy + dy * 0.05, 3.4, 3.4, '#07040c', { line: 0, shade: 0 }); glow(c, hx + dx * 0.05, hy + dy * 0.05, 11, '#b040ff', 0.75); } // (story) where the hand should be there is nothing
+  else if (o.wrap) { disc(c, hx - dx * 0.02, hy - dy * 0.02, 3.5, 3.5, o.wrap, { line: 1.1 }); c.fillStyle = '#a8323a'; c.beginPath(); c.arc(hx + dx * 0.04 - 0.8, hy + dy * 0.04 + 0.6, 1.3, 0, 7); c.fill(); } // (story) a hand bound in cloth, the blood on it still red
 }
 function cape(c, L, back, p) {
   const s = p.leg * 3;
@@ -117,7 +119,8 @@ function wings(c, L, p) {
 
 // ── head ──
 const FACE = [[40.5, 62], [41.5, 49], [52, 43], [66, 43], [77, 49.5], [78.5, 62], [74, 74.5], [61, 79.5], [49, 76.5]];
-function face(c, L, P) {
+// `mood` (story scenes only) changes the eyes, brows and mouth: shock, angry, sad, smile, down (eyes shut), talk. Without it the face is the one the battle shows.
+function face(c, L, P, mood) {
   blob(c, FACE, P.skin, { shade: -0.1, cut: 0.3, foot: 0.06, lineColor: tone(P.skin, -0.5) });
   if (L.skeleton) { // skull: hollow sockets, a nose notch and a row of teeth
     for (const [x, rx] of [[47.5, 3.6], [62.5, 4.6]]) { c.fillStyle = '#1a1014'; c.beginPath(); c.ellipse(x, 64, rx, 5, 0, 0, 7); c.fill(); if (L.glowEyes) { glow(c, x, 64, 7, L.glowEyes, 0.9); c.fillStyle = L.glowEyes; c.beginPath(); c.arc(x, 64, 1.5, 0, 7); c.fill(); } }
@@ -127,14 +130,21 @@ function face(c, L, P) {
   }
   // plain eyes: a small dark oval with one glint (no iris, no big lashes); a glowing colour replaces it
   for (const [x, rx] of [[47.5, 1.9], [62.5, 2.4]]) {
+    if (mood === 'down' || mood === 'smile') { c.strokeStyle = '#241a22'; c.lineWidth = 1.5; c.lineCap = 'round'; c.beginPath(); c.moveTo(x - rx - 0.8, 65); c.quadraticCurveTo(x, mood === 'smile' ? 62 : 67.6, x + rx + 0.8, 65); c.stroke(); continue; }
+    if (mood === 'shock') { c.fillStyle = '#fff'; c.strokeStyle = '#241a22'; c.lineWidth = 1; c.beginPath(); c.ellipse(x, 64.6, rx + 1.7, 4.3, 0, 0, 7); c.fill(); c.stroke(); c.fillStyle = L.glowEyes || '#241a22'; c.beginPath(); c.arc(x, 64.8, 1.15, 0, 7); c.fill(); continue; }
     c.fillStyle = L.glowEyes || '#241a22'; c.beginPath(); c.ellipse(x, 65, rx, 3.1, 0, 0, 7); c.fill();
     c.fillStyle = '#fff'; c.beginPath(); c.arc(x + rx * 0.3, 63.8, 0.8, 0, 7); c.fill();
     if (!P.male) { c.strokeStyle = '#241a22'; c.lineWidth = 1.1; c.lineCap = 'round'; c.beginPath(); c.moveTo(x + rx, 62.6); c.lineTo(x + rx + 1.8, 61.4); c.stroke(); }
     if (L.glowEyes) glow(c, x, 65, 8, L.glowEyes, 0.8);
   }
-  c.strokeStyle = tone(P.hair, -0.45); c.lineWidth = P.male ? 1.6 : 1.1; c.beginPath(); c.moveTo(44.5, 59.6); c.lineTo(50, P.male ? 60.2 : 59); c.moveTo(59.5, P.male ? 60.2 : 58.8); c.lineTo(66, 59.6); c.stroke();
+  c.strokeStyle = tone(P.hair, -0.45); c.lineWidth = P.male ? 1.6 : 1.1; const bo = mood === 'shock' ? -2.8 : mood === 'angry' ? -1.6 : mood === 'sad' ? 1.2 : 0, bi = mood === 'shock' ? -2.8 : mood === 'angry' ? 1.5 : mood === 'sad' ? -1.7 : 0; // the outer and inner ends of the brows
+  c.beginPath(); c.moveTo(44.5, 59.6 + bo); c.lineTo(50, (P.male ? 60.2 : 59) + bi); c.moveTo(59.5, (P.male ? 60.2 : 58.8) + bi); c.lineTo(66, 59.6 + bo); c.stroke();
   c.fillStyle = P.male ? 'rgba(255,120,130,0.2)' : 'rgba(255,120,130,0.45)'; c.beginPath(); c.ellipse(44.5, 71, 2.8, 1.5, 0, 0, 7); c.fill(); c.beginPath(); c.ellipse(68, 71, 3.4, 1.7, 0, 0, 7); c.fill();
-  if (L.beard) blob(c, [[44, 69], [53, 72], [66, 72], [74, 68], [72, 80], [61, 87], [49, 81]], L.beard, { line: 1.2, light: 0.2 });
+  const open = mood === 'shock' || mood === 'talk';
+  if (L.beard) { blob(c, [[44, 69], [53, 72], [66, 72], [74, 68], [72, 80], [61, 87], [49, 81]], L.beard, { line: 1.2, light: 0.2 }); if (open) { c.fillStyle = '#4a1620'; c.beginPath(); c.ellipse(55, 76.6, 2.3, mood === 'shock' ? 3 : 1.7, 0, 0, 7); c.fill(); } }
+  else if (open) { c.fillStyle = '#5a1a22'; c.beginPath(); c.ellipse(54.8, 74.6, mood === 'shock' ? 2.3 : 2.2, mood === 'shock' ? 3.1 : 1.7, 0, 0, 7); c.fill(); }
+  else if (mood === 'smile') { c.strokeStyle = '#9a3a4a'; c.lineWidth = 1.3; c.lineCap = 'round'; c.beginPath(); c.moveTo(51.2, 72.6); c.quadraticCurveTo(54.8, 77, 58.4, 72.4); c.stroke(); }
+  else if (mood === 'angry' || mood === 'sad') { c.strokeStyle = '#9a4a4a'; c.lineWidth = 1.2; c.lineCap = 'round'; c.beginPath(); c.moveTo(52, 74.8); c.quadraticCurveTo(54.6, 72.6, 57.2, 74.6); c.stroke(); }
   else if (P.male) { c.strokeStyle = '#9a4a4a'; c.lineWidth = 1.1; c.beginPath(); c.moveTo(52.6, 73.6); c.quadraticCurveTo(54.6, 74.6, 56.8, 73.4); c.stroke(); }
   else { c.fillStyle = '#9a3a4a'; c.beginPath(); c.moveTo(52.8, 72.6); c.quadraticCurveTo(54.9, 75.8, 57, 72.6); c.closePath(); c.fill(); }
 }
@@ -155,12 +165,14 @@ function hairRear(c, P, len) {
   c.strokeStyle = tone(P.hair, 0.5); c.lineWidth = 1.6; c.beginPath(); c.moveTo(46, 50); c.quadraticCurveTo(60, 44.5, 74, 50); c.stroke();
 }
 const SKULL = [[37.5, 62], [39, 45.5], [51.5, 37.5], [67.5, 37.5], [80.5, 45.5], [82, 62], [78.5, 75], [61, 81], [43.5, 76]];
-function headgear(c, L, P, back) {
+function headgear(c, L, P, back, mood) {
   const m = back ? -1 : 1, X = (x) => (back ? 120 - x : x), pt = (pts) => pts.map(([x, y, s]) => [X(x), y, s]);
   switch (L.helm) {
     case 'knight': case 'horned': {
       blob(c, pt(SKULL), tone(L.armor, 0.22), { flip: back, light: 0.35 });
-      if (!back) { c.fillStyle = '#17121a'; c.beginPath(); c.roundRect(42.5, 61, 30, 6.4, 2.4); c.fill(); c.fillStyle = L.glowEyes || '#f4f1ea'; for (const x of [49, 63]) { c.beginPath(); c.arc(x, 64.2, 1.3, 0, 7); c.fill(); if (L.glowEyes) glow(c, x, 64.2, 7, L.glowEyes, 0.9); }
+      if (!back) { c.fillStyle = '#17121a'; c.beginPath(); c.roundRect(42.5, 61, 30, 6.4, 2.4); c.fill(); c.fillStyle = L.glowEyes || '#f4f1ea'; for (const x of [49, 63]) { c.beginPath(); // (behind a visor the eyes are all there is of the face, so the mood is told with them)
+          if (mood === 'down') c.rect(x - 1.8, 64, 3.6, 0.9); else if (mood === 'smile') { c.arc(x, 65.2, 1.9, Math.PI, 0); c.arc(x, 65.2, 0.9, 0, Math.PI, true); } else if (mood === 'angry') { const d = x < 56 ? 1 : -1; c.moveTo(x - 2, 64.2 - d * 1.3); c.lineTo(x + 2, 64.2 + d * 1.3); c.lineTo(x + 2, 65.6); c.lineTo(x - 2, 65.6); } else c.arc(x, 64.2, mood === 'shock' ? 2.1 : 1.3, 0, 7);
+          c.fill(); if (L.glowEyes) glow(c, x, 64.2, 7, L.glowEyes, 0.9); }
         c.strokeStyle = tone(L.armor, -0.4); c.lineWidth = 1; c.beginPath(); c.moveTo(57, 68); c.lineTo(57, 78); c.stroke(); }
       if (L.helm === 'knight') blob(c, pt([[58, 40], [70, 29], [84, 33, 1], [80, 44], [86, 56, 1], [72, 47], [64, 40]]), L.cloth, { line: 1.2, flip: back, light: 0.2 });
       else if (L.overlord) for (const s of [-1, 1]) blob(c, [[60 + s * 15, 47], [60 + s * 34, 42], [60 + s * 40, 22], [60 + s * 30, 4, 1], [60 + s * 31, 24], [60 + s * 22, 36], [60 + s * 11, 41]], '#2a0c10', { line: 1.3, flip: s < 0, light: 0.25 });
@@ -289,14 +301,14 @@ export function paintChibi(c, L, view, p, anim, kit) {
     hold(L.weapon, wHand, a, false);
     if (!floorLength(L)) legs(c, P, true, p);
     body(c, L, P, true, p);
-    sleeve(c, L, P, 70, 82, wHand[0], wHand[1], { flip: 1 }); sleeve(c, L, P, 50, 82, oHand[0], oHand[1]);
+    sleeve(c, L, P, 70, 82, wHand[0], wHand[1], { flip: 1, wrap: L.wrap }); sleeve(c, L, P, 50, 82, oHand[0], oHand[1]);
     if (P.armoured || L.bulky) { disc(c, 48, 81, 5, 4, tone(L.armor, 0.2), { line: 1.2 }); disc(c, 72, 81, 5, 4, tone(L.armor, 0.2), { line: 1.2, flip: 1 }); }
     if (L.cape) cape(c, L, true, p);
     regaliaBehind(c, L, p); regaliaShoulders(c, L);
     if (hairy && L.helm !== 'hood' && L.helm !== 'mask') hairRear(c, P, len + 2);
     else if (!hairy) blob(c, SKULL, L.skeleton ? L.skin : P.skin, { flip: 1, shade: -0.12 });
     if (L.female && helmed && L.hair) blob(c, [[55, 70], [65, 70], [68, 96], [62, 106, 1], [56, 97]], L.hair, { line: 1.2, light: 0.3 }); // ponytail under the helm
-    headgear(c, L, P, true);
+    headgear(c, L, P, true, p.mood);
   } else {
     if (L.cape) cape(c, L, false, p);
     regaliaBehind(c, L, p);
@@ -309,10 +321,10 @@ export function paintChibi(c, L, view, p, anim, kit) {
     else if (L.robe || L.gown) { blob(c, [[54, 78], [66, 78], [63, 84], [60, 86.5, 1], [57, 84]], tone(L.armor, 0.6), { line: 1 }); disc(c, 60, 82, 1.8, 1.8, L.cloth || '#ff5c8a', { line: 0.8, light: 0.6 }); }
     regaliaShoulders(c, L);
     if (L.scarf) { blob(c, [[50, 77], [70, 77], [72, 83], [60, 87], [48, 83]], L.scarf, { line: 1.1 }); blob(c, [[66, 82], [71, 82], [73, 96, 1], [68, 92]], L.scarf, { line: 1.1, flip: 1 }); }
-    if (!helmed) { face(c, L, P); castShadow(c, FACE, 60, L.helm === 'wizard' || L.helm === 'hood' || L.helm === 'mask' ? 49 : 46, 22, L.helm === 'wizard' ? 10 : 8, 0.34); }
+    if (!helmed) { face(c, L, P, p.mood); castShadow(c, FACE, 60, L.helm === 'wizard' || L.helm === 'hood' || L.helm === 'mask' ? 49 : 46, 22, L.helm === 'wizard' ? 10 : 8, 0.34); }
     if (hairy) bangs(c, P);
-    headgear(c, L, P, false);
-    hold(L.weapon, wHand, a, false); sleeve(c, L, P, 50, 82, wHand[0], wHand[1]);
+    headgear(c, L, P, false, p.mood);
+    hold(L.weapon, wHand, a, false); sleeve(c, L, P, 50, 82, wHand[0], wHand[1], { wrap: L.wrap });
   }
   regaliaAir(c, L, p, back);
   if (p.glow > 0) glow(c, wHand[0], wHand[1] - 10, 20 * p.glow, L.crownColor || '#a0d0ff', 0.6);

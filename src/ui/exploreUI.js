@@ -16,6 +16,7 @@ import { openMenu, openQuests } from './panels.js';
 import { Coop } from '../net/coop.js';
 import { bus } from '../core/util.js';
 import { lobbyModal } from './coopUI.js';
+import { STORY } from '../story/when.js';
 
 export class ExploreScene {
   constructor(app, stageId, opts = {}) {
@@ -194,9 +195,9 @@ export class ExploreScene {
       }
       case 'treasure': { audio.sfx('chest'); const r = sm.openTreasure(c); this.clearNode(c); this.share('loot', { kind: 'treasure', cell: { q: c.q, r: c.r } }); await lootModal(t('Treasure Cache'), r); break; }
       case 'resource': { audio.sfx('coin'); const r = sm.gatherResource(c); this.clearNode(c); this.share('loot', { kind: 'resource', cell: { q: c.q, r: c.r } }); await lootModal(t('Resources Gathered'), r); break; }
-      case 'rest': this.share('view', { kind: 'rest' }); await this.restPrompt(c); break;
+      case 'rest': await this.app.story(STORY.explore(this.stage.id)); this.share('view', { kind: 'rest' }); await this.restPrompt(c); break;
       case 'shop': this.share('view', { kind: 'shop', cards: this.sm.shopStock(c).filter((e) => e.kind === 'card').map((e) => e.id) }); await this.shop(c); this.share('note', { close: true }); break;
-      case 'event': case 'shrine': await this.event(c); break;
+      case 'event': case 'shrine': await this.app.story(STORY.explore(this.stage.id)); await this.event(c); break;
       default: break;
     }
     this.refreshHud();
