@@ -732,7 +732,7 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 
 /* icons and portraits on paper */
 .tab:not(.on) .icon { filter: brightness(0.4); } .modal .item-icon .icon, .wm-detail .item-icon .icon { filter: brightness(0.6) saturate(1.5); }
-.hero-stage { overflow: hidden; } .hero-stage canvas { max-height: 100%; width: auto !important; height: 100% !important; }
+.hero-stage { overflow: hidden; } .hero-stage canvas { width: auto !important; height: 14em !important; } /* (the stage's own height, said outright: "100%" of a grid cell is not a height, and on a dense screen the sharper, larger picture then showed at its full size, cut off) */
 
 /* camera turn buttons: two round tokens on the left edge */
 .cam-ctl { position: absolute; left: 0.9em; top: 46%; display: flex; flex-direction: column; gap: 0.5em; pointer-events: auto !important; z-index: 6; }
