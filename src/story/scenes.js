@@ -400,13 +400,16 @@ async function s10N(P) {
   await tell(B.hero, '10N.4', { pose: 'smile', dir: -1 }); await wait(300); await close();
 }
 const s7B = (P) => bossScene(P, { set: 7, id: 'sporemother', how: 'grow', open: 'peek', end: 'push', async lines(B, boss, sh) {
-  // past their shoulders: it is in no hurry
+  // they speak first, and not to it: what the old man wrote in the margin did not cover this
+  await tell(B.two, '7B.0', { pose: 'point' }); await tell(B.hero, '7B.0b', { pose: 'sad', ...(B.solo ? { d: 3.5 } : {}) });
+  // past their shoulders: it is in no hurry, and it does not wait for an answer
   cut(sh.over()); drift(4200, 1.4); await say(boss, L('7B.1'));
-  emote(B.two, '…', 900); await tell(B.two, '7B.2', { pose: 'sad', ms: 1900 });
   // it leans toward them, and the air between fills with what it sheds
   boss.anim = 'cast'; boss.once = 0; cut(sh.low({ d: Math.min(boss.size * 2.5, 11) })); tw(S.cam, sh.low({ d: boss.size * 1.6 }), 2800, 'in'); sfx('poison');
   const sp = Array.from({ length: 14 }, (_, i) => ({ x: boss.x + (i - 6.5) * 0.5, y: 1 + (i % 5) * 0.6, z: boss.z - 1, r: 0.07, c: ['#e8fff8', '#80ffd0'] })); S.orbs.push(...sp); sp.forEach((q, i) => tw(q, { z: boss.z - 8 - (i % 3), x: q.x + (i - 6.5) * 0.4, r: 0.2 }, 2700, 'in'));
   await say(boss, L('7B.3')); S.orbs.length = 0; boss.anim = 'idle';
+  // the last word is theirs, and it is said quietly
+  emote(B.two, '…', 900); await tell(B.two, '7B.2', { pose: 'sad', ms: 1900 });
 } });
 const s8B = (P) => bossScene(P, { set: 8, id: 'iron_regent', how: 'drop', open: 'top', async lines(B, boss, sh) {
   // from overhead, as it sees them: things in a street, to be sorted
@@ -418,15 +421,18 @@ const s8B = (P) => bossScene(P, { set: 8, id: 'iron_regent', how: 'drop', open: 
   if (!B.solo) await tell(B.two, '8B.4', { pose: 'smile', ms: 1900 }); else { emote(B.hero, 'sweat', 800); await tell(B.hero, '8B.4', { pose: 'smile', ms: 1900 }); }
 } });
 const s9B = (P) => bossScene(P, { set: 9, id: 'leviathan', how: 'surface', open: 'front', end: 'push', side: 7, async lines(B, boss, sh) {
-  // from the causeway where they stand, looking up at it
-  cut(sh.up()); drift(3200, 0.5); await say(boss, L('9B.1'));
-  // from over its crest: a strip of sand, and small figures on it
-  cut(sh.past({ h: boss.size * 0.85 })); drift(2800, 0.5); B.hero.pose = 'stern'; await say(B.hero, L('9B.2')); B.hero.pose = null;
-  // it comes down to the water to say the rest
-  boss.anim = 'cast'; boss.once = 0; cut(sh.low({ d: boss.size * 1.75 })); drift(4000, 0.6); dirt(boss.x, boss.z - 1, 40, 1.4, SPRAY); shake(8); await say(boss, L('9B.3')); boss.anim = 'idle';
+  // it does not strike. From the causeway where they stand, looking up at it: a long look, and nothing said
+  cut(sh.up()); drift(2400, 0.5); all(B.all, (a) => { a.pose = 'ready'; }); await wait(2000);
+  // from over its crest: a strip of sand, and small figures on it. One of them sees what it is looking at
+  cut(sh.past({ h: boss.size * 0.85 })); drift(3200, 0.5); B.two.pose = 'point'; await say(B.two, L('9B.0')); B.two.pose = 'ready';
+  cut(sh.up()); drift(3200, 0.6); await say(boss, L('9B.1'));
+  // it comes down to the water to say the rest, and the wave goes over the causeway
+  boss.anim = 'cast'; boss.once = 0; cut(sh.low({ d: boss.size * 1.75 })); drift(4000, 0.6); dirt(boss.x, boss.z - 1, 60, 1.8, SPRAY); shake(16); sfx('wind'); all(B.all, (a) => { hop(a, 0.4, 300); dirt(a.x, a.z, 10, 0.8, SPRAY); }); await say(boss, L('9B.3')); boss.anim = 'idle';
 } });
 const s10B = (P) => bossScene(P, { set: 10, id: 'pyrelord', how: 'erupt', open: 'lair', end: 'behind', async lines(B, boss, sh) {
-  // from far off: a black shape against its own fire
+  // the leader puts the weapon down and tries words first
+  calm(B.all); await tell(B.hero, '10B.0', { pose: 'halt' });
+  // from far off: a black shape against its own fire. It has not listened
   cut(sh.wide({ d: 18, h: 1.4, sy: H * 0.6 })); boss.dark = 0.85; drift(4400, 1.8); await say(boss, L('10B.1')); tw(boss, { dark: 0 }, 500);
   await tell(B.two, '10B.2', { pose: 'point' });
   boss.anim = 'cast'; boss.once = 0; cut(sh.low({ d: boss.size * 1.75 })); S.flash = 0.5; S.lines = 0.7; run(1000, () => shake(10)); drift(3200, 0.7); await say(boss, L('10B.3'), undefined, 'shout'); S.lines = 0; boss.anim = 'idle';

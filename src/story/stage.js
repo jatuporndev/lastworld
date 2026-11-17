@@ -62,6 +62,7 @@ const POSES = {
   sad: { lean: 0.1, arm: 0.12, off: 0.08, squash: 0.97, mood: 'sad' },
   smile: { mood: 'smile' }, talk: { mood: 'talk' }, shut: { mood: 'down' }, stern: { mood: 'angry' },
   give: { arm: 0.2, off: 1.5, lean: 0.06, mood: 'smile' }, // one hand held out, with something in it
+  halt: { arm: 0.15, off: 1.75, lean: -0.05, mood: 'talk' }, // the weapon down and an open hand up: wait
   write: { arm: 1.2, off: 1.25, lean: 0.12, mood: 'down' }, // bent over the map, pen to paper
   kneel: { squash: 0.8, lean: 0.2, arm: 0.1, off: 0.1, bob: 6, mood: 'sad' },
   down: { lie: 1, arm: 0.2, off: 0.9, mood: 'down' },
