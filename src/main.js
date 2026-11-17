@@ -149,14 +149,14 @@ class App {
   }
 
   // ───── story scenes (src/story: fetched when the first one is due) ─────
-  // Each scene plays once per character. In co-op the host's game decides, and every player watches it together.
-  storySeen(id) { return !!G.state?.stats?.story?.['s' + id]; }
+  // Each scene plays once per world (a new world tells the story from the start). In co-op the host's game decides, and every player watches it together.
+  storySeen(id) { return !!G.state?.story?.['s' + id]; }
   // Play the scenes in `ids` that this character has not seen (replay: play them whatever was seen). Returns how many played.
   async story(ids, { replay = false } = {}) {
     let n = 0;
     for (const id of [].concat(ids || [])) {
       if (!G.state || Coop.isGuest || (!replay && this.storySeen(id))) continue;
-      if (!replay) { (G.state.stats.story ||= {})['s' + id] = 1; touch(); }
+      if (!replay) { (G.state.story ||= {})['s' + id] = 1; touch(); }
       this.sv = { id, set: new Set() };
       if (Coop.isHost) Coop.send({ t: 'story', id });
       await this.playStory(id, this.storyVoteOpts(id)); n++;
@@ -377,7 +377,7 @@ class App {
       }
       case 'travel': this.closeGuestModals(); document.querySelector('.rc-wait')?.remove(); audio.music('world'); this.lift = await travelScene(m.a, m.b); break; // the host's scene message follows it and lifts the picture
       case 'story': // the host's scene: watched here too, unless the host has already skipped it
-        if (!this.storyCut?.has(m.id)) { (st.stats.story ||= {})['s' + m.id] = 1; touch(); this.closeGuestModals(); await this.playStory(m.id, this.storyVoteOpts(m.id)); }
+        if (!this.storyCut?.has(m.id)) { this.closeGuestModals(); await this.playStory(m.id, this.storyVoteOpts(m.id)); }
         this.storyCut?.delete(m.id); break;
       case 'walk': if (sc) await sc.walk(m.path); break;
       // treasure and resources: every player gets their own share

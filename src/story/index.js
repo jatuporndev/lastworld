@@ -44,7 +44,7 @@ export async function playStory(id, party, { canSkip = true, onSkip = null, onSh
   return !me.skipped;
 }
 
-// The "Story" page: every scene this character has seen, by realm, to watch again.
+// The "Story" page: every scene this world has shown, by realm, to watch again.
 export function storyPage(app, seen, canPlay) {
   const rows = ORDER.filter((id) => id !== '1B' || seen(id)).map((id) => { const ok = seen(id);
     return h('div.sp-row' + (ok ? '' : '.locked'), h('span.sp-no', id), h('span.sp-name', ok ? titleOf(id) : '???'), ok ? btn(t('Watch'), () => { m.close(); app.story(id, { replay: true }); }, { cls: 'small', disabled: !canPlay }) : null); });

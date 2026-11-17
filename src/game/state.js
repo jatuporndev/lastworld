@@ -18,7 +18,7 @@ export const MAX_WORLDS = 6;
 //   In online co-op the party also lists the other players' heroes (remote: true, never saved here).
 export const G = { profile: null, state: null };
 const CHAR_KEYS = ['gold', 'shards', 'inv', 'cards', 'quests', 'stats'];
-const WORLD_KEYS = ['unlocked', 'cleared', 'run', 'seenIntro', 'nextBuff'];
+const WORLD_KEYS = ['unlocked', 'cleared', 'run', 'seenIntro', 'nextBuff', 'story']; // story: the story scenes this world has shown ({ s1A: 1, … }): a new world tells the story again
 const newId = (p) => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 export function emptyProfile() { return { version: SAVE_VERSION, created: Date.now(), updated: 0, settings: { music: 0.45, sfx: 0.7 }, chars: {}, worlds: {}, last: {} }; }
@@ -35,7 +35,7 @@ export function createCharacter(cls, name, gender = 'm') {
   return c;
 }
 export function createWorld(name) {
-  const w = { id: newId('w'), name, created: Date.now(), unlocked: 1, cleared: {}, run: null, seenIntro: {}, nextBuff: null };
+  const w = { id: newId('w'), name, created: Date.now(), unlocked: 1, cleared: {}, run: null, seenIntro: {}, nextBuff: null, story: {}, sv: 1 };
   G.profile.worlds[w.id] = w; touchProfile();
   return w;
 }
@@ -51,7 +51,7 @@ export function openSession(worldId, charId) {
   const st = { worldId, charId, party: [c.hero], settings: P.settings };
   CHAR_KEYS.forEach((k) => { st[k] = c[k]; });
   if (w) { WORLD_KEYS.forEach((k) => { st[k] = w[k]; }); w.lastChar = charId; }
-  else Object.assign(st, { unlocked: 1, cleared: {}, run: null, seenIntro: {}, nextBuff: null });
+  else Object.assign(st, { unlocked: 1, cleared: {}, run: null, seenIntro: {}, nextBuff: null, story: {} });
   P.last = { world: worldId || P.last.world || null, char: charId };
   G.state = st;
   return st;
@@ -85,7 +85,7 @@ function fixChar(c) {
   return c;
 }
 function fixWorld(w) {
-  w.unlocked = w.unlocked || 1; w.cleared = w.cleared || {}; w.seenIntro = w.seenIntro || {}; w.nextBuff = w.nextBuff || null;
+  w.unlocked = w.unlocked || 1; w.cleared = w.cleared || {}; w.seenIntro = w.seenIntro || {}; w.nextBuff = w.nextBuff || null; w.story = w.story || {};
   // a world that had cleared its last stage when the game was shorter: the stages added since open up
   while (w.cleared[w.unlocked] && w.unlocked < STAGES.length) w.unlocked++;
   if (w.run) { w.run.cleared = w.run.cleared || {}; w.run.seen = w.run.seen || {}; w.run.shop = w.run.shop || {}; } else w.run = null;
@@ -139,6 +139,12 @@ export function normalizeProfile(s) {
   s.version = SAVE_VERSION; s.settings = { music: 0.45, sfx: 0.7, ...(s.settings || {}) };
   s.chars = s.chars || {}; s.worlds = s.worlds || {}; s.last = s.last || {};
   Object.values(s.chars).forEach(fixChar); Object.values(s.worlds).forEach(fixWorld);
+  // Story scenes were first remembered by the character. A world from then takes over what its last character had seen,
+  // as far as the world itself has got, so nothing plays a second time in the middle of it. (sv marks a world as moved.)
+  for (const w of Object.values(s.worlds)) {
+    if (w.sv) continue; w.sv = 1; if (!w.run && w.unlocked < 2) continue; // (a world nobody has set foot in starts clean)
+    for (const k of Object.keys(s.chars[w.lastChar]?.stats?.story || {})) if ((parseInt(k.slice(1), 10) || 0) <= w.unlocked) w.story[k] = 1;
+  }
   if (old) Object.values(s.chars).forEach(rescaleChar);
   return s;
 }
