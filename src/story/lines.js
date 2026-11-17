@@ -125,6 +125,7 @@ const T = {
   '11C.5': ['The last world became the first of many.', 'โลกใบสุดท้าย กลับเป็นใบแรกของอีกมากมาย'],
   // the paper tags
   skip: ['Skip »', 'ข้าม »'],
+  allSkip: ['when everyone presses', 'ข้ามเมื่อกดครบทุกคน'],
   hostSkips: ['The host can skip', 'หัวหน้าห้องเป็นคนกดข้าม'],
 };
 // What each scene is called on the "Story" page.

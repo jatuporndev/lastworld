@@ -1024,6 +1024,7 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .story { position: absolute; inset: 0; z-index: 89; background: #0a0705; opacity: 0; transition: opacity 0.32s ease; pointer-events: auto; } .story.in { opacity: 1; }
 .st-frame { position: absolute; inset: 0; display: grid; place-items: center; } .st-frame canvas { display: block; transition: opacity 0.2s; }
 .st-skip { position: absolute; right: 1.1em; bottom: 1em; min-height: 3.2em; min-width: 6em; padding: 0.6em 1.3em; border: 0; border-radius: var(--radius); background: var(--paper3); color: var(--ink-d); font: 500 1.05em var(--f-head); cursor: pointer; box-shadow: 0 0.3em 0 rgba(0, 0, 0, 0.28); opacity: 0.86; }
+.st-skip.vote small { display: block; font: 400 0.68em var(--f-body); color: var(--dim-d); } .st-skip.vote.on { background: var(--coin); opacity: 1; }
 .st-skip:hover { background: var(--coin); opacity: 1; } .st-skip.note { cursor: default; background: transparent; box-shadow: none; color: var(--dim); text-shadow: var(--tshadow); font-size: 0.9em; min-height: 0; }
 .sp-list { display: flex; flex-direction: column; gap: 0.25em; max-height: 60vh; overflow-y: auto; padding-right: 0.3em; } .sp-row { display: flex; align-items: center; gap: 0.7em; padding: 0.3em 0.5em; border-radius: var(--radius); background: var(--paper2); color: var(--ink-d); min-height: 2.6em; }
 .sp-row.locked { color: var(--dim-d); background: transparent; } .sp-no { width: 2.6em; font-family: var(--f-head); color: var(--dim-d); } .sp-name { flex: 1; font-family: var(--f-head); }

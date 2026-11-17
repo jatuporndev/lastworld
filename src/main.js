@@ -140,10 +140,11 @@ class App {
   // `cut`: build the stage at once with no fade to black (something else is covering the screen, e.g. the journey scene)
   async enterStage(id, { cut = false } = {}) {
     const st = G.state; const fresh = !(st.run && st.run.stageId === id);
-    const build = () => { this.disposeScene(); clearScreens(); this.leaveDiorama(); this.scene = new ExploreScene(this, id, { fresh }); this.scene.build(); };
+    const due = !Coop.isGuest && [].concat(STORY.start(id) || []).some((s) => !this.storySeen(s)); // a scene opens this realm: the board stays dark until it has begun
+    const build = () => { this.disposeScene(); clearScreens(); this.leaveDiorama(); this.scene = new ExploreScene(this, id, { fresh }); this.scene.build(); if (due) this.storyCover(); };
     if (cut) build(); else await transition(build);
     this.hostScene();
-    await this.story(STORY.start(id));
+    try { await this.story(STORY.start(id)); } finally { this.storyCover(false); }
     if (!st.seenIntro[id]) { st.seenIntro[id] = true; touch(); await stageIntro(STAGE_BY_ID[id]); }
   }
 
@@ -156,14 +157,36 @@ class App {
     for (const id of [].concat(ids || [])) {
       if (!G.state || Coop.isGuest || (!replay && this.storySeen(id))) continue;
       if (!replay) { (G.state.stats.story ||= {})['s' + id] = 1; touch(); }
+      this.sv = { id, set: new Set() };
       if (Coop.isHost) Coop.send({ t: 'story', id });
-      await this.playStory(id, { onSkip: () => { if (Coop.isHost) Coop.send({ t: 'storySkip', id }); } }); n++;
+      await this.playStory(id, this.storyVoteOpts(id)); n++;
     }
     return n;
   }
   // Never throws and never hangs: a scene that cannot load or breaks is simply not shown.
+  // Black over the board while a scene that is due is still being fetched, so the board is not seen for a moment first.
+  storyCover(on = true) {
+    if (!on) { this._cover?.remove(); this._cover = null; return; }
+    if (!this._cover) { this._cover = document.createElement('div'); this._cover.className = 'story in'; this._cover.style.transition = 'none'; document.getElementById('game').appendChild(this._cover); }
+  }
+  // With friends, a scene is skipped only when every player in the room has pressed skip (pressing again takes it back).
+  // Each press goes to everyone, so all see the count; the host's game is the one that calls it.
+  storyVoteOpts(id) {
+    if (!Coop.active) return {};
+    const mine = () => this.sv?.id === id && this.sv.set.has(Coop.me);
+    return { vote: { toggle: () => this.storyVote(id, Coop.me, !mine(), true), state: () => ({ n: this.sv?.id === id ? [...this.sv.set].filter((p) => Coop.players[p]).length : 0, N: Object.keys(Coop.players).length, mine: mine() }) } };
+  }
+  storyVote(id, who, on, mine = false) {
+    if (this.sv?.id !== id) this.sv = { id, set: new Set() };
+    if (on) this.sv.set.add(who); else this.sv.set.delete(who);
+    if (mine) Coop.send({ t: 'storyVote', id, on: !!on });
+    import('./story/index.js').then((x) => {
+      x.storyVotesChanged(); const ids = Object.keys(Coop.players);
+      if (Coop.isHost && x.storyPlaying() === id && ids.length && ids.every((p) => this.sv.set.has(p))) { Coop.send({ t: 'storySkip', id }); x.skipStory(id); }
+    }).catch(() => {});
+  }
   async playStory(id, opts = {}) {
-    try { const m = await import('./story/index.js'); await m.playStory(id, G.state?.party || [], { ...opts, world: this.world }); } catch (e) { console.error('[story]', id, e); }
+    try { const m = await import('./story/index.js'); await m.playStory(id, G.state?.party || [], { ...opts, world: this.world, onShown: () => this.storyCover(false) }); } catch (e) { console.error('[story]', id, e); }
   }
   async openStory() { try { const m = await import('./story/index.js'); m.storyPage(this, (id) => this.storySeen(id), !Coop.active); } catch (e) { console.error('[story]', e); } }
 
@@ -258,11 +281,13 @@ class App {
   bindCoop() {
     bus.on('coop:players', () => { coopBadge(this); if (!this.inBattle) this.syncParty(); });
     bus.on('coop:join', (id) => { toast(t('{name} joined the room', { name: Coop.nameOf(id) }), 'good'); if (!this.inBattle) this.hostScene(); });
-    bus.on('coop:left', (id) => { toast(t('A player left the room')); delete this.pst[id]; bus.emit('coop:state', id); });
+    bus.on('coop:left', (id) => { toast(t('A player left the room')); delete this.pst[id]; bus.emit('coop:state', id); if (this.sv) this.storyVote(this.sv.id, id, false); }); // (one fewer to wait for)
     bus.on('coop:closed', (why) => this.onRoomClosed(why));
     bus.on('coop:msg', (m) => {
       if (m.t === 'b') { (Coop.bbuf ||= []).push(m); return; } // battle commands go to the battle scene
       if (m.t === 'storySkip') { (this.storyCut ||= new Set()).add(m.id); import('./story/index.js').then((x) => x.skipStory(m.id)).catch(() => {}); return; } // the host skipped: at once, not in turn
+      if (m.t === 'storyVote') { this.storyVote(m.id, m.from, m.on); return; } // any player: "I would skip this" (or not, after all)
+      if (m.t === 'story') this.sv = { id: m.id, set: new Set() };
       if (m.t === 'st') { (this.pst[m.from] ||= {})[m.k] = m.on || false; this.scene?.showStatus?.(m.from); bus.emit('coop:state', m.from); return; } // any player: "this is what I am doing"
       if (Coop.isGuest && m.from === Coop.hostId) this.guestQ = this.guestQ.then(() => this.guestHandle(m)).catch((e) => console.error('[co-op]', e));
     });
@@ -352,7 +377,7 @@ class App {
       }
       case 'travel': this.closeGuestModals(); document.querySelector('.rc-wait')?.remove(); audio.music('world'); this.lift = await travelScene(m.a, m.b); break; // the host's scene message follows it and lifts the picture
       case 'story': // the host's scene: watched here too, unless the host has already skipped it
-        if (!this.storyCut?.has(m.id)) { (st.stats.story ||= {})['s' + m.id] = 1; touch(); this.closeGuestModals(); await this.playStory(m.id, { canSkip: false }); }
+        if (!this.storyCut?.has(m.id)) { (st.stats.story ||= {})['s' + m.id] = 1; touch(); this.closeGuestModals(); await this.playStory(m.id, this.storyVoteOpts(m.id)); }
         this.storyCut?.delete(m.id); break;
       case 'walk': if (sc) await sc.walk(m.path); break;
       // treasure and resources: every player gets their own share

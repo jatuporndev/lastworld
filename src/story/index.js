@@ -14,19 +14,23 @@ export const ORDER = Object.keys(SCENES);
 // Cut the scene on screen short (id given: only if it is that one).
 export function skipStory(id = null) { if (playing && (!id || playing.id === id)) { playing.skipped = true; skip(); } }
 export const storyPlaying = () => playing?.id || null;
+export const storyVotesChanged = () => playing?.paint?.(); // someone in the room pressed skip, or took it back
 
-// party: the heroes, leader first · canSkip: this player may skip (a co-op guest may not: the host's skip comes over the wire) ·
+// party: the heroes, leader first · canSkip: this player may skip · vote: with friends, the tag is a vote and not a skip:
+// { toggle(), state() -> { n, N, mine } }; the scene is then cut from outside (skipStory) when everyone has pressed ·
 // world: the 3D board, which is not drawn while the scene covers it. Resolves true if it played to its end.
-export async function playStory(id, party, { canSkip = true, onSkip = null, world = null } = {}) {
+export async function playStory(id, party, { canSkip = true, onSkip = null, onShown = null, vote = null, world = null } = {}) {
   const fn = SCENES[id]; if (!fn || playing || !party?.length) return false;
   const me = (playing = { id, skipped: false });
   const canvas = h('canvas');
-  const doSkip = () => { if (me.skipped) return; me.skipped = true; onSkip?.(); skip(); };
-  const el = h('div.story', h('div.st-frame', canvas), canSkip ? h('button.st-skip', { onclick: doSkip }, L('skip')) : h('div.st-skip.note', L('hostSkips')));
+  const doSkip = () => { if (me.skipped) return; if (vote) { vote.toggle(); me.paint(); return; } me.skipped = true; onSkip?.(); skip(); };
+  const tag = canSkip ? h('button.st-skip', { onclick: doSkip }, L('skip')) : h('div.st-skip.note', L('hostSkips'));
+  if (vote && canSkip) { tag.classList.add('vote'); me.paint = () => { const v = vote.state(); tag.classList.toggle('on', v.mine); tag.replaceChildren(h('span', L('skip') + ' ' + v.n + '/' + v.N), h('small', L('allSkip'))); }; me.paint(); }
+  const el = h('div.story', h('div.st-frame', canvas), tag);
   const key = (e) => { e.stopPropagation(); e.preventDefault(); if (e.key === 'Escape' && canSkip && !e.repeat) doSkip(); }; // no hotkeys reach the game under the scene
   document.getElementById('game').appendChild(el); window.addEventListener('keydown', key, true);
   try {
-    await Promise.race([document.fonts?.ready, sleep(1200)]); await sleep(30); el.classList.add('in'); await sleep(330);
+    await Promise.race([document.fonts?.ready, sleep(1200)]); await sleep(30); el.classList.add('in'); await sleep(330); onShown?.(); // (the scene's own black is up: whatever was covering the board can go)
     if (world) world.hidden = true;
     mount(canvas);
     const tooLong = setTimeout(() => { console.warn('[story] scene ran too long and was ended', id); skip(); }, 180000);
