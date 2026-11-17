@@ -1,6 +1,6 @@
 // What a story scene is painted with: one set per realm (its sky, ground and what stands on it), the few single
-// things a scene puts down (a wagon, a campfire, a throne), and the full pictures (the old world, the cave wall,
-// the map). Everything is painted by code, once, and kept: nothing here is drawn again per frame.
+// things a scene puts down (a wagon, a campfire, a throne), and the full pictures (the cave wall, the map; the old
+// world of the prologue moves, and is in vista.js). Everything is painted by code, once, and kept: nothing here is drawn again per frame.
 import { STAGE_BY_ID } from '../data/stages.js';
 
 export const seeded = (a) => () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -116,16 +116,6 @@ function island(g, x, y, w, h, top, side, Q) { const n = 14, up = [], dn = []; f
 // where each realm sits on the map picture
 export const MAP_AT = { 1: [210, 520], 2: [370, 390], 3: [250, 240], 4: [470, 170], 5: [640, 290], 6: [560, 500], 7: [800, 590], 8: [930, 440], 9: [830, 250], 10: [1030, 160], 11: [1120, 370] };
 const PICS = {
-  // the world when it was one piece of land
-  one(g) { const s = g.createLinearGradient(0, 0, 0, PHt); s.addColorStop(0, '#9fc6c8'); s.addColorStop(1, '#f3e2b8'); g.fillStyle = s; g.fillRect(0, 0, PWd, PHt); g.fillStyle = '#d9482f'; g.beginPath(); g.arc(960, 170, 70, 0, 6.3); g.fill(); const Q = seeded(21); island(g, 640, 430, 980, 230, '#5b8f6c', '#6a5a4a', Q);
-    for (let i = 0; i < 60; i++) { const x = 220 + Q() * 840, y = 392 + Q() * 44 - Math.sin(((x - 150) / 980) * 3.14) * 46; g.fillStyle = ['#34664a', '#3f7044', '#c98a4c', '#e3eef4'][(Q() * 4) | 0]; g.beginPath(); g.arc(x, y, 9 + Q() * 12, 0, 6.3); g.fill(); } g.fillStyle = INK; for (const x of [520, 640, 700]) { g.fillRect(x, 330, 16, 56); poly(g, [[x - 8, 330], [x + 8, 300], [x + 24, 330]], '#a8323a'); } paperGrain(g); },
-  // the Sundering: the same land, breaking
-  broken(g) { const s = g.createLinearGradient(0, 0, 0, PHt); s.addColorStop(0, '#3a2a4e'); s.addColorStop(1, '#d06a4a'); g.fillStyle = s; g.fillRect(0, 0, PWd, PHt); const Q = seeded(21); for (const [x, y, w, r] of [[330, 440, 400, -0.12], [650, 410, 300, 0.04], [960, 450, 380, 0.16]]) { g.save(); g.translate(x, y); g.rotate(r); island(g, 0, 0, w, 210, '#4a7a5c', '#5a4a3e', Q); g.restore(); }
-    g.strokeStyle = '#fff6d8'; g.lineWidth = 9; g.lineJoin = 'bevel'; for (const x0 of [500, 800]) { g.beginPath(); let x = x0, y = 60; g.moveTo(x, y); while (y < 700) { x += (Q() - 0.5) * 70; y += 40 + Q() * 40; g.lineTo(x, y); } g.stroke(); } g.fillStyle = 'rgba(255,240,200,0.14)'; g.fillRect(0, 0, PWd, PHt); paperGrain(g); },
-  // what is left: a few realms adrift, and the gate that takes them
-  drift(g) { const s = g.createLinearGradient(0, 0, 0, PHt); s.addColorStop(0, '#1a1430'); s.addColorStop(1, '#6a4a70'); g.fillStyle = s; g.fillRect(0, 0, PWd, PHt); const Q = seeded(33); for (let i = 0; i < 90; i++) { g.fillStyle = `rgba(255,255,255,${Q() * 0.7})`; g.fillRect(Q() * PWd, Q() * 420, 2, 2); }
-    const gate = g.createRadialGradient(640, 330, 10, 640, 330, 190); gate.addColorStop(0, '#000'); gate.addColorStop(0.5, '#3a0612'); gate.addColorStop(1, 'rgba(208,72,47,0)'); g.fillStyle = gate; g.beginPath(); g.arc(640, 330, 190, 0, 6.3); g.fill(); g.strokeStyle = '#d9482f'; g.lineWidth = 5; for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(640, 330, 70 + i * 34, i * 1.3, i * 1.3 + 4.4); g.stroke(); }
-    for (const [x, y, w, top] of [[200, 520, 240, '#5b8f6c'], [420, 200, 170, '#c98a4c'], [1010, 190, 200, '#a8c0dc'], [1080, 540, 250, '#4a3c64'], [760, 600, 160, '#9a94cc'], [250, 300, 120, '#5a1a28']]) island(g, x, y, w, 120, top, '#3a2c38', Q); paperGrain(g); },
   // the cave wall: the gods at their table, and beside them a small figure with a rolled map and one black hand
   wall(g) { g.fillStyle = '#6a4a32'; g.fillRect(0, 0, 2000, PHt); const Q = seeded(8); for (let i = 0; i < 2600; i++) { g.fillStyle = Q() < 0.5 ? 'rgba(30,16,8,0.16)' : 'rgba(255,220,170,0.08)'; g.fillRect(Q() * 2000, Q() * PHt, 2 + Q() * 22, 1 + Q() * 4); }
     const man = (x, y, s, col, arms = 0) => { g.fillStyle = col; g.beginPath(); g.arc(x, y - s * 1.5, s * 0.26, 0, 6.3); g.fill(); poly(g, [[x - s * 0.3, y - s * 1.2], [x + s * 0.3, y - s * 1.2], [x + s * 0.42, y], [x - s * 0.42, y]], col); g.strokeStyle = col; g.lineWidth = s * 0.1; g.lineCap = 'round'; g.beginPath(); g.moveTo(x - s * 0.28, y - s * 1.1); g.lineTo(x - s * 0.7, y - s * (1.1 + arms)); g.moveTo(x + s * 0.28, y - s * 1.1); g.lineTo(x + s * 0.7, y - s * (1.1 + arms)); g.stroke(); };
@@ -144,6 +134,5 @@ const PICS = {
       g.fillStyle = o.burnt ? '#1a120e' : INK; g.font = "500 20px Mitr, 'Noto Sans Thai', sans-serif"; g.textAlign = 'center'; g.fillText(STAGE_BY_ID[id]?.name || '', x, y + 62); }
     g.strokeStyle = INK; g.lineWidth = 2.5; g.globalAlpha = 0.5; g.beginPath(); g.arc(1160, 620, 44, 0, 6.3); g.moveTo(1160, 560); g.lineTo(1160, 680); g.moveTo(1100, 620); g.lineTo(1220, 620); g.stroke(); g.globalAlpha = 1; g.strokeStyle = INK; g.lineWidth = 8; g.strokeRect(14, 14, PWd - 28, PHt - 28); },
 };
-function paperGrain(g) { const Q = seeded(11); for (let i = 0; i < 4200; i++) { g.fillStyle = Q() < 0.5 ? 'rgba(60,40,20,0.08)' : 'rgba(255,250,235,0.08)'; g.fillRect(Q() * PWd, Q() * PHt, 1 + Q() * 3, 1 + Q()); } g.strokeStyle = INK; g.lineWidth = 10; g.strokeRect(5, 5, PWd - 10, PHt - 10); }
 const pics = new Map();
 export function picture(name, o = {}) { const key = name + JSON.stringify(o); if (pics.has(key)) return pics.get(key); if (pics.size > 3) pics.clear(); const k = canvas(name === 'wall' ? 2000 : PWd, PHt); PICS[name](k.getContext('2d'), o); pics.set(key, k); return k; }

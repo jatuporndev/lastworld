@@ -4,6 +4,7 @@
 // A scene is `async (P) => { … }` with P.party = the heroes; it builds its stage with newScene(set) and ends in black.
 import { S, W, H, quiet, newScene, wait, tw, run, actor, thing, act, hop, shake, cut, drift, emote, freeze, sfx, face, walkTo, readMs, say, caption, dirt, burst, preload, showPic, hidePic, look, closeOn, castHero, castMon, castNpc, pathX } from './stage.js';
 import { picture, MAP_AT } from './sets.js';
+import { vista } from './vista.js';
 import { L } from './lines.js';
 import { MONSTERS } from '../data/monsters.js';
 import { STAGE_BY_ID } from '../data/stages.js';
@@ -118,9 +119,10 @@ const FIRE = ['#ff8a2a', '#ffd070', '#ff5a1a'], SPRAY = ['#ffffff', '#d8f0fa', '
 // ───── 0 · the last world ─────
 async function s0(P) {
   newScene(1); S.bars = 1; const B = band(P, 8);
-  let pic = showPic(picture('one'), { s: 1.14, y: 14 }); tw(S, { fade: 0 }, 900); tw(pic, { s: 1.02, y: 0 }, 4600, 'lin'); await wait(500); await caption(L('0.1'), 3300);
-  S.flash = 0.9; shake(26); sfx('explosion'); pic = showPic(picture('broken'), { s: 1.04 }); tw(pic, { s: 1.16 }, 4200, 'lin'); run(1200, () => shake(7)); await wait(600); await caption(L('0.2'), 3200);
-  await tw(S, { fade: 1 }, 400); pic = showPic(picture('drift'), { s: 1.16, y: -10 }); tw(S, { fade: 0 }, 500); tw(pic, { s: 1.0, y: 0 }, 6200, 'lin'); sfx('shadow'); await wait(500); await caption(L('0.3'), 5000);
+  // one shot that never stops moving: the land whole under a morning sky, then breaking, then the pieces far apart round the gate
+  const v = showPic(vista(), { s: 1.22, x: -70, y: 26, brk: 0, sky: 0, far: 0, gate: 0, crack: 0, tb: -1 }); tw(S, { fade: 0 }, 900); tw(v, { s: 1.06, x: 40, y: 0 }, 5600, 'lin'); await wait(900); await caption(L('0.1'), 3500);
+  S.flash = 0.9; shake(26); sfx('explosion'); v.tb = S.now; v.crack = 1; tw(v, { crack: 0 }, 2600, 'out'); tw(v, { brk: 0.5, sky: 1 }, 3600, 'out'); tw(v, { s: 1.12, x: 0 }, 4400, 'lin'); run(1500, () => shake(7)); await wait(900); await caption(L('0.2'), 3200);
+  tw(v, { far: 1, brk: 1, sky: 2, s: 1.0, x: 0, y: 0 }, 3400, 'io'); await wait(1500); sfx('shadow'); tw(v, { gate: 1 }, 2000, 'out'); tw(v, { s: 1.07 }, 7000, 'lin'); await wait(1100); await caption(L('0.3'), 5000);
   // and the ones who will walk it: at the edge of the forest, looking in
   await tw(S, { fade: 1 }, 450); hidePic(); cut(look([B.hero.x, 1.2, 8], { d: 9, h: 3.4, f: 860, sy: H * 0.62 })); tw(S, { fade: 0 }, 600); tw(S.cam, look([B.hero.x, 1.2, 8], { d: 6.6, h: 2.0, f: 900, sy: H * 0.6 }), 2600, 'io'); await wait(1700);
   await tell(B.hero, '0.4', { pose: 'point' }); all(B.rest, (a) => { a.pose = 'ready'; hop(a, 0.3, 260); }); await wait(500); await close();

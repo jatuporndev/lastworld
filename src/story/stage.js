@@ -195,6 +195,7 @@ function drawEmote(e) {
 }
 // A painted picture in place of the world: looked at closer or further, with ink spreading on it, or words written on it.
 function drawPic(P) {
+  if (P.cv.draw) { ctx.fillStyle = '#0a0705'; ctx.fillRect(-40, -40, W + 80, H + 80); P.cv.draw(ctx, S.now, P); return; } // a picture that moves (see vista.js) paints itself
   const s = P.s, pw = P.cv.width, dx = W / 2 - (pw > W ? W / 2 : pw / 2) * s - P.x * s, dy = H / 2 - (H / 2) * s - P.y * s; ctx.fillStyle = '#0a0705'; ctx.fillRect(-40, -40, W + 80, H + 80);
   ctx.save(); ctx.translate(dx, dy); ctx.scale(s, s); ctx.drawImage(P.cv, 0, 0);
   for (const b of P.blots) { if (b.r < 0.5) continue; const R = seeded(b.seed || 9); ctx.fillStyle = b.col || '#120c0a'; ctx.globalAlpha = b.a ?? 0.92; for (let i = 0; i < 11; i++) { ctx.beginPath(); ctx.ellipse(b.x + (R() - 0.5) * b.r * 1.3, b.y + (R() - 0.5) * b.r * 0.8, b.r * (0.35 + R() * 0.5), b.r * (0.25 + R() * 0.35), R() * 3, 0, 6.3); ctx.fill(); } ctx.globalAlpha = 1; }
