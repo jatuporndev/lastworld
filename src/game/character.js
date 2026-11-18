@@ -73,7 +73,7 @@ export function computeStats(hero) {
 
 // Every skill node the hero can learn: its class tree, then its job's tree once it has a job.
 export const treeOf = (hero) => [...SKILL_TREES[hero.cls], ...(JOB_TREES[hero.job] || [])];
-// Ready for a job: level 30 and none taken yet.
+// Ready for a job: the job level (25) and none taken yet.
 export const jobReady = (hero) => !hero.job && hero.level >= JOB_LEVEL;
 // Take a job, for good. Returns false if the hero cannot take this one.
 export function takeJob(hero, job) {
@@ -82,7 +82,7 @@ export function takeJob(hero, job) {
   return true;
 }
 
-// Returns number of levels gained. Before a job the cap is 30, and what is earned past it is not kept.
+// Returns number of levels gained. Before a job the cap is the job level (25), and what is earned past it is not kept.
 export function grantExp(hero, amount) {
   let gained = 0; const cap = levelCap(hero);
   if (hero.level >= cap) return 0;

@@ -5,6 +5,7 @@
 //   draw {v}  energy {v} (extra Action Slots this turn)  mp {v}  cleanse  taunt  summon {id}  revive {pct}
 //   trample (run to the far end of the card's line, hitting everything on the way)
 //   dmg extras: onKill {energy, draw, heal} (paid when the card kills)  perPlayed v (+v per card played before it this turn)
+//               hidden v (+v on the first hit when the card is played from Stealth)
 // charge: true — the card may take up to 2 extra Action Slots, each adding a die
 // tg: enemy | ally | self | hex | any     shape: single | line | cone | area | burst
 import { t } from '../core/i18n.js';
@@ -231,7 +232,7 @@ add([
   { id: 'n_breath', cls: 'any', name: 'Deep Breath', cat: 'buff', icon: 'wind', tg: 'self', cost: 0, cd: 3, fx: [{ t: 'mp', v: 5 }, { t: 'cleanse' }] },
 ]);
 
-// ───────── ADVANCED CLASSES (jobs, from level 30; see src/data/jobs.js and docs/jobs.md) ─────────
+// ───────── ADVANCED CLASSES (jobs, from level 25; see src/data/jobs.js and docs/jobs.md) ─────────
 // Each job has twelve cards. `start` marks the three given when the job is taken; `ult` the job's Legendary.
 function jobCards(job, cls, list) { add(list.map((c) => ({ cls, job, ...c }))); }
 jobCards('lordknight', 'knight', [
@@ -332,19 +333,21 @@ jobCards('reaper', 'assassin', [
   { id: 'rp_danse', name: 'Danse Macabre', cat: 'attack', icon: 'whirl', rarity: 'epic', tg: 'self', shape: 'burst', size: 2, cost: 3, mp: 8, cd: 4, el: 'shadow', fx: [{ t: 'dmg', v: 2, s: 'atk', drain: 0.3 }, { t: 'status', st: 'bleed', n: 2 }] },
   { id: 'rp_reaping', name: 'The Reaping', cat: 'attack', icon: 'skull', rarity: 'legendary', ult: true, tg: 'self', shape: 'burst', size: 3, cost: 3, mp: 12, cd: 5, el: 'shadow', fx: [{ t: 'dmg', v: 2, s: 'atk', execute: 0.3 }, { t: 'status', st: 'bleed', n: 3 }] },
 ]);
+// Deathstalker (id venomancer): still an assassin. Hides, stings with poisoned blades, and lets the venom finish the work.
 jobCards('venomancer', 'assassin', [
-  { id: 'vm_dart', start: true, name: 'Toxin Dart', cat: 'attack', icon: 'dagger', range: 4, el: 'poison', proj: 'knife', fx: [{ t: 'dmg', v: 0, s: 'atk' }, { t: 'status', st: 'poison', n: 3 }] },
-  { id: 'vm_cloud', start: true, name: 'Noxious Cloud', cat: 'special', icon: 'smoke', tg: 'any', range: 4, shape: 'area', size: 1, cd: 1, el: 'poison', fx: [{ t: 'status', st: 'poison', n: 2 }] },
-  { id: 'vm_virulence', start: true, name: 'Virulence', cat: 'special', icon: 'skull', range: 4, cost: 0, cd: 2, el: 'poison', fx: [{ t: 'status', st: 'poison', n: 1 }, { t: 'spread', sts: ['poison'] }] },
+  { id: 'vm_dart', start: true, name: 'Venom Fang', cat: 'attack', icon: 'dagger', el: 'poison', fx: [{ t: 'dmg', v: 1, s: 'atk', hidden: 2 }, { t: 'status', st: 'poison', n: 2 }] },
+  { id: 'vm_cloud', start: true, name: 'Fume Veil', cat: 'defense', icon: 'smoke', tg: 'self', shape: 'burst', size: 1, cd: 2, el: 'poison', fx: [{ t: 'status', st: 'poison', n: 2 }, { t: 'status', st: 'stealth', n: 1, self: true }] },
+  { id: 'vm_corrode', start: true, name: 'Rupture', cat: 'attack', icon: 'dagger', cd: 1, el: 'poison', fx: [{ t: 'dmg', v: 0, s: 'atk', perStatus: { st: 'poison', v: 1 } }] },
+  { id: 'vm_stalk', name: 'Stalk', cat: 'movement', icon: 'blink', tg: 'hex', range: 3, cd: 2, el: 'shadow', fx: [{ t: 'move', v: 3 }, { t: 'status', st: 'stealth', n: 1, self: true }] },
+  { id: 'vm_virulence', name: 'Virulence', cat: 'special', icon: 'skull', range: 4, cost: 0, cd: 2, el: 'poison', fx: [{ t: 'status', st: 'poison', n: 1 }, { t: 'spread', sts: ['poison'] }] },
   { id: 'vm_mithridate', name: 'Mithridate', cat: 'defense', icon: 'heart', tg: 'self', cd: 2, el: 'poison', fx: [{ t: 'cleanse' }, { t: 'block', v: 2 }] },
-  { id: 'vm_corrode', name: 'Corrode', cat: 'attack', icon: 'dagger', range: 3, cd: 1, el: 'poison', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'vulnerable', n: 1 }] },
+  { id: 'vm_blight', charge: true, name: 'Ambush', cat: 'attack', icon: 'dagger', rarity: 'rare', cost: 2, cd: 2, el: 'poison', fx: [{ t: 'dmg', v: 1, s: 'atk', hidden: 4 }, { t: 'status', st: 'poison', n: 3 }] },
+  { id: 'vm_paralytic', name: 'Paralytic Sting', cat: 'attack', icon: 'dagger', rarity: 'rare', cost: 2, cd: 3, el: 'poison', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'poison', n: 2 }, { t: 'status', st: 'stun', n: 1 }] },
   { id: 'vm_fester', name: 'Fester Bloom', cat: 'attack', icon: 'smoke', rarity: 'rare', tg: 'any', range: 4, shape: 'area', size: 1, cost: 2, cd: 2, el: 'poison', fx: [{ t: 'dmg', v: 0, s: 'atk', perStatus: { st: 'poison', v: 1 } }] },
-  { id: 'vm_blight', name: 'Blight', cat: 'special', icon: 'skull', rarity: 'rare', range: 4, cd: 2, el: 'poison', fx: [{ t: 'status', st: 'poison', n: 4 }, { t: 'status', st: 'weak', n: 1 }] },
   { id: 'vm_blood', name: 'Toxic Blood', cat: 'defense', icon: 'heart', rarity: 'rare', tg: 'self', cd: 3, el: 'poison', fx: [{ t: 'status', st: 'thorns', n: 3 }, { t: 'status', st: 'regen', n: 2 }] },
-  { id: 'vm_paralytic', name: 'Paralytic', cat: 'attack', icon: 'dagger', rarity: 'rare', range: 4, cost: 2, cd: 3, el: 'poison', proj: 'knife', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'stun', n: 1 }] },
   { id: 'vm_pandemic', name: 'Pandemic', cat: 'special', icon: 'skull', rarity: 'epic', range: 5, cost: 2, mp: 6, cd: 3, el: 'poison', fx: [{ t: 'status', st: 'poison', n: 3 }, { t: 'spread', sts: ['poison', 'bleed'] }] },
-  { id: 'vm_necrotic', name: 'Necrotic Burst', cat: 'attack', icon: 'smoke', rarity: 'epic', tg: 'any', range: 4, shape: 'area', size: 1, cost: 3, mp: 8, cd: 4, el: 'poison', fx: [{ t: 'dmg', v: 2, s: 'atk', perStatus: { st: 'poison', v: 1, consume: true } }] },
-  { id: 'vm_plague', name: 'Plague', cat: 'attack', icon: 'skull', rarity: 'legendary', ult: true, tg: 'self', shape: 'burst', size: 4, cost: 3, mp: 12, cd: 5, el: 'poison', fx: [{ t: 'dmg', v: 2, s: 'atk' }, { t: 'status', st: 'poison', n: 5 }, { t: 'status', st: 'weak', n: 2 }] },
+  { id: 'vm_necrotic', name: 'Death Blossom', cat: 'attack', icon: 'whirl', rarity: 'epic', tg: 'self', shape: 'burst', size: 1, cost: 3, mp: 8, cd: 4, el: 'poison', fx: [{ t: 'dmg', v: 2, s: 'atk', hidden: 3, perStatus: { st: 'poison', v: 1, consume: true } }] },
+  { id: 'vm_plague', name: 'Plague', cat: 'attack', icon: 'skull', rarity: 'legendary', ult: true, tg: 'self', shape: 'burst', size: 4, cost: 3, mp: 12, cd: 5, el: 'poison', fx: [{ t: 'dmg', v: 2, s: 'atk', hidden: 3 }, { t: 'status', st: 'poison', n: 5 }, { t: 'status', st: 'weak', n: 2 }] },
 ]);
 jobCards('bishop', 'priest', [
   { id: 'bi_heal', start: true, name: 'Greater Heal', cat: 'buff', icon: 'cross', tg: 'ally', range: 3, cd: 1, el: 'holy', fx: [{ t: 'heal', v: 3, s: 'matk' }] },
@@ -451,7 +454,7 @@ export function applyCardMods(card, mods) {
     for (const f of c.fx) {
       if (f.t === 'dmg') { if (m.dmg) f.v += m.dmg; if (m.hits && f.hits > 1) f.hits += m.hits; if (m.drain && f.drain) f.drain += m.drain; if (m.far && f.far) f.far.v += m.far;
         if (m.keepMark) f.keepMark = true; if (m.execute && f.execute) f.execute += m.execute; if (m.onKill && f.onKill) for (const k of Object.keys(f.onKill)) f.onKill[k] *= m.onKill;
-        if (m.perStatus && f.perStatus) f.perStatus.v += m.perStatus; if (m.perPlayed && f.perPlayed) f.perPlayed += m.perPlayed; }
+        if (m.perStatus && f.perStatus) f.perStatus.v += m.perStatus; if (m.perPlayed && f.perPlayed) f.perPlayed += m.perPlayed; if (m.hidden && f.hidden) f.hidden += m.hidden; }
       if (f.t === 'block' && m.block) f.v += m.block;
       if (f.t === 'heal' && m.heal) f.v += m.heal;
       if (f.t === 'status' && m.stacks && !f.self && (!m.st || f.st === m.st) && !['stun', 'frozen', 'mark', 'stealth', 'fortify', 'mech'].includes(f.st)) f.n += m.stacks;
@@ -545,6 +548,7 @@ export function describeCard(card, unit = null) {
         if (f.execute) s += t('. Double vs targets under {n}% HP', { n: f.execute * 100 });
         if (f.drain) s += t('. Heal {n}% of damage dealt', { n: Math.round(f.drain * 100) });
         if (f.perPlayed) s += t(', +{n} per card you played before it this turn', { n: f.perPlayed });
+        if (f.hidden) s += t(', +{n} when played from Stealth', { n: f.hidden });
         if (f.onKill) s += f.onKill.energy ? t('. On a kill: +{n} Action Slot', { n: f.onKill.energy }) : f.onKill.draw ? t('. On a kill: draw {n}', { n: f.onKill.draw }) : t('. On a kill: heal {n}', { n: f.onKill.heal });
         parts.push(s + t('.')); break;
       }

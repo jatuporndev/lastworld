@@ -84,7 +84,7 @@ export const CONSUMABLES = {
   antidote: { name: 'Panacea', desc: 'Remove all debuffs and grant 2 Block.', icon: 'antidote', color: '#60d060', price: 25, use: { cleanse: true, block: 2 } },
   elixir: { name: 'Phoenix Elixir', desc: 'Fully restore HP and MP. Can revive a fallen ally outside battle.', icon: 'elixir', color: '#ffb030', price: 200, use: { healPct: 1, mp: 999, revive: true } },
   leaf: { name: 'Leaf of Life', desc: 'Raise a fallen ally with 1 HP (battle only).', icon: 'leaf', color: '#6ad06a', price: 120, use: { raise: true } },
-  job_page: { name: 'A Page Bearing Your Name', desc: 'It appeared in the bag when the hero reached Level 30. Read it to choose an advanced class.', icon: 'page', color: '#ffd070', price: 0, use: { job: true } },
+  job_page: { name: 'A Page Bearing Your Name', desc: 'It was in the bag the day the hero reached Level 25. Read it, and choose the road ahead.', icon: 'page', color: '#ffd070', price: 0, use: { job: true } },
   bomb: { name: 'Alchemist Bomb', desc: 'Deal 8 Fire damage to an enemy (battle only).', icon: 'bomb', color: '#ff7020', price: 45, use: { bomb: 8 } },
 };
 

@@ -1042,17 +1042,15 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .job-desc { text-align: center; font-size: 0.9em; margin: 0.2em 0 0.3em; }
 .job-sub { align-self: stretch; font-family: var(--f-head); font-size: 0.78em; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim-d); border-bottom: 0.14em solid var(--paper3); margin-top: 0.3em; }
 .job-cards { display: flex; gap: 0.5em; justify-content: center; flex-wrap: wrap; padding: 0.3em 0; }
-.job-ult { position: relative; } .job-ult .card { filter: grayscale(0.55) brightness(0.8); }
-.job-lock { position: absolute; left: 50%; bottom: 0.6em; transform: translateX(-50%); white-space: nowrap; background: var(--ink-d); color: var(--paper); font-size: 0.72em; padding: 0.15em 0.6em; border-radius: var(--radius); }
 .job-branches { display: flex; gap: 0.4em; flex-wrap: wrap; justify-content: center; }
 .job-branch { background: var(--paper); border-radius: var(--radius); padding: 0.2em 0.7em; font-family: var(--f-head); font-size: 0.85em; cursor: help; box-shadow: 0 0.18em 0 rgba(0, 0, 0, 0.18); }
 .job-col .row { margin-top: 0.5em; }
 .job-news { margin-top: 0.25em; font-weight: 600; color: var(--accent); }
 /* creation screen: the two paths this class can take, as paper tags */
 .cs-jobs { display: flex; gap: 0.7em; flex-wrap: wrap; padding: 0.4em 0.2em; }
-.cs-job { display: flex; align-items: center; gap: 0.4em; padding: 0.1em 0.9em 0.1em 0.2em; background: var(--paper); color: var(--ink-d); border: 0; border-left: 0.35em solid var(--job); border-radius: var(--radius); box-shadow: 0 0.3em 0 rgba(0, 0, 0, 0.28); cursor: pointer; font: inherit; text-align: left; min-height: 2.8em; }
-.cs-job:hover { background: var(--paper3); }
-.cs-job b { display: block; font-family: var(--f-head); } .cs-job small { display: block; color: var(--dim-d); font-size: 0.75em; }
+/* the two advanced classes on the creation screen: just the hero dressed for each, and its name */
+.cs-job { display: flex; flex-direction: column; align-items: center; gap: 0.1em; min-width: 6em; color: var(--ink-d); }
+.cs-job b { font-family: var(--f-head); border-bottom: 0.2em solid var(--job); }
 /* hero sheet: the job tree above the class tree, and the note at the level cap */
 .tree-title { font-family: var(--f-head); font-weight: 600; color: var(--ink-d); margin: 0.5em 0 0.3em; }
 .tree.job { margin-bottom: 0.6em; }

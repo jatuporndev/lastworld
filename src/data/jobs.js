@@ -1,4 +1,4 @@
-// Advanced classes ("jobs"): at level 30 a hero takes one of the two paths of its class, for good.
+// Advanced classes ("jobs"): at level 25 a hero takes one of the two paths of its class, for good.
 // The hero keeps its class (cards, gear, base stats); the job adds a new look, twelve new cards and a second,
 // larger skill tree. A job has no power of its own: all of it comes from the tree and the cards. Plan: docs/jobs.md.
 //
@@ -7,7 +7,7 @@
 //     changes every card that matches all the filters given (filters left out match anything)
 //   startStatus {st: n}   the hero starts every battle with these statuses
 
-export const JOB_LEVEL = 30; // when the job is chosen; the level cap is 30 until then
+export const JOB_LEVEL = 25; // when the job is chosen; the first class grows to 25, the job from 25 to 50
 export const JOB_ORDER = ['lordknight', 'paladin', 'sorcerer', 'warlock', 'marksman', 'ranger', 'reaper', 'venomancer', 'bishop', 'monk', 'engineer', 'forgemaster'];
 
 export const JOBS = {
@@ -55,10 +55,10 @@ export const JOBS = {
     look: { armor: '#18141e', armor2: '#0c0a10', cloth: '#d8d0bc', hoodColor: '#16121a', helm: 'skullhood', weapon: 'scythe', offhand: null, scarf: null, cape: '#0e0c12', capeLong: true, robe: true, pads: 'bone', faceShade: 0.55 },
   },
   venomancer: {
-    cls: 'assassin', name: 'Venomancer', title: 'Brewer of the Green Death', color: '#7ac03a', ult: 'vm_plague',
-    desc: 'Poison in layers, spread from foe to foe until it bursts. Breathes what kills others.',
-    branches: ['Toxin', 'Miasma', 'Antitoxin'],
-    look: { armor: '#2a3a22', armor2: '#141e10', cloth: '#9be04a', hoodColor: '#1e2a18', helm: 'gasmask', weapon: 'claw', offhand: 'flask', vials: true, scarf: null, tank: true, pads: 'one', padColor: '#3a4a2a', padTrim: '#9be04a' },
+    cls: 'assassin', name: 'Deathstalker', title: 'The Sting in the Dark', color: '#7ac03a', ult: 'vm_plague', // (id kept from its first name, Venomancer)
+    desc: 'Still an assassin. Hides, strikes from the dark with poisoned blades, and lets the venom finish the work.',
+    branches: ['Toxin', 'Ambush', 'Miasma'],
+    look: { armor: '#24301e', armor2: '#121a0e', cloth: '#9be04a', hoodColor: '#1a2416', helm: 'mask', scarf: '#2e4a22', weapon: 'venomdagger', offhand: 'venomdagger', vials: true, stinger: '#9be04a', pads: 'one', padColor: '#2e3a26', padTrim: '#9be04a' },
   },
   bishop: {
     cls: 'priest', name: 'Bishop', title: 'Light of the Last Church', color: '#f0d890', ult: 'bi_miracle',
@@ -151,12 +151,13 @@ export const JOB_TREES = {
     [['Swift Shade', '+1 Movement.', { move: 1 }], ['Black Blade', 'Shadow damage +15%.', { elemPct: { shadow: 0.15 } }],
       ['Long Shadow', 'Your Reaper cards reach 1 hex farther.', { cardMod: J('reaper', { range: 1 }) }], ['Inevitable', 'Your Reaper cards roll 1 more die.', { cardMod: J('reaper', { dice: 1 }) }]],
   ]),
+  // Deathstalker: Toxin stacks the poison, Ambush strikes from Stealth, Miasma spreads it and lives inside it.
   venomancer: tree('venomancer', [
-    [['Potent Brew', 'Poison you apply has +1 stack.', { statusBonus: { poison: 1 } }], ['Double Dose', 'Your Venomancer cards apply 1 more Poison.', { cardMod: J('venomancer', { st: 'poison', stacks: 1 }) }],
-      ['Concentrate', 'Poison you apply has +1 stack.', { statusBonus: { poison: 1 } }], ['Rot', 'Your Venomancer cards that count Poison count +1 per stack.', { cardMod: J('venomancer', { perStatus: 1 }) }]],
-    [['Thick Fog', 'Your Venomancer area cards deal +1 damage.', { cardMod: J('venomancer', { shape: 'area', dmg: 1 }) }], ['Sapping Fumes', 'Weak you apply has +1 stack.', { statusBonus: { weak: 1 } }],
-      ['Prickly Hide', 'Start every battle with Thorns 2.', { startStatus: { thorns: 2 } }], ['Master Brewer', 'Your Venomancer cards roll 1 more die.', { cardMod: J('venomancer', { dice: 1 }) }]],
-    [['Tough Gut', '+5 Max HP.', { hp: 5 }], ['Leather Mask', '+1 DEF.', { def: 1 }],
+    [['Potent Brew', 'Poison you apply has +1 stack.', { statusBonus: { poison: 1 } }], ['Double Dose', 'Your Deathstalker cards apply 1 more Poison.', { cardMod: J('venomancer', { st: 'poison', stacks: 1 }) }],
+      ['Rot', 'Your Deathstalker cards that count Poison count +1 per stack.', { cardMod: J('venomancer', { perStatus: 1 }) }], ['Lethal Dose', 'Your Deathstalker attacks roll 1 more die.', { cardMod: J('venomancer', { cat: 'attack', dice: 1 }) }]],
+    [['Shade Cloak', '+8% evasion.', { eva: 8 }], ['Unseen', 'Start every battle in Stealth.', { startStatus: { stealth: 1 } }],
+      ['From Nowhere', 'Your Assassin cards that hit harder from Stealth hit +2 more.', { cardMod: { cls: 'assassin', fx: 'hidden', hidden: 2 } }], ['Second Shadow', 'Fume Veil and Stalk cool down 1 round sooner.', { cardMod: { ids: ['vm_cloud', 'vm_stalk'], cd: -1 } }]],
+    [['Thick Fog', 'Your Deathstalker area cards deal +1 damage.', { cardMod: J('venomancer', { shape: 'area', dmg: 1 }) }], ['Tough Gut', '+5 Max HP.', { hp: 5 }],
       ['Clean Blood', 'Start every battle with Regen 2.', { startStatus: { regen: 2 } }], ['Immune', 'You cannot be Poisoned.', { immunePoison: 1 }]],
   ]),
   bishop: tree('bishop', [

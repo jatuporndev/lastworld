@@ -186,6 +186,12 @@ function weapon(ctx, type, look, glow) {
     case 'spear':
       rrect(ctx, -1.5, -52, 3, 62, 1, '#8a6a3a');
       ctx.beginPath(); ctx.moveTo(-5, -50); ctx.lineTo(0, -66); ctx.lineTo(5, -50); ctx.closePath(); path(ctx, look.cloth ? grad(ctx, -66, -50, '#fff8d0', look.cloth) : metal); break;
+    case 'venomdagger': { // a curved blade, green venom running down it and dripping from the point
+      ctx.beginPath(); ctx.moveTo(-2.8, -4); ctx.quadraticCurveTo(-3.5, -14, 1, -23); ctx.quadraticCurveTo(2.5, -13, 2.8, -4); ctx.closePath(); path(ctx, grad(ctx, -23, -4, '#e8f0e0', '#5a6a58'));
+      ctx.beginPath(); ctx.moveTo(-1, -6); ctx.quadraticCurveTo(-1.6, -14, 0.8, -20); path(ctx, null, look.stinger || '#9be04a', 1.6);
+      ellipse(ctx, 1.2, -24.5, 1.4, 1.9, look.stinger || '#9be04a', null); glowCircle(ctx, 0, -14, 9 + glow * 6, look.stinger || '#9be04a', 0.3 + glow * 0.3);
+      rrect(ctx, -5.5, -5, 11, 3, 1, '#2e3a26'); rrect(ctx, -1.5, -2, 3, 6, 1, '#1a1a14'); break;
+    }
     case 'claw':
       for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(i * 3, 0); ctx.quadraticCurveTo(i * 4 + 2, -8, i * 3 + 4, -13); path(ctx, null, '#e8e0c0', 2); } break;
     // ── the weapons of the advanced classes ──
@@ -248,7 +254,7 @@ function offhand(ctx, type, look) {
     case 'book':
       rrect(ctx, -8, -10, 16, 18, 2, '#7a2a2a'); rrect(ctx, -6, -8, 12, 14, 1, '#e8dcc0', null);
       ctx.fillStyle = '#c9a040'; ctx.fillRect(-1, -6, 2, 10); ctx.fillRect(-4, -3, 8, 2); break;
-    case 'dagger': case 'sword': case 'fists': weapon(ctx, type, look, 0); break;
+    case 'dagger': case 'sword': case 'fists': case 'venomdagger': weapon(ctx, type, look, 0); break;
     case 'sunshield': { // a great round shield with the sun on it
       ellipse(ctx, 0, 0, 15, 17, grad(ctx, -17, 17, shade(look.armor, 0.3), look.armor2));
       const sun = look.cloth || '#e0b040';

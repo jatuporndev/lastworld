@@ -382,6 +382,14 @@ function regaliaBehind(c, L, p) {
     for (const x of [44, 76]) { blob(c, [[x - 6.5, 64], [x + 6.5, 64], [x + 7, 98], [x - 7, 98]], '#4a5a3a', { line: 1.3, light: 0.35 }); c.fillStyle = '#c89a48'; c.fillRect(x - 7, 70, 14, 2.2); c.fillRect(x - 7, 92, 14, 2.2); c.fillStyle = L.cloth || '#9be04a'; c.fillRect(x - 2.2, 75, 4.4, 14); disc(c, x, 62, 3, 2.4, '#6a6a60', { line: 1 }); }
     c.strokeStyle = '#2a2a26'; c.lineWidth = 2.4; c.beginPath(); c.moveTo(76, 62); c.quadraticCurveTo(84, 74, 64, 80); c.stroke();
   }
+  if (L.stinger) { // a scorpion's tail worn on the back: rising behind the shoulder and arching over the head, a green sting at the end
+    const sw = Math.sin(p.t || 0) * 1.2, B = (k, a, b, c2, d) => (1 - k) ** 3 * a + 3 * (1 - k) ** 2 * k * b + 3 * (1 - k) * k * k * c2 + k ** 3 * d;
+    const pts = []; for (let i = 0; i <= 24; i++) { const k = i / 24; pts.push([B(k, 68, 96, 97, 77), B(k, 98, 90, 30, 30) + sw * k, 3.7 - k * 1.7]); }
+    for (const [x, y, r] of pts) disc(c, x, y, r + 1.3, r + 1.3, '#121410', { line: 0, shade: 0 });
+    for (const [x, y, r] of pts) disc(c, x, y, r, r, L.armor || '#24301e', { line: 0, light: 0.35 });
+    pts.forEach(([x, y, r], i) => { if (i % 3 === 1 && i < 23) { c.fillStyle = tone(L.armor || '#24301e', 0.45); c.beginPath(); c.arc(x, y, r * 0.75, 0, 7); c.fill(); c.fillStyle = L.stinger; c.fillRect(x - 0.7, y - 0.7, 1.4, 1.4); } });
+    const [sx, sy] = pts[24]; blob(c, [[sx + 2, sy - 3], [sx - 6, sy - 1], [sx - 10, sy + 6, 1], [sx - 3, sy + 2.5]], L.stinger, { line: 1.1, light: 0.5 }); glow(c, sx - 7, sy + 3, 7, L.stinger, 0.5);
+  }
   if (L.backpack) { blob(c, [[44, 74], [76, 74], [78, 104], [42, 104]], '#6a4a2a', { line: 1.3, light: 0.2 }); c.fillStyle = '#3a2a1a'; c.fillRect(70, 58, 5, 18); glow(c, 72.5, 56, 6, '#ffb040', 0.6); } // a tool pack and its little chimney
 }
 function furMantleOf(c, col) { for (const [x, y, r] of [[47, 80.5, 5], [73, 80.5, 5], [54, 79, 4.4], [66, 79, 4.4], [60, 78.5, 4]]) disc(c, x, y, r, r * 0.8, col, { line: 1.1, shade: -0.06 }); }

@@ -221,7 +221,7 @@ export function sellItem(item) {
   if (i < 0) return; inv.splice(i, 1); G.state.gold += Math.round(item.value * 0.4); touch();
 }
 // ── Advanced classes ──
-// A hero that reaches Level 30 with no job finds a page bearing its name in the bag; reading it opens the choice.
+// A hero that reaches the job level (25) with no job finds a page bearing its name in the bag; reading it opens the choice.
 export function grantJobPages() {
   const st = G.state; if (!st?.inv) return;
   const need = myHeroes().filter(jobReady).length, have = st.inv.cons.job_page || 0;

@@ -6,7 +6,6 @@ import { G, claimableQuests, charList, worldList, createCharacter, createWorld, 
 import { computeStats, createHero } from '../game/character.js';
 import { CLASSES, CLASS_ORDER, className } from '../data/classes.js';
 import { JOBS, JOB_LEVEL, jobsOf } from '../data/jobs.js';
-import { openJobPreview } from './jobUI.js';
 import { STARTER_DECKS, ELEMENTS } from '../data/cards.js';
 import { STAGES } from '../data/stages.js';
 import { MONSTERS } from '../data/monsters.js';
@@ -235,10 +234,10 @@ export function charCreateScreen(app, back = {}) {
       h('div.cs-info', h('div.cs-title', { style: { color: C.color } }, C.name), h('div.cs-sub', `${C.title} · ${ELEMENTS[C.element].name}`), h('p', C.desc),
         h('div.cs-stats', statBar('HP', s.hp, 130), statBar('MP', s.mp, 60), statBar('ATK', s.atk, 26), statBar('MATK', s.matk, 26), statBar('DEF', s.def, 14), statBar('SPD', s.spd, 34), statBar(t('MOVE'), s.move, 5)),
         h('div.cs-deck-title', t('Starting Deck')), h('div.cs-deck', ...[...new Set(STARTER_DECKS[focus])].map((id) => cardEl(id, 0, { small: true }))),
-        // the two paths this class can take at Level 30: press one to see both
-        h('div.cs-deck-title', t('Advanced classes at Level {n}', { n: JOB_LEVEL })),
-        h('div.cs-jobs', ...jobsOf(focus).map((j) => h('button.cs-job', { style: { '--job': JOBS[j].color }, onclick: () => { audio.sfx('click'); openJobPreview(focus, gender); } },
-          heroSprite({ cls: focus, gender, job: j }, { size: 56, zoom: 1.4, oy: 0.2 }), h('span', h('b', JOBS[j].name), h('small', JOBS[j].title)))))));
+        // what this class may become at the job level: only how each one looks; its cards wait to be found in the game
+        h('div.cs-deck-title', t('Who you may become at Level {n}', { n: JOB_LEVEL })),
+        h('div.cs-jobs', ...jobsOf(focus).map((j) => h('div.cs-job', { style: { '--job': JOBS[j].color } },
+          heroSprite({ cls: focus, gender, job: j }, { size: 110, zoom: 1.2, oy: 0.1 }), h('b', JOBS[j].name))))));
     const pick = (g, label) => h('button.cs-gender' + (gender === g ? '.on' : ''), { onclick: () => { audio.sfx('click'); gender = g; render(); } }, label);
     foot.replaceChildren(h('div.cs-genders', pick('m', '♂ ' + t('Male')), pick('f', '♀ ' + t('Female'))), h('div.cs-slot', heroSprite({ cls: focus, gender }, { size: 64, zoom: 1.4, oy: 0.25 }), h('label', h('small', t('Character name')), nameInput)));
   };

@@ -525,6 +525,7 @@ export class Battle {
     }
     if (target && !Hex.hexEq(target, from)) u.facing = Hex.directionTo(from, target);
     const comboCat = card.combo && u.lastCat === card.combo.after;
+    const hidden = !!u.status.stealth; // struck from Stealth: cards with `hidden` hit harder for it
     if (u.status.stealth && card.cat === 'attack') delete u.status.stealth;
     await this.emit('cardPlay', { unit: u, card, slot, combo: comboCat });
     // the dice are rolled and read before the hero moves, so a charge lands as one motion: roll, rush, hit
@@ -593,6 +594,7 @@ export class Battle {
               if (f.far && this.dist(u, v) >= f.far.d) raw += f.far.v;
               if (f.alone && !this.alliesOf(v).some((x) => x !== v && x.alive && this.dist(x, v) <= 1)) raw += f.alone;
               if (f.perPlayed) raw += (u.played || 0) * f.perPlayed;
+              if (f.hidden && hidden && firstDmg && i === 0) raw += f.hidden;
               if (spent) { raw += spent; spent = 0; } // Block or MP paid into the blow: once, on the first hit
               if (f.execute && v.hp / v.maxHp <= f.execute) raw *= 2;
               const res = await this.hit(u, v, { raw, el: card.el, critBonus: f.crit || 0, forceCrit: diceFirst && dice.crit, drain: f.drain, keepMark: f.keepMark, aoe: card.shape !== 'single', together: card.shape !== 'single' && (f.hits || 1) === 1, tags: comboCat && firstDmg ? ['Combo!'] : [] });

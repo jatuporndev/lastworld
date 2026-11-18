@@ -6,7 +6,7 @@ import { G, myHeroes, touch, usedCopies, canAddToDeck, canRemoveFromDeck, tryUpg
 import { computeStats, attributes, canLearn, learnSkill, canEquip, clampVitals, treeOf, jobReady } from '../game/character.js';
 import { openJobChoice } from './jobUI.js';
 import { CLASSES, STAT_INFO, expToNext, className, canUseCard, levelCap } from '../data/classes.js';
-import { JOBS } from '../data/jobs.js';
+import { JOBS, JOB_LEVEL } from '../data/jobs.js';
 import { CARDS, RARITY, MAX_CARD_LEVEL, upgradeCost, DECK_MIN, DECK_MAX } from '../data/cards.js';
 import { CONSUMABLES, MATERIALS, RECIPES, BASES, ITEM_RARITY, makeEquipment } from '../data/items.js';
 import { QUESTS } from '../data/events.js';
@@ -71,7 +71,7 @@ function heroTab(render) {
   return h('div.tab-hero', heroPicker(render),
     h('div.hero-sheet',
       h('div.hero-col.portrait', h('div.hero-stage', heroSprite(hero, { size: 220, zoom: 1.1 })), h('div.hero-name', hero.name), h('div.hero-class', `${(J || C).name} · ${(J || C).title}`),
-        h('div.lvl', t('Level {n}', { n: hero.level })), hero.level >= levelCap(hero) ? h('div.cap-note', t(hero.job ? 'Highest level reached' : 'Take an advanced class to grow past Level 30'), jobReady(hero) && G.state.inv.cons.job_page ? btn(t('Choose a class'), () => openJobChoice(hero, render), { cls: 'small primary' }) : null) : bar('exp', hero.exp, expToNext(hero.level)), bar('hp', hero.hp, s.hp), bar('mp', hero.mp, s.mp)),
+        h('div.lvl', t('Level {n}', { n: hero.level })), hero.level >= levelCap(hero) ? h('div.cap-note', t(hero.job ? 'As strong as a hero can grow' : 'Read the page with your name to grow past Level {n}', { n: JOB_LEVEL }), jobReady(hero) && G.state.inv.cons.job_page ? btn(t('Read the page'), () => openJobChoice(hero, render), { cls: 'small primary' }) : null) : bar('exp', hero.exp, expToNext(hero.level)), bar('hp', hero.hp, s.hp), bar('mp', hero.mp, s.mp)),
       h('div.hero-col', h('div.sec-title', t('Attributes'), h('span.points' + (hero.statPoints ? '.has' : ''), t('{n} points', { n: hero.statPoints }))), ...['str', 'agi', 'vit', 'int', 'dex'].map(attrRow),
         h('div.sec-title', t('Combat Stats')),
         h('div.derived-grid', d('ATK', s.atk, t('Physical attack power')), d('MATK', s.matk, t('Magic attack power')), d('DEF', s.def, t('Reduces damage taken')), d(t('Speed'), s.spd, t('Determines turn order')), d(t('Crit'), s.crit + '%', t('Critical hit chance')), d(t('Evasion'), s.eva + '%', t('Chance to dodge')), d(t('Move'), s.move + (s.passives.move || 0), t('Hexes per turn')), d(t('Action Slots'), s.energy, t('How many slots of cards you can play each turn')))),
@@ -97,7 +97,7 @@ function equipTab(render) {
     if (!(await confirmBox(t('Sell Item'), t('Sell {name} for {n} gold? This cannot be undone.', { name: it.name, n }), t('Sell {n}g', { n })))) return;
     sellItem(it); audio.sfx('coin'); picked = null; render(); };
   const use = (id) => { const c = CONSUMABLES[id];
-    if (c.use.job) { if (jobReady(hero)) { picked = null; openJobChoice(hero, render); } else { audio.sfx('error'); toast(t('Only a hero of Level 30 with no advanced class can read it'), 'bad'); } return; }
+    if (c.use.job) { if (jobReady(hero)) { picked = null; openJobChoice(hero, render); } else { audio.sfx('error'); toast(t('Only a hero of Level {n} who has not chosen a path can read it', { n: JOB_LEVEL }), 'bad'); } return; }
     if (useConsumable(id, hero)) { audio.sfx('heal'); toast(t('{hero} used {item}', { hero: hero.name, item: c.name })); if (!st.inv.cons[id]) picked = null; render(); }
     else { audio.sfx('error'); toast(t(c.use.bomb || c.use.raise ? 'Only usable in battle' : 'Cannot use that now'), 'bad'); } };
   const ghost = (it, color) => h('div.cell.ghost', itemPic(it.icon, color, 40, it));

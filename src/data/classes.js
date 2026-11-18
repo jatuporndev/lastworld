@@ -1,4 +1,4 @@
-// Character classes, base stats and skill trees. The advanced classes taken at level 30 are in jobs.js.
+// Character classes, base stats and skill trees. The advanced classes taken at level 25 are in jobs.js.
 import { JOBS, JOB_LEVEL } from './jobs.js';
 
 export const CLASSES = {
