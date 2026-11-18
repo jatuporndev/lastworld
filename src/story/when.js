@@ -1,5 +1,4 @@
-// Which story scene is due where. This small table is the only part of the story the game loads at start; the
-// scenes themselves (src/story/index.js) are fetched when the first one plays. The story is docs/story.md.
+// Which story scene is due where (the scenes themselves are src/story/index.js). The story is docs/story.md.
 const EXPLORE = { 1: '1A', 2: '2A', 3: '3A', 4: '4A', 6: '6A' }; // at the first event, shrine or rest site reached in that realm
 const AFTER = { 1: '1C', 2: '2C', 3: '3C', 4: '4C', 5: '5C', 6: '6C', 11: '11C' }; // when its MVP has fallen
 const ROAD = { 7: '7N', 8: '8N', 9: '9N', 10: '10N' }; // on the way into that realm: a note in the map's margin

@@ -20,6 +20,9 @@ import { BattleScene } from './ui/battleUI.js';
 import { Coop } from './net/coop.js';
 import { coopBadge, guestWaitScreen } from './ui/coopUI.js';
 import { STORY } from './story/when.js';
+// The scenes are part of the game itself, not fetched when one is due: a new version put online while someone plays
+// renames the files, and a page opened before it could no longer fetch them (the host lost scenes that way).
+import * as Story from './story/index.js';
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
 
@@ -148,7 +151,7 @@ class App {
     if (!st.seenIntro[id]) { st.seenIntro[id] = true; touch(); await stageIntro(STAGE_BY_ID[id]); }
   }
 
-  // ───── story scenes (src/story: fetched when the first one is due) ─────
+  // ───── story scenes (src/story) ─────
   // Each scene plays once per world (a new world tells the story from the start). In co-op the host's game decides, and every player watches it together.
   storySeen(id) { return !!G.state?.story?.['s' + id]; }
   // Play the scenes in `ids` that this character has not seen (replay: play them whatever was seen). Returns how many played.
@@ -156,14 +159,15 @@ class App {
     let n = 0;
     for (const id of [].concat(ids || [])) {
       if (!G.state || Coop.isGuest || (!replay && this.storySeen(id))) continue;
-      if (!replay) { (G.state.story ||= {})['s' + id] = 1; touch(); }
       this.sv = { id, set: new Set() };
       if (Coop.isHost) Coop.send({ t: 'story', id });
-      await this.playStory(id, this.storyVoteOpts(id)); n++;
+      const shown = await this.playStory(id, this.storyVoteOpts(id));
+      if (shown && !replay) { (G.state.story ||= {})['s' + id] = 1; touch(); } // seen only once it was on screen
+      if (shown) n++;
     }
     return n;
   }
-  // Never throws and never hangs: a scene that cannot load or breaks is simply not shown.
+  // Never throws and never hangs: a scene that breaks is simply cut short.
   // Black over the board while a scene that is due is still being fetched, so the board is not seen for a moment first.
   storyCover(on = true) {
     if (!on) { this._cover?.remove(); this._cover = null; return; }
@@ -180,15 +184,16 @@ class App {
     if (this.sv?.id !== id) this.sv = { id, set: new Set() };
     if (on) this.sv.set.add(who); else this.sv.set.delete(who);
     if (mine) Coop.send({ t: 'storyVote', id, on: !!on });
-    import('./story/index.js').then((x) => {
-      x.storyVotesChanged(); const ids = Object.keys(Coop.players);
-      if (Coop.isHost && x.storyPlaying() === id && ids.length && ids.every((p) => this.sv.set.has(p))) { Coop.send({ t: 'storySkip', id }); x.skipStory(id); }
-    }).catch(() => {});
+    Story.storyVotesChanged(); const ids = Object.keys(Coop.players);
+    if (Coop.isHost && Story.storyPlaying() === id && ids.length && ids.every((p) => this.sv.set.has(p))) { Coop.send({ t: 'storySkip', id }); Story.skipStory(id); }
   }
+  // Resolves true if the scene came on screen.
   async playStory(id, opts = {}) {
-    try { const m = await import('./story/index.js'); await m.playStory(id, G.state?.party || [], { ...opts, world: this.world, onShown: () => this.storyCover(false) }); } catch (e) { console.error('[story]', id, e); }
+    let shown = false;
+    try { await Story.playStory(id, G.state?.party || [], { ...opts, world: this.world, onShown: () => { shown = true; this.storyCover(false); } }); } catch (e) { console.error('[story]', id, e); }
+    return shown;
   }
-  async openStory() { try { const m = await import('./story/index.js'); m.storyPage(this, (id) => this.storySeen(id), !Coop.active); } catch (e) { console.error('[story]', e); } }
+  openStory() { try { Story.storyPage(this, (id) => this.storySeen(id), !Coop.active); } catch (e) { console.error('[story]', e); } }
 
   // After a realm's boss falls for the first time: the journey scene, then straight into the next realm.
   // The scene tells the new realm's story, so its intro window is not shown again on arrival.
@@ -285,7 +290,7 @@ class App {
     bus.on('coop:closed', (why) => this.onRoomClosed(why));
     bus.on('coop:msg', (m) => {
       if (m.t === 'b') { (Coop.bbuf ||= []).push(m); return; } // battle commands go to the battle scene
-      if (m.t === 'storySkip') { (this.storyCut ||= new Set()).add(m.id); import('./story/index.js').then((x) => x.skipStory(m.id)).catch(() => {}); return; } // the host skipped: at once, not in turn
+      if (m.t === 'storySkip') { (this.storyCut ||= new Set()).add(m.id); Story.skipStory(m.id); return; } // the host skipped: at once, not in turn
       if (m.t === 'storyVote') { this.storyVote(m.id, m.from, m.on); return; } // any player: "I would skip this" (or not, after all)
       if (m.t === 'story') this.sv = { id: m.id, set: new Set() };
       if (m.t === 'st') { (this.pst[m.from] ||= {})[m.k] = m.on || false; this.scene?.showStatus?.(m.from); bus.emit('coop:state', m.from); return; } // any player: "this is what I am doing"

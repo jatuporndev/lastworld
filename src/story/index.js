@@ -1,5 +1,5 @@
 // Plays one story scene over the whole game, and holds the "Story" page where scenes already seen can be watched
-// again. This file and everything it imports load only when the first scene is due (see App.playStory in main.js).
+// again. It is part of the game from the start (see the import in main.js).
 // A scene can never hold the game: it can be skipped, it ends itself if it runs far too long, and whatever goes
 // wrong inside it is caught here and the game carries on.
 import { mount, unmount, skip, debug, S } from './stage.js';
