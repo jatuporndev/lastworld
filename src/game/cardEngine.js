@@ -1,5 +1,5 @@
 // Card Engine — per-hero draw pile, hand, discard and cooldown track during a battle.
-import { cardStats } from '../data/cards.js';
+import { cardStats, applyCardMods } from '../data/cards.js';
 
 export const HAND_SIZE = 5;
 export const HAND_LIMIT = 7;
@@ -9,9 +9,10 @@ let instCounter = 1;
 const defaultId = () => 'c' + instCounter++;
 
 export class CardEngine {
-  constructor(deckIds, levelOf, rng, nextId = defaultId) {
+  // mods: the hero's skill-tree card changes (see applyCardMods)
+  constructor(deckIds, levelOf, rng, nextId = defaultId, mods = null) {
     this.rng = rng;
-    this.draw = deckIds.map((id) => ({ uid: nextId(), id, lv: levelOf(id), card: cardStats(id, levelOf(id)) }));
+    this.draw = deckIds.map((id) => ({ uid: nextId(), id, lv: levelOf(id), card: applyCardMods(cardStats(id, levelOf(id)), mods) }));
     rng.shuffle(this.draw);
     this.hand = []; this.discard = []; this.cooldown = []; // cooldown: [{inst, left, total}]
   }

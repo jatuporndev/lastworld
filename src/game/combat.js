@@ -19,7 +19,7 @@ const FOOT = {
   3: [[0, 0], [1, 0], [0, 1]],
   7: [[0, 0], ...Hex.DIRS],
 };
-const NO_STACK = ['stun', 'frozen', 'mark', 'stealth', 'taunt', 'fortify'];
+const NO_STACK = ['stun', 'frozen', 'mark', 'stealth', 'taunt', 'fortify', 'mech'];
 export { DICE } from '../data/cards.js';
 
 // Builds the battle board from the stage's hand-designed layouts (see data/stages.js).
@@ -95,6 +95,7 @@ export class Battle {
     heroes.forEach((u) => {
       u.block += (u.passives.startBlock || 0) + teamBlock;
       if (u.passives.startStrength) u.status.strength = { n: u.passives.startStrength, p: 0 };
+      for (const [st, n] of Object.entries(u.passives.startStatus || {})) u.status[st] = { n: (u.status[st]?.n || 0) + n, p: 0 };
       if (nextBuff) u.status[nextBuff.st] = { n: (u.status[nextBuff.st]?.n || 0) + nextBuff.n, p: 0 };
     });
     // large monsters on the anchor, the rest on enemy starts
@@ -129,7 +130,7 @@ export class Battle {
       stats: { atk: s.atk, matk: s.matk, def: s.def, spd: s.spd, crit: s.crit, eva: s.eva, move: s.move, energy: s.energy, draw: s.draw, mpRegen: s.mpRegen },
       passives: s.passives, el: CLASSES[hero.cls].element, weak: [], resist: [],
       block: 0, status: {}, alive: true, energy: 0, moved: false, slotsUsed: 0, plan: [], lastCat: null, itemUsed: false,
-      cards: new CardEngine(hero.deck, hero.cardLv ? (id) => hero.cardLv[id] || 0 : levelOf, this.rng, () => 'c' + this.nextId()),
+      cards: new CardEngine(hero.deck, hero.cardLv ? (id) => hero.cardLv[id] || 0 : levelOf, this.rng, () => 'c' + this.nextId(), s.passives.cardMods),
     };
   }
 
@@ -189,6 +190,7 @@ export class Battle {
     let m = u.stats.move + (u.passives.move || 0);
     if (u.status.chill) m -= 1;
     if (u.status.haste) m += 2;
+    if (u.status.mech) m += 2; // riding a war machine
     return Math.max(0, m);
   }
 
@@ -249,7 +251,7 @@ export class Battle {
       return;
     }
     if (u.cards) {
-      u.energy = u.stats.energy; u.moved = false; u.slotsUsed = 0; u.plan = []; u.lastCat = null; u.itemUsed = false;
+      u.energy = u.stats.energy; u.moved = false; u.slotsUsed = 0; u.plan = []; u.lastCat = null; u.itemUsed = false; u.played = 0;
       u.mp = Math.min(u.maxMp, u.mp + u.stats.mpRegen);
       if (u.passives.regenFlat) await this.heal(u, u, u.passives.regenFlat, true);
       const ready = u.cards.tickCooldowns();
@@ -291,7 +293,7 @@ export class Battle {
         if (e.mp && u.maxMp) u.mp = Math.max(0, u.mp + e.mp);
       }
     }
-    for (const st of ['weak', 'vulnerable', 'haste', 'root', 'taunt', 'stealth', 'strength', 'chill']) if (u.status[st]) this.decStatus(u, st);
+    for (const st of ['weak', 'vulnerable', 'haste', 'root', 'taunt', 'stealth', 'strength', 'chill', 'curse', 'mech']) if (u.status[st]) this.decStatus(u, st);
     await this.hook('turnEnd', u);
     await this.emit('turnEnd', { unit: u });
   }
@@ -544,9 +546,18 @@ export class Battle {
       if (dest && !Hex.hexEq(dest, from)) { await this.emit('dash', { unit: u, to: dest }); u.q = dest.q; u.r = dest.r; }
       u.facing = Hex.directionTo(u, this.nearestCell(u, tUnit));
     }
+    // Trample: everything on the line is struck, and the hero ends on the farthest free hex of it
+    let trampled = null;
+    if (f0 === 'trample') {
+      const line = this.shapeCells(card, from, target || from);
+      trampled = { cells: line, victims: this.foesOf(u).filter((v) => this.canTarget(u, card, v) && this.cellsOf(v).some((c) => line.some((x) => Hex.hexEq(x, c)))) };
+      let dest = null; for (const c of line) { if (!isFinite(this.terrain(c)?.cost)) break; if (this.canStand(u, c)) dest = c; } // the charge stops at water or a wall, and passes through foes
+      if (dest && !Hex.hexEq(dest, from)) { await this.emit('dash', { unit: u, to: dest, trample: true }); u.q = dest.q; u.r = dest.r; }
+    }
     const origin = { q: u.q, r: u.r };
     let cells; let victims;
-    if (card.tg === 'self' && card.shape === 'single') { cells = [origin]; victims = [u]; }
+    if (trampled) ({ cells, victims } = trampled);
+    else if (card.tg === 'self' && card.shape === 'single') { cells = [origin]; victims = [u]; }
     else if (card.shape === 'single') {
       cells = tUnit ? this.cellsOf(tUnit) : [target]; victims = tUnit ? [tUnit] : [];
     } else {
@@ -558,7 +569,7 @@ export class Battle {
     if (hasEffect) await this.emit('cast', { unit: u, card, cells, targets: victims, target: target || origin });
 
     const evaded = new Set(); const diceHit = new Set();
-    let firstDmg = true;
+    let firstDmg = true; let reaped = null; // reaped: what the card pays when it kills (onKill), once per card
     for (const f of card.fx) {
       const tgts = f.self ? [u] : victims;
       switch (f.t) {
@@ -581,10 +592,12 @@ export class Battle {
               if (f.wounded) raw += Math.floor((1 - u.hp / u.maxHp) * 4) * f.wounded;
               if (f.far && this.dist(u, v) >= f.far.d) raw += f.far.v;
               if (f.alone && !this.alliesOf(v).some((x) => x !== v && x.alive && this.dist(x, v) <= 1)) raw += f.alone;
+              if (f.perPlayed) raw += (u.played || 0) * f.perPlayed;
               if (spent) { raw += spent; spent = 0; } // Block or MP paid into the blow: once, on the first hit
               if (f.execute && v.hp / v.maxHp <= f.execute) raw *= 2;
               const res = await this.hit(u, v, { raw, el: card.el, critBonus: f.crit || 0, forceCrit: diceFirst && dice.crit, drain: f.drain, keepMark: f.keepMark, aoe: card.shape !== 'single', together: card.shape !== 'single' && (f.hits || 1) === 1, tags: comboCat && firstDmg ? ['Combo!'] : [] });
               if (res.evaded) evaded.add(v);
+              if (f.onKill && !v.alive && !reaped) reaped = f.onKill;
             }
           }
           if (f.keepMark) for (const v of tgts) delete v.status.mark; // the Mark served every hit of this card, and is gone after it
@@ -614,6 +627,12 @@ export class Battle {
       }
     }
     if (comboCat && card.combo.bonus.status) for (const v of victims) if (v.alive && !evaded.has(v)) await this.addStatus(u, v, card.combo.bonus.status.st, card.combo.bonus.status.n);
+    if (reaped && u.alive) {
+      if (reaped.energy) { u.energy += reaped.energy; await this.emit('text', { unit: u, text: t('+{n} Action Slot', { n: reaped.energy }), color: '#ffd76a' }); }
+      if (reaped.draw && u.cards) { const d = []; for (let i = 0; i < reaped.draw; i++) { const c = u.cards.drawOne(); if (c) d.push(c); } await this.emit('draw', { unit: u, drawn: d }); }
+      if (reaped.heal) await this.heal(u, u, reaped.heal);
+    }
+    u.played = (u.played || 0) + 1;
     u.lastCat = card.cat;
     await this.hook('card', { unit: u, card, cells, victims });
   }
@@ -651,8 +670,9 @@ export class Battle {
   async summon(owner, id, at) {
     if (!this.canStand({ size: 1 }, at) || this.unitAt(at)) return;
     const u = this._monsterUnit(id);
-    const bonus = 1 + (owner.passives.turretBonus || 0);
-    u.maxHp = u.hp = Math.round((u.hp + Math.floor(owner.level / 3)) * bonus);
+    const P = owner.passives; const bonus = 1 + (P.turretBonus || 0);
+    const hpMul = bonus * (1 + (P.buildHp || 0)) * (id === 'hawk' ? 1 + (P.hawkHp || 0) : 1);
+    u.maxHp = u.hp = Math.round((u.hp + Math.floor(owner.level / 3)) * hpMul);
     u.stats.atk = Math.round((owner.stats.atk + 2) * bonus);
     u.owner = owner.uid; u.q = at.q; u.r = at.r; u.facing = owner.facing; u.level = owner.level;
     this.units.push(u);
@@ -708,6 +728,33 @@ export class Battle {
       for (const v of victims) await this.hit(u, v, { raw: Math.max(1, Math.round(u.stats.atk * 0.75)), el: 'earth', noEvade: true, aoe: true, together: true, tags: [] });
       return;
     }
+    const owner = this.units.find((x) => x.uid === u.owner); const P = owner?.passives || {};
+    if (u.monsterId === 'pylon') { // a shield for every friend standing next to it
+      for (const a of this.heroSide()) if (a !== u && a.alive && !a.construct && this.dist(u, a) <= 1) await this.addBlock(a, 2 + (P.pylonBlock || 0));
+      return;
+    }
+    if (u.monsterId === 'cannon') { // down the line that holds the most enemies
+      const reach = 5 + (P.cannonRange || 0); let best = null;
+      for (let d = 0; d < 6; d++) {
+        const line = []; for (const h of Hex.lineInDir(u, d, reach)) { const tt = this.terrain(h); if (!tt || tt.blocksLos) break; line.push(h); }
+        const vs = this.enemies().filter((e) => !e.hidden && this.cellsOf(e).some((c) => line.some((x) => Hex.hexEq(x, c))));
+        if (vs.length && (!best || vs.length > best.vs.length)) best = { d, line, vs };
+      }
+      if (!best) return;
+      u.facing = best.d;
+      await this.emit('cast', { unit: u, card: { name: t('Cannon Shot'), el: 'fire', cat: 'attack', shape: 'line', size: reach }, cells: best.line, targets: best.vs, target: best.line[best.line.length - 1] });
+      for (const v of best.vs) await this.hit(u, v, { raw: u.stats.atk, el: 'fire', noEvade: true, aoe: true, together: true, tags: [] });
+      return;
+    }
+    if (u.monsterId === 'hawk') { // swoops on the nearest enemy, wherever it stands
+      const foe = this.enemies().filter((e) => !e.hidden && this.dist(u, e) <= 4).sort((a, b) => this.dist(u, a) - this.dist(u, b))[0];
+      if (!foe) return;
+      const tc = this.nearestCell(u, foe); u.facing = Hex.directionTo(u, tc);
+      await this.emit('cast', { unit: u, card: { name: t('Talon Strike'), el: 'wind', cat: 'attack' }, cells: [tc], targets: [foe], target: tc });
+      await this.hit(u, foe, { raw: Math.max(1, u.stats.atk), el: 'wind', noEvade: true, tags: [] });
+      if (P.hawkMark && foe.alive) await this.addStatus(u, foe, 'mark', 1);
+      return;
+    }
     if (u.monsterId !== 'turret') return;
     const foe = this.enemies().filter((e) => !e.hidden && this.dist(u, e) <= 4).sort((a, b) => this.dist(u, a) - this.dist(u, b))[0];
     if (!foe) return;
@@ -756,7 +803,7 @@ export class Battle {
     }
     let dmg = o.raw; const el = o.el || 'neutral';
     const P = src?.passives || {};
-    dmg += src.status.strength?.n || 0;
+    dmg += (src.status.strength?.n || 0) + (src.status.mech ? 2 : 0);
     if (this.rule) { const R = this.rule; dmg = (dmg + (R.def.dmgOut?.(this, R, src) || 0)) * (R.def.dmgMul?.(this, R, src) ?? 1); }
     if (src.status.weak) dmg *= 0.75;
     if (P.dmgPct) dmg *= 1 + P.dmgPct;
@@ -781,6 +828,7 @@ export class Battle {
     if (tgt.status.mark) { crit = true; dmg *= 1.5; if (!o.keepMark) delete tgt.status.mark; }
     if (crit) dmg *= 1.5 + (P.critDmg || 0);
     if (tgt.status.vulnerable) dmg *= 1.25;
+    if (tgt.status.curse) { dmg += tgt.status.curse.n; tags.push('Curse'); }
     // defense
     const tdef = tgt.size === 1 ? (this.terrain(tgt)?.def || 0) : 0;
     dmg = Math.max(1, Math.round(dmg) - tgt.stats.def - tdef); // DEF is flat armour; a hit always does at least 1
@@ -861,6 +909,7 @@ export class Battle {
 
   async addStatus(src, tgt, st, n) {
     if (!tgt.alive || tgt.construct || tgt.prop) return;
+    if (st === 'poison' && tgt.passives?.immunePoison) { await this.emit('text', { unit: tgt, text: t('Immune'), color: '#bbb' }); return; }
     const hard = ['stun', 'frozen', 'root'].includes(st);
     if (hard && (tgt.rank === 'mvp' || tgt.rank === 'mini')) {
       if ((tgt.ccUntil || 0) >= this.round) { await this.emit('text', { unit: tgt, text: t('Resisted'), color: '#bbb' }); return; }

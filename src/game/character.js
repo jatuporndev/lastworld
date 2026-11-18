@@ -1,5 +1,6 @@
 // Character System — heroes, derived stats, levelling, equipment, skill trees.
-import { CLASSES, SKILL_TREES, expToNext, MAX_LEVEL } from '../data/classes.js';
+import { CLASSES, SKILL_TREES, expToNext, levelCap } from '../data/classes.js';
+import { JOBS, JOB_TREES, JOB_LEVEL } from '../data/jobs.js';
 import { STARTER_DECKS } from '../data/cards.js';
 import { makeEquipment } from '../data/items.js';
 import { uid } from '../core/util.js';
@@ -12,7 +13,7 @@ const STARTER_GEAR = {
 export function createHero(cls, name, gender = 'm') {
   const [w, a] = STARTER_GEAR[cls];
   const hero = {
-    id: uid(), cls, gender: gender === 'f' ? 'f' : 'm', name: name || CLASSES[cls].name, level: 1, exp: 0,
+    id: uid(), cls, job: null, gender: gender === 'f' ? 'f' : 'm', name: name || CLASSES[cls].name, level: 1, exp: 0,
     statPoints: 0, skillPoints: 0,
     alloc: { str: 0, agi: 0, vit: 0, int: 0, dex: 0 },
     skills: [],
@@ -46,12 +47,13 @@ export function computeStats(hero) {
     crit: 5 + a.dex * 1.2,
     eva: a.agi,
     move: cls.move, energy: 3, draw: 0, mpRegen: 2,
-    passives: { statusBonus: {}, elemPct: {} },
+    passives: { statusBonus: {}, elemPct: {}, startStatus: {}, cardMods: [] },
     attrs: a,
   };
   const applyPassive = (p) => {
     for (const [k, v] of Object.entries(p)) {
-      if (k === 'statusBonus' || k === 'elemPct') { for (const [kk, vv] of Object.entries(v)) s.passives[k][kk] = (s.passives[k][kk] || 0) + vv; }
+      if (k === 'statusBonus' || k === 'elemPct' || k === 'startStatus') { for (const [kk, vv] of Object.entries(v)) s.passives[k][kk] = (s.passives[k][kk] || 0) + vv; }
+      else if (k === 'cardMod') s.passives.cardMods.push(v);
       else if (k in s && typeof s[k] === 'number') s[k] += v;
       else if (typeof v === 'number') s.passives[k] = (s.passives[k] || 0) + v;
       else s.passives[k] = v;
@@ -63,23 +65,35 @@ export function computeStats(hero) {
     for (const [k, v] of Object.entries(it.stats)) if (k in s) s[k] += v;
     if (it.passive) applyPassive(it.passive);
   }
-  const tree = SKILL_TREES[hero.cls];
+  const tree = treeOf(hero);
   for (const id of hero.skills) { const n = tree.find((x) => x.id === id); if (n) applyPassive(n.p); }
   s.crit = Math.min(75, Math.round(s.crit)); s.eva = Math.min(50, Math.round(s.eva));
   return s;
 }
 
-// Returns number of levels gained
+// Every skill node the hero can learn: its class tree, then its job's tree once it has a job.
+export const treeOf = (hero) => [...SKILL_TREES[hero.cls], ...(JOB_TREES[hero.job] || [])];
+// Ready for a job: level 30 and none taken yet.
+export const jobReady = (hero) => !hero.job && hero.level >= JOB_LEVEL;
+// Take a job, for good. Returns false if the hero cannot take this one.
+export function takeJob(hero, job) {
+  if (!jobReady(hero) || JOBS[job]?.cls !== hero.cls) return false;
+  hero.job = job; hero.exp = 0;
+  return true;
+}
+
+// Returns number of levels gained. Before a job the cap is 30, and what is earned past it is not kept.
 export function grantExp(hero, amount) {
-  let gained = 0;
-  if (hero.level >= MAX_LEVEL) return 0;
+  let gained = 0; const cap = levelCap(hero);
+  if (hero.level >= cap) return 0;
   hero.exp += amount;
-  while (hero.level < MAX_LEVEL && hero.exp >= expToNext(hero.level)) {
+  while (hero.level < cap && hero.exp >= expToNext(hero.level)) {
     hero.exp -= expToNext(hero.level);
     hero.level++; gained++;
     hero.statPoints += 1;
     if (hero.level % 2 === 0) hero.skillPoints += 1;
   }
+  if (hero.level >= cap) hero.exp = 0;
   if (gained) { const s = computeStats(hero); hero.hp = s.hp; hero.mp = s.mp; }
   return gained;
 }
@@ -99,7 +113,7 @@ export function learnSkill(hero, node) {
 export function canEquip(hero, item) {
   const cls = CLASSES[hero.cls];
   if (item.slot === 'weapon') return cls.weaponTypes.includes(item.type);
-  if (item.slot === 'armor') return cls.armorTypes.includes(item.type);
+  if (item.slot === 'armor') return cls.armorTypes.includes(item.type) || !!JOBS[hero.job]?.armorTypes?.includes(item.type);
   return true;
 }
 

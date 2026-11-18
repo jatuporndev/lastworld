@@ -4,7 +4,9 @@ import { t, LANG, setLang } from '../core/i18n.js';
 import { audio } from '../core/audio.js';
 import { G, claimableQuests, charList, worldList, createCharacter, createWorld, deleteCharacter, deleteWorld, myHeroes, MAX_CHARS, MAX_WORLDS } from '../game/state.js';
 import { computeStats, createHero } from '../game/character.js';
-import { CLASSES, CLASS_ORDER } from '../data/classes.js';
+import { CLASSES, CLASS_ORDER, className } from '../data/classes.js';
+import { JOBS, JOB_LEVEL, jobsOf } from '../data/jobs.js';
+import { openJobPreview } from './jobUI.js';
 import { STARTER_DECKS, ELEMENTS } from '../data/cards.js';
 import { STAGES } from '../data/stages.js';
 import { MONSTERS } from '../data/monsters.js';
@@ -161,7 +163,7 @@ export function playScreen(app, sel = {}) {
       const hero = c.hero; const C = CLASSES[hero.cls];
       return h('div.ps-char' + (c.id === charId ? '.sel' : ''), { style: { '--c': C.color }, onclick: () => { charId = c.id; audio.sfx('click'); render(); } },
         h('div.ps-sprite', heroSprite(hero, { size: 120, zoom: 1.15, oy: 0.1 })),
-        h('b.ps-cname', hero.name), h('small', `${C.name} · Lv ${hero.level}`),
+        h('b.ps-cname', hero.name), h('small', `${className(hero)} · Lv ${hero.level}`),
         h('div.ps-cstats', h('span', icon('coin', '#ffd24a', 14), fmt(c.gold)), h('span', icon('book', '#c9a0ff', 14), Object.values(c.cards).reduce((s, x) => s + x.n, 0))),
         h('button.ps-del', { 'data-tip': t('Delete character'), onclick: async (e) => { e.stopPropagation();
           if (await confirmBox(t('Delete {name}?', { name: hero.name }), t('This character, their gear, cards and gold are deleted for good. Worlds are kept.'), t('Delete'))) { deleteCharacter(c.id); if (charId === c.id) charId = charList()[0]?.id; await app.saveNow({ gap: 0 }); render(); } } }, '✕'));
@@ -232,7 +234,11 @@ export function charCreateScreen(app, back = {}) {
       h('div.cs-hero', h('div.cs-pedestal'), big),
       h('div.cs-info', h('div.cs-title', { style: { color: C.color } }, C.name), h('div.cs-sub', `${C.title} · ${ELEMENTS[C.element].name}`), h('p', C.desc),
         h('div.cs-stats', statBar('HP', s.hp, 130), statBar('MP', s.mp, 60), statBar('ATK', s.atk, 26), statBar('MATK', s.matk, 26), statBar('DEF', s.def, 14), statBar('SPD', s.spd, 34), statBar(t('MOVE'), s.move, 5)),
-        h('div.cs-deck-title', t('Starting Deck')), h('div.cs-deck', ...[...new Set(STARTER_DECKS[focus])].map((id) => cardEl(id, 0, { small: true })))));
+        h('div.cs-deck-title', t('Starting Deck')), h('div.cs-deck', ...[...new Set(STARTER_DECKS[focus])].map((id) => cardEl(id, 0, { small: true }))),
+        // the two paths this class can take at Level 30: press one to see both
+        h('div.cs-deck-title', t('Advanced classes at Level {n}', { n: JOB_LEVEL })),
+        h('div.cs-jobs', ...jobsOf(focus).map((j) => h('button.cs-job', { style: { '--job': JOBS[j].color }, onclick: () => { audio.sfx('click'); openJobPreview(focus, gender); } },
+          heroSprite({ cls: focus, gender, job: j }, { size: 56, zoom: 1.4, oy: 0.2 }), h('span', h('b', JOBS[j].name), h('small', JOBS[j].title)))))));
     const pick = (g, label) => h('button.cs-gender' + (gender === g ? '.on' : ''), { onclick: () => { audio.sfx('click'); gender = g; render(); } }, label);
     foot.replaceChildren(h('div.cs-genders', pick('m', '♂ ' + t('Male')), pick('f', '♀ ' + t('Female'))), h('div.cs-slot', heroSprite({ cls: focus, gender }, { size: 64, zoom: 1.4, oy: 0.25 }), h('label', h('small', t('Character name')), nameInput)));
   };

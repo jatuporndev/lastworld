@@ -1029,6 +1029,37 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .sp-list { display: flex; flex-direction: column; gap: 0.25em; max-height: 60vh; overflow-y: auto; padding-right: 0.3em; } .sp-row { display: flex; align-items: center; gap: 0.7em; padding: 0.3em 0.5em; border-radius: var(--radius); background: var(--paper2); color: var(--ink-d); min-height: 2.6em; }
 .sp-row.locked { color: var(--dim-d); background: transparent; } .sp-no { width: 2.6em; font-family: var(--f-head); color: var(--dim-d); } .sp-name { flex: 1; font-family: var(--f-head); }
 
+/* advanced classes: the two paths side by side on paper, each with a strip of its own colour */
+.modal.job-modal { width: min(64em, 96vw); max-width: 64em; }
+.job-choice { color: var(--ink-d); }
+.job-lead { text-align: center; color: var(--dim-d); font-style: italic; margin: 0 0 0.8em; }
+.job-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1em; }
+.job-col { background: var(--paper2); border-radius: var(--radius); border-top: 0.4em solid var(--job); padding: 0.6em 0.9em 0.9em; display: flex; flex-direction: column; align-items: center; gap: 0.3em; min-width: 0; }
+.job-stage { display: grid; place-items: end center; }
+/* the name in ink (a pale job colour would vanish on paper), underlined in the job's colour */
+.job-name { font-family: var(--f-head); font-weight: 700; font-size: 1.5em; color: var(--ink-d); line-height: 1.2; border-bottom: 0.14em solid var(--job); }
+.job-title { font-family: var(--f-head); color: var(--dim-d); font-size: 0.85em; letter-spacing: 0.06em; }
+.job-desc { text-align: center; font-size: 0.9em; margin: 0.2em 0 0.3em; }
+.job-sub { align-self: stretch; font-family: var(--f-head); font-size: 0.78em; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim-d); border-bottom: 0.14em solid var(--paper3); margin-top: 0.3em; }
+.job-cards { display: flex; gap: 0.5em; justify-content: center; flex-wrap: wrap; padding: 0.3em 0; }
+.job-ult { position: relative; } .job-ult .card { filter: grayscale(0.55) brightness(0.8); }
+.job-lock { position: absolute; left: 50%; bottom: 0.6em; transform: translateX(-50%); white-space: nowrap; background: var(--ink-d); color: var(--paper); font-size: 0.72em; padding: 0.15em 0.6em; border-radius: var(--radius); }
+.job-branches { display: flex; gap: 0.4em; flex-wrap: wrap; justify-content: center; }
+.job-branch { background: var(--paper); border-radius: var(--radius); padding: 0.2em 0.7em; font-family: var(--f-head); font-size: 0.85em; cursor: help; box-shadow: 0 0.18em 0 rgba(0, 0, 0, 0.18); }
+.job-col .row { margin-top: 0.5em; }
+.job-news { margin-top: 0.25em; font-weight: 600; color: var(--accent); }
+/* creation screen: the two paths this class can take, as paper tags */
+.cs-jobs { display: flex; gap: 0.7em; flex-wrap: wrap; padding: 0.4em 0.2em; }
+.cs-job { display: flex; align-items: center; gap: 0.4em; padding: 0.1em 0.9em 0.1em 0.2em; background: var(--paper); color: var(--ink-d); border: 0; border-left: 0.35em solid var(--job); border-radius: var(--radius); box-shadow: 0 0.3em 0 rgba(0, 0, 0, 0.28); cursor: pointer; font: inherit; text-align: left; min-height: 2.8em; }
+.cs-job:hover { background: var(--paper3); }
+.cs-job b { display: block; font-family: var(--f-head); } .cs-job small { display: block; color: var(--dim-d); font-size: 0.75em; }
+/* hero sheet: the job tree above the class tree, and the note at the level cap */
+.tree-title { font-family: var(--f-head); font-weight: 600; color: var(--ink-d); margin: 0.5em 0 0.3em; }
+.tree.job { margin-bottom: 0.6em; }
+.branch-name { font-family: var(--f-head); font-size: 0.78em; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim-d); text-align: center; }
+.cap-note { font-size: 0.82em; color: var(--dim-d); margin: 0.3em 0 0.6em; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 0.45em; }
+.cap-note .btn { font-size: 1.15em; }
+
 /* ── phones ──
    The game is a wide tabletop, so phones play it in landscape. A short screen gets a larger base
    font than the desktop formula would give (text stays readable) and a compact HUD to make room. */
@@ -1052,6 +1083,7 @@ html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent
   .ts-top { right: 2.4vw; top: 4vh; gap: 1.3em; } .ts-hex { width: 2.9em; height: 2.9em; }
   /* character / world pick, character creation */
   .ps-screen, .cs-screen { padding: 0.6em 1.2em; gap: 0.5em; }
+  .job-cols { gap: 0.6em; } .job-stage .sprite-canvas { width: 7em !important; height: 7em !important; } .job-desc { font-size: 0.82em; }
   .ps-main { gap: 0.8em; } .ps-col { padding: 0.6em 0.8em; gap: 0.5em; overflow-y: auto; } .ps-char.empty { min-height: 9em; }
   .cs-head h2 { font-size: 1.4em; } .cs-detail { gap: 1em; padding: 0.5em 0.8em; } .cs-title { font-size: 1.4em; } .cs-slot { height: 3.6em; min-width: 12em; }
   /* world map */

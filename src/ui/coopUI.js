@@ -4,7 +4,7 @@ import { h, bus } from '../core/util.js';
 import { t } from '../core/i18n.js';
 import { audio } from '../core/audio.js';
 import { G, charList, worldList, MAX_WORLDS } from '../game/state.js';
-import { CLASSES } from '../data/classes.js';
+import { CLASSES, className } from '../data/classes.js';
 import { Net } from '../net/firebase.js';
 import { Coop } from '../net/coop.js';
 import { ui, btn, icon, openModal, heroSprite, toast } from './components.js';
@@ -36,7 +36,7 @@ export function coopModal(app) {
   if (!Net.online) { toast(t(ERR.offline), 'bad'); return null; }
   const P = G.profile; const chars = charList(); const worlds = worldList();
   const opt = (v, label, selected) => { const o = h('option', { value: v }, label); if (selected) o.selected = true; return o; };
-  const charLabel = (c) => `${c.hero.name} · ${CLASSES[c.hero.cls].name} Lv ${c.hero.level}`;
+  const charLabel = (c) => `${c.hero.name} · ${className(c.hero)} Lv ${c.hero.level}`;
   const pickChar = () => h('select.lb-select', ...chars.map((c) => opt(c.id, charLabel(c), c.id === P.last.char)));
   const hostChar = pickChar(); const joinChar = pickChar();
   // the host picks one of their worlds, or makes a new one right here
@@ -91,7 +91,7 @@ export function lobbyModal(app) {
       return h('div.lb-hero', { style: { '--pc': Coop.colorOf(id) } },
         hero ? h('div.lb-portrait', heroSprite(hero, { size: 56, zoom: 1.5, oy: 0.3 })) : h('div.lb-portrait'),
         h('div.lb-hinfo', h('b', { style: { color: Coop.colorOf(id) } }, Coop.nameOf(id), id === Coop.hostId ? h('span.tag', t('Host')) : null, id === Coop.me ? h('span.tag.me', t('You')) : null),
-          hero ? h('small', `${hero.name} · ${CLASSES[hero.cls].name} Lv ${hero.level}`) : h('small', '…')),
+          hero ? h('small', `${hero.name} · ${className(hero)} Lv ${hero.level}`) : h('small', '…')),
         Coop.isHost && id !== Coop.me ? h('button.mini', { onclick: () => Coop.kick(id), 'data-tip': t('Remove from room') }, '✕') : null); };
     body.replaceChildren(
       h('div.lb-code', h('small', t('ROOM CODE')), h('div.lb-code-row', h('b', Coop.code),
@@ -126,7 +126,7 @@ export function guestWaitScreen(app, text) {
       h('h2', text.replace(/[….]+$/, ''), h('span.cw-dots', h('i'), h('i'), h('i'))), party,
       h('div.row.center', btn(t('Party Room'), () => lobbyModal(app)), btn(t('Leave Room'), () => app.leaveCoop()))));
   const draw = () => { if (!el.isConnected) { offs.forEach((off) => off()); return; }
-    party.replaceChildren(G.state?.party?.length ? partyTiles(app, null, (id) => { const hero = G.state.party.find((x) => x.owner === id); return id === Coop.hostId ? t('Host') : hero ? `${CLASSES[hero.cls].name} Lv ${hero.level}` : '…'; }) : ''); };
+    party.replaceChildren(G.state?.party?.length ? partyTiles(app, null, (id) => { const hero = G.state.party.find((x) => x.owner === id); return id === Coop.hostId ? t('Host') : hero ? `${className(hero)} Lv ${hero.level}` : '…'; }) : ''); };
   ui().appendChild(el);
   const offs = [bus.on('coop:players', draw), bus.on('coop:state', draw)];
   draw();

@@ -8,6 +8,7 @@ import { MONSTERS } from '../data/monsters.js';
 import { STAGES } from '../data/stages.js';
 import { EVENTS, QUESTS } from '../data/events.js';
 import { NODE_INFO } from '../game/stageManager.js';
+import { JOBS, JOB_TREES } from '../data/jobs.js';
 
 // Skill names (hero cards and monster attacks) are kept in English in every language, like "Fireball".
 const cardNames = Object.entries(CARDS).map(([id, c]) => [id, c.name]);
@@ -15,6 +16,10 @@ const attackNames = Object.values(MONSTERS).flatMap((m) => [...(m.intents || [])
 
 [CLASSES, SKILL_TREES, STAT_INFO, CARDS, ELEMENTS, CATEGORIES, RARITY, STATUS_INFO, ITEM_RARITY, BASES, UNIQUES,
   CONSUMABLES, MATERIALS, TERRAIN, MONSTERS, STAGES, EVENTS, QUESTS, NODE_INFO].forEach((tbl) => localize(tbl));
+// a job keeps its English name, like a class; its title, words, branches and tree are translated
+const jobNames = Object.values(JOBS).map((J) => [J, J.name]);
+localize(JOBS); localize(JOB_TREES); Object.values(JOBS).forEach((J) => localizeValues(J.branches));
+jobNames.forEach(([J, name]) => { J.name = name; });
 localizeValues(STAT_LABEL);
 cardNames.forEach(([id, name]) => { CARDS[id].name = name; });
 attackNames.forEach(([it, name]) => { it.name = name; });

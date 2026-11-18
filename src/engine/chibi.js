@@ -56,8 +56,11 @@ function castShadow(c, pts, x, y, rx, ry, a = 0.3) {
 const disc = (c, x, y, rx, ry, color, o) => blob(c, [[x - rx * 1.33, y - ry * 1.33], [x + rx * 1.33, y - ry * 1.33], [x + rx * 1.33, y + ry * 1.33], [x - rx * 1.33, y + ry * 1.33]], color, o);
 function glow(c, x, y, r, color, alpha = 0.6) { const g = c.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, color); g.addColorStop(1, 'rgba(0,0,0,0)'); c.save(); c.globalAlpha = alpha; c.globalCompositeOperation = 'lighter'; c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); c.restore(); }
 
+// helms that cover the whole head (the face is a visor), and hoods that frame it
+const HELMED = ['knight', 'horned', 'plume', 'winged'];
+const HOODED = ['hood', 'mask', 'hornhood', 'wolfhood', 'skullhood', 'gasmask'];
 function palette(L) {
-  const armoured = L.helm === 'knight' || L.helm === 'horned';
+  const armoured = HELMED.includes(L.helm);
   return {
     skin: L.skin, hair: L.hair || L.armor2, male: !L.female, armoured,
     dress: L.armor, dress2: armoured ? tone(L.armor, 0.35) : tone(L.armor, 0.55), sleeve: tone(L.armor, armoured ? 0.12 : -0.06),
@@ -97,6 +100,8 @@ function body(c, L, P, back, p) {
   castShadow(c, shape, 60, 78, 15, 7, 0.4);
   c.fillStyle = P.belt; c.fillRect(49.5 - wide, 88.2, 21 + wide * 2, 2.6); c.fillStyle = P.trim; c.fillRect(58.4, 87.6, 3.2, 3.8);
   if (L.apron && !back) blob(c, [[53, 81], [67, 81], [68.5, 101], [51.5, 101]], L.apron, { line: 1.2 });
+  if (L.vials) for (const [x, col] of [[48, '#9be04a'], [53, '#c060ff'], [67, '#ffd040']]) { c.fillStyle = '#2a2a26'; c.fillRect(x - 1.8, 89, 3.6, 6); c.fillStyle = col; c.fillRect(x - 1.2, 91, 2.4, 3.6); } // vials on the belt
+  if (L.seams && !back) { c.strokeStyle = L.seams; c.lineWidth = 1.3; c.beginPath(); c.moveTo(53, 82); c.lineTo(57, 88); c.lineTo(54, 95); c.moveTo(67, 81); c.lineTo(63, 87); c.lineTo(66, 93); c.stroke(); glow(c, 60, 88, 14, L.seams, 0.45); } // the forge glowing through the plate
   if (L.skeleton && !back) { c.strokeStyle = L.skin; c.lineWidth = 1.6; for (let i = 0; i < 3; i++) { c.beginPath(); c.moveTo(54, 82 + i * 4); c.quadraticCurveTo(60, 84.5 + i * 4, 66, 82 + i * 4); c.stroke(); } }
 }
 function sleeve(c, L, P, sx, sy, hx, hy, o = {}) {
@@ -168,13 +173,15 @@ const SKULL = [[37.5, 62], [39, 45.5], [51.5, 37.5], [67.5, 37.5], [80.5, 45.5],
 function headgear(c, L, P, back, mood) {
   const m = back ? -1 : 1, X = (x) => (back ? 120 - x : x), pt = (pts) => pts.map(([x, y, s]) => [X(x), y, s]);
   switch (L.helm) {
-    case 'knight': case 'horned': {
+    case 'knight': case 'horned': case 'plume': case 'winged': {
       blob(c, pt(SKULL), tone(L.armor, 0.22), { flip: back, light: 0.35 });
       if (!back) { c.fillStyle = '#17121a'; c.beginPath(); c.roundRect(42.5, 61, 30, 6.4, 2.4); c.fill(); c.fillStyle = L.glowEyes || '#f4f1ea'; for (const x of [49, 63]) { c.beginPath(); // (behind a visor the eyes are all there is of the face, so the mood is told with them)
           if (mood === 'down') c.rect(x - 1.8, 64, 3.6, 0.9); else if (mood === 'smile') { c.arc(x, 65.2, 1.9, Math.PI, 0); c.arc(x, 65.2, 0.9, 0, Math.PI, true); } else if (mood === 'angry') { const d = x < 56 ? 1 : -1; c.moveTo(x - 2, 64.2 - d * 1.3); c.lineTo(x + 2, 64.2 + d * 1.3); c.lineTo(x + 2, 65.6); c.lineTo(x - 2, 65.6); } else c.arc(x, 64.2, mood === 'shock' ? 2.1 : 1.3, 0, 7);
           c.fill(); if (L.glowEyes) glow(c, x, 64.2, 7, L.glowEyes, 0.9); }
         c.strokeStyle = tone(L.armor, -0.4); c.lineWidth = 1; c.beginPath(); c.moveTo(57, 68); c.lineTo(57, 78); c.stroke(); }
       if (L.helm === 'knight') blob(c, pt([[58, 40], [70, 29], [84, 33, 1], [80, 44], [86, 56, 1], [72, 47], [64, 40]]), L.cloth, { line: 1.2, flip: back, light: 0.2 });
+      else if (L.helm === 'plume') blob(c, pt([[54, 40], [60, 22], [74, 12], [92, 16, 1], [84, 24], [98, 34, 1], [86, 36], [96, 52, 1], [80, 46], [66, 41]]), L.cloth, { line: 1.2, flip: back, light: 0.25 }); // a tall plume streaming back
+      else if (L.helm === 'winged') for (const s of [-1, 1]) blob(c, [[60 + s * 19, 52], [60 + s * 30, 42], [60 + s * 38, 26, 1], [60 + s * 32, 34], [60 + s * 34, 22, 1], [60 + s * 26, 34], [60 + s * 24, 26, 1], [60 + s * 19, 40]], L.crownColor || '#ffe080', { line: 1.2, flip: s < 0, light: 0.5 });
       else if (L.overlord) for (const s of [-1, 1]) blob(c, [[60 + s * 15, 47], [60 + s * 34, 42], [60 + s * 40, 22], [60 + s * 30, 4, 1], [60 + s * 31, 24], [60 + s * 22, 36], [60 + s * 11, 41]], '#2a0c10', { line: 1.3, flip: s < 0, light: 0.25 });
       else for (const s of [-1, 1]) blob(c, [[60 + s * 17, 46], [60 + s * 30, 40], [60 + s * 27, 20, 1], [60 + s * 21, 36], [60 + s * 12, 42]], '#e6dcc4', { line: 1.2, flip: s < 0 });
       break;
@@ -187,14 +194,46 @@ function headgear(c, L, P, back, mood) {
       c.save(); trace(c, cone); c.clip(); c.fillStyle = L.cloth; c.fillRect(36, 36.5, 48, 4.2); c.restore();
       break;
     }
-    case 'hood': case 'mask': {
+    case 'hood': case 'mask': case 'hornhood': case 'wolfhood': case 'skullhood': case 'gasmask': {
       const hc = L.hoodColor || L.armor;
+      if (L.helm === 'hornhood') for (const s of [-1, 1]) blob(c, [[60 + s * 12, 42], [60 + s * 24, 34], [60 + s * 30, 20], [60 + s * 24, 8, 1], [60 + s * 25, 22], [60 + s * 17, 32], [60 + s * 7, 38]], '#2a2028', { line: 1.2, flip: s < 0, light: 0.3 });
+      if (L.helm === 'wolfhood') for (const s of [-1, 1]) blob(c, [[60 + s * 9, 40], [60 + s * 18, 22, 1], [60 + s * 23, 40]], L.fur || hc, { line: 1.2, flip: s < 0, light: 0.2 });
       if (back) { blob(c, [[35.5, 63], [37, 44], [51, 35.5], [69, 35.5], [83, 44], [84.5, 63], [80, 78], [60, 84], [40, 78]], hc, { flip: 1, light: 0.2 }); c.strokeStyle = tone(hc, -0.4); c.lineWidth = 1.1; c.beginPath(); c.moveTo(60, 36); c.quadraticCurveTo(63, 60, 60, 83); c.stroke(); }
       else {
         blob(c, [[36, 62], [37.5, 44.5], [51, 36], [68, 36], [82.5, 44.5], [84, 62], [81.5, 71, 1], [79, 56], [70, 47.5], [58, 46], [47, 48], [41.5, 57], [39, 71, 1]], hc, { light: 0.25, foot: 0 });
         if (L.helm === 'mask') blob(c, [[42, 68.5], [52, 71], [66, 71], [76.5, 68], [74.5, 78], [61, 81.5], [47, 78.5]], L.scarf || '#333333', { line: 1.2 });
+        if (L.helm === 'gasmask') { blob(c, [[42, 68], [52, 70], [66, 70], [77, 67], [75, 78], [61, 83], [47, 79]], '#3a3a36', { line: 1.2, light: 0.3 }); disc(c, 56, 79, 4.2, 4, '#6a6a60', { line: 1.1, light: 0.4 }); c.fillStyle = '#2a2a26'; for (const y of [77.5, 79.5]) c.fillRect(53, y, 6, 0.9);
+          for (const x of [48, 63]) { disc(c, x, 64.5, 3.6, 3.4, '#1e2a18', { line: 1.2 }); glow(c, x, 64.5, 6, L.cloth || '#9be04a', 0.8); } }
+        if (L.helm === 'wolfhood') { blob(c, [[44, 46], [60, 40], [76, 46], [72, 54], [60, 52], [48, 54]], L.fur || hc, { line: 1.2, light: 0.25 }); for (const x of [51, 66]) { c.fillStyle = '#ffd040'; c.beginPath(); c.arc(x, 47.5, 1.1, 0, 7); c.fill(); } } // the wolf's own face over the brow
+        if (L.helm === 'skullhood') { // a skull worn over the brow: wide, pale, with dark sockets and a nose hole
+          blob(c, [[43, 47], [60, 39], [77, 47], [76, 58], [68, 61], [60, 59], [52, 61], [44, 58]], '#ece4d0', { line: 1.4, shade: -0.1 }); c.fillStyle = '#1a1014';
+          for (const x of [52.5, 67.5]) { c.beginPath(); c.ellipse(x, 51.5, 4, 3.4, 0, 0, 7); c.fill(); }
+          c.beginPath(); c.moveTo(60, 54.5); c.lineTo(58.2, 58); c.lineTo(61.8, 58); c.closePath(); c.fill(); }
       }
+      if (back && L.helm === 'wolfhood') blob(c, [[44, 74], [60, 86], [76, 74], [74, 96], [60, 102, 1], [46, 96]], L.fur || hc, { line: 1.2, light: 0.15 }); // the pelt hangs down the back
       break;
+    }
+    case 'wild': { // hair thrown up as if by a storm; embers and frost caught in it
+      blob(c, [[40, 52], [34, 34, 1], [46, 40], [44, 22, 1], [54, 36], [60, 16, 1], [66, 36], [76, 22, 1], [74, 40], [86, 34, 1], [80, 52], [60, 44]], P.hair, { line: 1.2, light: 0.35 });
+      glow(c, 46, 30, 8, '#ff8040', 0.6); glow(c, 74, 30, 8, '#80d0ff', 0.6); break;
+    }
+    case 'feathercap': { // a wide hat cocked to one side, one long feather
+      const hc = L.hatColor || L.armor2;
+      blob(c, pt([[46, 40], [52, 30], [68, 30], [74, 40], [72, 46], [48, 46]]), hc, { flip: back, light: 0.25 });
+      blob(c, pt([[30, 48], [44, 42], [60, 41], [78, 42], [92, 46], [78, 50], [60, 50], [42, 51]]), tone(hc, -0.1), { flip: back, light: 0.15 });
+      c.fillStyle = L.cloth || '#7a9a4a'; c.fillRect(46, 41, 28, 2.6);
+      blob(c, pt([[70, 41], [84, 22], [98, 8, 1], [92, 24], [76, 42]]), '#f2ead8', { line: 1.1, flip: back, light: 0.4 }); break;
+    }
+    case 'mitre': { // tall, white and gold, a cross on its face
+      const gold = L.cloth || '#e0b040';
+      blob(c, [[44, 50], [44, 34], [52, 22], [60, 8, 1], [68, 22], [76, 34], [76, 50], [60, 52]], '#f8f4e8', { line: 1.2, light: 0.35 });
+      c.fillStyle = gold; c.fillRect(44, 46, 32, 3.4); if (!back) { c.fillRect(58.6, 22, 2.8, 22); c.fillRect(53, 29, 14, 2.8); }
+      glow(c, 60, 28, 12, L.crownColor || '#fff0b0', 0.35); break;
+    }
+    case 'headband': { // a cloth band, its two ends flying behind
+      const bc = L.bandColor || '#3a7ab8';
+      c.fillStyle = bc; c.beginPath(); c.moveTo(39.5, 52); c.quadraticCurveTo(60, 45, 80.5, 52); c.lineTo(80.5, 56.4); c.quadraticCurveTo(60, 49.4, 39.5, 56.4); c.closePath(); c.fill();
+      blob(c, pt([[80, 52], [94, 50], [100, 56, 1], [92, 56], [98, 62, 1], [84, 57]]), bc, { line: 1.1, flip: back }); break;
     }
     case 'crown': { const cc = L.crownColor || '#e0b040'; blob(c, [[44, 47], [44, 35, 1], [50, 42], [55, 31, 1], [60, 41], [65, 31, 1], [70, 42], [76, 35, 1], [76, 47], [60, 49.5]], cc, { line: 1.2, light: 0.5 }); glow(c, 60, 38, 9, cc, 0.5); break; }
     case 'icecrown': { const cc = L.crownColor || '#a0e8ff'; // five tall shards, the middle one highest
@@ -241,8 +280,15 @@ function regaliaBehind(c, L, p) {
     glow(c, 60, 56, 36, gold, 0.35);
   }
   if (L.overlord) glow(c, 60, 74, 40 + beat * 5, '#ff3020', 0.3 + beat * 0.12);
+  if (L.collar) for (const s of [-1, 1]) blob(c, [[60 + s * 8, 82], [60 + s * 20, 80], [60 + s * 27, 56, 1], [60 + s * 16, 66], [60 + s * 8, 72]], L.armor2 || L.armor, { line: 1.2, flip: s < 0, light: 0.2 }); // a high mage's collar
+  if (L.backpack) { blob(c, [[44, 74], [76, 74], [78, 104], [42, 104]], '#6a4a2a', { line: 1.3, light: 0.2 }); c.fillStyle = '#3a2a1a'; c.fillRect(70, 58, 5, 18); glow(c, 72.5, 56, 6, '#ffb040', 0.6); } // a tool pack and its little chimney
 }
-function regaliaShoulders(c, L) {
+function furMantleOf(c, col) { for (const [x, y, r] of [[47, 80.5, 5], [73, 80.5, 5], [54, 79, 4.4], [66, 79, 4.4], [60, 78.5, 4]]) disc(c, x, y, r, r * 0.8, col, { line: 1.1, shade: -0.06 }); }
+function regaliaShoulders(c, L, back) {
+  if (L.fur) furMantleOf(c, L.fur);
+  if (L.pauldrons) for (const s of [-1, 1]) { blob(c, [[60 + s * 6, 78], [60 + s * 16, 72], [60 + s * 22, 78], [60 + s * 21, 87], [60 + s * 12, 86]], tone(L.armor, 0.25), { line: 1.3, flip: s < 0, light: 0.45 }); c.fillStyle = L.cloth || '#c9a040'; c.fillRect(60 + s * 16 - 3, 84.5, 6, 1.6); }
+  if (L.beads && !back) { c.fillStyle = '#6a3a1e'; for (let i = 0; i <= 8; i++) { const a = Math.PI * (0.15 + 0.7 * i / 8); c.beginPath(); c.arc(60 + Math.cos(a) * 10, 78 + Math.sin(a) * 8, 1.6, 0, 7); c.fill(); } disc(c, 60, 87, 1.8, 1.8, '#e0b040', { line: 0.8, light: 0.5 }); }
+  if (L.hawk) { const x = back ? 46 : 74; blob(c, [[x - 6, 78], [x - 2, 70], [x + 4, 70], [x + 7, 78], [x + 3, 84], [x - 4, 84]], '#8a6a44', { line: 1.2, light: 0.25 }); disc(c, x + 1, 68, 3.4, 3.2, '#e8d8b8', { line: 1.1 }); blob(c, [[x - 3, 67], [x - 7, 69, 1], [x - 3, 70]], '#f0c040', { line: 0.8 }); c.fillStyle = '#1a1014'; c.beginPath(); c.arc(x - 0.5, 67.4, 0.8, 0, 7); c.fill(); } // the hawk on the shoulder
   if (L.queen) furMantle(c);
   if (L.lich) for (const x of [46, 74]) { disc(c, x, 80, 5.6, 5, '#e8e0cc', { line: 1.2, shade: -0.1 }); c.fillStyle = '#1a1014'; c.beginPath(); c.arc(x - 1.8, 80, 1.2, 0, 7); c.arc(x + 1.8, 80, 1.2, 0, 7); c.fill(); } // a skull on each shoulder
   if (L.overlord) for (const s of [-1, 1]) { blob(c, [[60 + s * 9, 83], [60 + s * 14, 62, 1], [60 + s * 18, 80]], '#3a0a12', { line: 1.2, flip: s < 0 }); blob(c, [[60 + s * 14, 84], [60 + s * 25, 66, 1], [60 + s * 23, 84]], '#5a0e18', { line: 1.2, flip: s < 0, light: 0.2 }); } // spiked pauldrons
@@ -255,7 +301,22 @@ function regaliaAir(c, L, p, back) {
   if (L.queen) motes(c, p, '#e4f8ff', L.crownColor || '#a0e8ff');
   if (L.lich) motes(c, p, '#b8ffd8', L.glowEyes || '#40ffa0', true);
   if (L.overlord) motes(c, p, '#ffb060', '#ff3020', true);
+  if (L.orbs) { const t = p.t || 0; for (const [k, col, hot] of [[0, '#ff6a30', '#ffd070'], [Math.PI, '#5ab0ff', '#e0f6ff']]) { const x = 60 + Math.cos(t + k) * 34, y = 70 + Math.sin(t + k) * 10; disc(c, x, y, 4, 4, col, { line: 1, light: 0.7 }); glow(c, x, y, 11, hot, 0.7); } } // fire and frost circling
   if (L.aeon) { motes(c, p, '#ffffff', '#c0b0ff'); if (!back) { blob(c, [[55, 48.5, 1], [57.6, 52], [55, 55.5, 1], [52.4, 52]], '#ffffff', { line: 1 }); glow(c, 55, 52, 6, L.crownColor || '#ffe080', 0.9); } } // a third eye
+}
+
+// The Engineer's war machine: the hero stands in its open cockpit. Legs and a shoulder cannon behind, the hull in front.
+function mechBack(c, p) {
+  const s = p.leg * 3;
+  for (const [x, d] of [[42, s], [78, -s]]) { blob(c, [[x - 7, 108], [x + 7, 108], [x + 8 + d, 128], [x - 9 + d, 128]], '#5a5048', { line: 1.4, light: 0.25 }); blob(c, [[x - 11 + d, 124], [x + 11 + d, 124], [x + 12 + d, 131], [x - 12 + d, 131]], '#3a342e', { line: 1.3 }); }
+  blob(c, [[68, 74], [98, 64], [104, 70], [100, 78], [74, 84]], '#7a6a58', { line: 1.4, light: 0.35 }); c.fillStyle = '#1b1410'; c.beginPath(); c.arc(102, 70, 3, 0, 7); c.fill(); glow(c, 102, 70, 8, '#ffb040', 0.5);
+}
+function mechFront(c, p, back) {
+  const hull = [[30, 94], [90, 94], [94, 110], [84, 122], [36, 122], [26, 110]];
+  blob(c, hull, '#b08a48', { line: 1.6, light: 0.4, flip: back });
+  c.fillStyle = '#5a4226'; c.fillRect(32, 97, 56, 3.2);
+  c.fillStyle = '#e8d8b0'; for (const x of [36, 48, 72, 84]) { c.beginPath(); c.arc(x, 117, 1.4, 0, 7); c.fill(); }
+  if (!back) { disc(c, 60, 108, 5, 4.4, '#ffb040', { line: 1.2, light: 0.7 }); glow(c, 60, 108, 14, '#ffb040', 0.7 + Math.sin(p.t || 0) * 0.15); }
 }
 
 // ── the figure ──
@@ -287,16 +348,18 @@ export function paintChibi(c, L, view, p, anim, kit) {
   const big = L.demon ? 1.1 : 1; c.scale(big * 1.13, big * 0.98);
   if (!back) c.scale(-1, 1); // drawn facing left; the game's frames face right
   c.translate(-60, -128 + (L.hunch ? 3 : 0));
-  const helmed = L.helm === 'knight' || L.helm === 'horned';
+  const helmed = HELMED.includes(L.helm);
   const hairy = !!L.hair && !L.skeleton && !helmed;
   const len = L.female ? 104 : 80;
   // hands follow the pose: 0 = hanging, larger = raised forward and up
   const a = p.arm, o = p.off;
   const wHand = back ? [71 + Math.sin(a) * 14, 83 + Math.cos(a) * 14] : [49 - Math.sin(a) * 15, 83 + Math.cos(a) * 14];
   const oHand = back ? [49 - Math.sin(o) * 11, 83 + Math.cos(o) * 14] : [71 + Math.sin(o) * 11, 83 + Math.cos(o) * 14];
-  const hold = (item, hand, ang, off) => { if (!item) return; c.save(); c.translate(hand[0], hand[1]); const w = item === 'bow' ? ang : ang + 0.9; const rot = item === 'staff' || item === 'spear' ? 0.14 + (ang - 0.35) * 0.4 : Math.PI - w; c.rotate(back ? rot : -rot); c.scale(back ? 0.82 : -0.82, 0.82); if (off) kit.offhand(c, item, L); else kit.weapon(c, item, L, p.glow); c.restore(); };
+  const hold = (item, hand, ang, off) => { if (!item) return; c.save(); c.translate(hand[0], hand[1]); const w = item === 'bow' || item === 'greatbow' ? ang : ang + 0.9; const rot = ['staff', 'spear', 'lance', 'crozier', 'scythe'].includes(item) ? 0.14 + (ang - 0.35) * 0.4 : Math.PI - w; c.rotate(back ? rot : -rot); c.scale(back ? 0.82 : -0.82, 0.82); if (off) kit.offhand(c, item, L); else kit.weapon(c, item, L, p.glow); c.restore(); };
 
   if (L.wings) wings(c, L, p);
+  if (L.mech) mechBack(c, p);
+  if (L.coat) blob(c, [[46, 86], [74, 86], [80 + p.leg * 2, 116], [70, 112], [60, 117, 1], [50, 112], [40 + p.leg * 2, 116]], tone(L.armor, -0.15), { line: 1.3, flip: back, light: 0.1 }); // the tails of a long coat
   if (back) {
     hold(L.weapon, wHand, a, false);
     if (!floorLength(L)) legs(c, P, true, p);
@@ -304,8 +367,8 @@ export function paintChibi(c, L, view, p, anim, kit) {
     sleeve(c, L, P, 70, 82, wHand[0], wHand[1], { flip: 1, wrap: L.wrap }); sleeve(c, L, P, 50, 82, oHand[0], oHand[1]);
     if (P.armoured || L.bulky) { disc(c, 48, 81, 5, 4, tone(L.armor, 0.2), { line: 1.2 }); disc(c, 72, 81, 5, 4, tone(L.armor, 0.2), { line: 1.2, flip: 1 }); }
     if (L.cape) cape(c, L, true, p);
-    regaliaBehind(c, L, p); regaliaShoulders(c, L);
-    if (hairy && L.helm !== 'hood' && L.helm !== 'mask') hairRear(c, P, len + 2);
+    regaliaBehind(c, L, p); regaliaShoulders(c, L, true);
+    if (hairy && !HOODED.includes(L.helm)) hairRear(c, P, len + 2);
     else if (!hairy) blob(c, SKULL, L.skeleton ? L.skin : P.skin, { flip: 1, shade: -0.12 });
     if (L.female && helmed && L.hair) blob(c, [[55, 70], [65, 70], [68, 96], [62, 106, 1], [56, 97]], L.hair, { line: 1.2, light: 0.3 }); // ponytail under the helm
     headgear(c, L, P, true, p.mood);
@@ -319,13 +382,15 @@ export function paintChibi(c, L, view, p, anim, kit) {
     sleeve(c, L, P, 70, 82, oHand[0], oHand[1], { flip: 1 }); hold(L.offhand, oHand, o, true);
     if (P.armoured || L.bulky) { disc(c, 48, 81, 5, 4, tone(L.armor, 0.3), { line: 1.2, light: 0.4 }); disc(c, 72, 81, 5.5, 4.4, tone(L.armor, 0.2), { line: 1.2, flip: 1 }); }
     else if (L.robe || L.gown) { blob(c, [[54, 78], [66, 78], [63, 84], [60, 86.5, 1], [57, 84]], tone(L.armor, 0.6), { line: 1 }); disc(c, 60, 82, 1.8, 1.8, L.cloth || '#ff5c8a', { line: 0.8, light: 0.6 }); }
-    regaliaShoulders(c, L);
+    regaliaShoulders(c, L, false);
     if (L.scarf) { blob(c, [[50, 77], [70, 77], [72, 83], [60, 87], [48, 83]], L.scarf, { line: 1.1 }); blob(c, [[66, 82], [71, 82], [73, 96, 1], [68, 92]], L.scarf, { line: 1.1, flip: 1 }); }
-    if (!helmed) { face(c, L, P, p.mood); castShadow(c, FACE, 60, L.helm === 'wizard' || L.helm === 'hood' || L.helm === 'mask' ? 49 : 46, 22, L.helm === 'wizard' ? 10 : 8, 0.34); }
+    if (!helmed) { face(c, L, P, p.mood); castShadow(c, FACE, 60, L.helm === 'wizard' || HOODED.includes(L.helm) || L.helm === 'feathercap' ? 49 : 46, 22, L.helm === 'wizard' || L.helm === 'feathercap' ? 10 : 8, 0.34); }
     if (hairy) bangs(c, P);
+    if (L.monocle) { c.strokeStyle = '#e0b050'; c.lineWidth = 1.2; c.beginPath(); c.arc(62.5, 65, 4.2, 0, 7); c.stroke(); c.fillStyle = 'rgba(200,230,255,0.3)'; c.fill(); c.beginPath(); c.moveTo(66.7, 66); c.quadraticCurveTo(70, 74, 67, 80); c.stroke(); }
     headgear(c, L, P, false, p.mood);
     hold(L.weapon, wHand, a, false); sleeve(c, L, P, 50, 82, wHand[0], wHand[1], { wrap: L.wrap });
   }
+  if (L.mech) mechFront(c, p, back);
   regaliaAir(c, L, p, back);
   if (p.glow > 0) glow(c, wHand[0], wHand[1] - 10, 20 * p.glow, L.crownColor || '#a0d0ff', 0.6);
   if (p.swing) { c.save(); c.globalAlpha = 0.7; c.beginPath(); c.arc(back ? 66 : 54, 80, 36, back ? -1.4 : Math.PI - 0.9, back ? 0.9 : Math.PI + 1.4); c.strokeStyle = '#ffffff'; c.lineWidth = 4.5; c.stroke(); c.globalAlpha = 0.3; c.lineWidth = 11; c.stroke(); c.restore(); }

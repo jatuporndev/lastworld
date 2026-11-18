@@ -255,6 +255,9 @@ export const MONSTERS = {
 
   turret: { name: 'Arc Turret', construct: true, look: { body: 'turret', c1: '#8a6a4a', c2: '#4a3a2a', accent: '#ffb030' }, hp: 6, atk: 0, def: 0, move: 0, spd: 0, size: 1, scale: 0.9, el: 'fire', weak: [], resist: [] },
   mortar: { name: 'Mortar', construct: true, look: { body: 'mortar', c1: '#6f7a5a', c2: '#343a2a', accent: '#e8c08a' }, hp: 5, atk: 0, def: 0, move: 0, spd: 0, size: 1, scale: 0.9, el: 'earth', weak: [], resist: [] },
+  hawk: { name: 'Hawk', construct: true, look: { body: 'bird', c1: '#8a6a44', c2: '#3a2a1a', eye: '#ffd040', skin: '#e8d8b8' }, hp: 5, atk: 0, def: 0, move: 0, spd: 0, size: 1, scale: 0.7, el: 'wind', weak: [], resist: [] },
+  cannon: { name: 'Cannon', construct: true, look: { body: 'turret', c1: '#5a5a62', c2: '#2a2a30', accent: '#ff8a30' }, hp: 7, atk: 0, def: 1, move: 0, spd: 0, size: 1, scale: 1, el: 'fire', weak: [], resist: [] },
+  pylon: { name: 'Shield Pylon', construct: true, look: { body: 'pillar', c1: '#c8a050', c2: '#6a5226', accent: '#a8d8ff' }, hp: 8, atk: 0, def: 1, move: 0, spd: 0, size: 1, scale: 0.85, el: 'neutral', weak: [], resist: [] },
   barricade: { name: 'Iron Barricade', construct: true, look: { body: 'barricade', c1: '#7a7a80', c2: '#3a3a40' }, hp: 8, atk: 0, def: 1, move: 0, spd: 0, size: 1, scale: 0.9, el: 'neutral', weak: [], resist: [] },
 };
 

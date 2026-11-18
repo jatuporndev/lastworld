@@ -6,7 +6,7 @@ import { t } from '../core/i18n.js';
 import { ELEMENTS } from '../data/cards.js';
 import { audio } from '../core/audio.js';
 import { G, touch, addCard, claimableQuests, myHeroes } from '../game/state.js';
-import { computeStats } from '../game/character.js';
+import { computeStats, jobReady } from '../game/character.js';
 import { CLASSES, heroLook } from '../data/classes.js';
 import { MONSTERS } from '../data/monsters.js';
 import { CARDS } from '../data/cards.js';
@@ -410,7 +410,7 @@ export function rewardsModal(r, kind, { view = false, summary = null } = {}) {
     body.replaceChildren(
       h('div.loot-list', ...lootRows(r)),
       summary,
-      r.levelUps.length ? h('div.levelups', ...r.levelUps.map((l) => h('div.levelup', heroSprite(l.hero, { size: 72, zoom: 1.3, oy: 0.15, anim: 'cast' }), h('div', h('b', t('{name} reached Level {lv}!', { name: l.hero.name, lv: l.hero.level })), h('small', t('+{n} stat points', { n: l.levels * 3 }) + (l.hero.skillPoints ? t(' · skill points available') : '')))))) : null,
+      r.levelUps.length ? h('div.levelups', ...r.levelUps.map((l) => h('div.levelup', heroSprite(l.hero, { size: 72, zoom: 1.3, oy: 0.15, anim: 'cast' }), h('div', h('b', t('{name} reached Level {lv}!', { name: l.hero.name, lv: l.hero.level })), h('small', t('+{n} stat points', { n: l.levels }) + (l.hero.skillPoints ? t(' · skill points available') : '')), jobReady(l.hero) ? h('div.job-news', t("A page bearing {name}'s name has appeared in the bag. Read it to choose an advanced class!", { name: l.hero.name })) : null)))) : null,
       r.items.length ? h('div.item-list', ...r.items.map((it) => itemEl(it, { tag: it.unique ? t('UNIQUE') : null }))) : null,
       r.fixedCards.length ? h('div.card-grid.center', ...r.fixedCards.map((id) => { const el = cardEl(id, 0); el.classList.add('reward-glow'); return el; })) : null,
       choices);

@@ -2,8 +2,9 @@
 // (inventory, card collection, quests, autosave hook).
 import { bus } from '../core/util.js';
 import { t } from '../core/i18n.js';
-import { createHero, computeStats, canEquip, clampVitals } from './character.js';
-import { CARDS, STARTER_DECKS, RARITY, MAX_CARD_LEVEL, upgradeCost, DECK_MIN, DECK_MAX } from '../data/cards.js';
+import { createHero, computeStats, canEquip, clampVitals, jobReady, takeJob } from './character.js';
+import { canUseCard } from '../data/classes.js';
+import { CARDS, STARTER_DECKS, RARITY, MAX_CARD_LEVEL, upgradeCost, DECK_MIN, DECK_MAX, JOB_STARTERS } from '../data/cards.js';
 import { QUESTS } from '../data/events.js';
 import { STAGES } from '../data/stages.js';
 import { CONSUMABLES, UNIQUES, makeEquipment } from '../data/items.js';
@@ -54,6 +55,7 @@ export function openSession(worldId, charId) {
   else Object.assign(st, { unlocked: 1, cleared: {}, run: null, seenIntro: {}, nextBuff: null, story: {} });
   P.last = { world: worldId || P.last.world || null, char: charId };
   G.state = st;
+  grantJobPages();
   return st;
 }
 // Copy the session back into the profile. world: false keeps a borrowed (co-op host's) world out of the save.
@@ -71,6 +73,7 @@ export function touch() { if (G.state) { G.state.updated = Date.now(); bus.emit(
 
 // Firebase strips empty arrays/objects and nulls — repair shapes on load.
 export function fixHero(h) {
+  h.job = h.job || null;
   h.alloc = { str: 0, agi: 0, vit: 0, int: 0, dex: 0, ...(h.alloc || {}) };
   h.skills = h.skills || []; h.deck = h.deck || [];
   h.equip = { weapon: null, armor: null, accessory: null, ...(h.equip || {}) };
@@ -171,7 +174,7 @@ export function deckCount(hero, id) { return hero.deck.filter((c) => c === id).l
 export function usedCopies(id) { return myHeroes().reduce((s, h) => s + deckCount(h, id), 0); }
 export function canAddToDeck(hero, id) {
   const card = CARDS[id];
-  if (!card || (card.cls !== 'any' && card.cls !== hero.cls)) return false;
+  if (!canUseCard(hero, card)) return false;
   if (hero.deck.length >= DECK_MAX) return false;
   return usedCopies(id) < (G.state.cards[id]?.n || 0);
 }
@@ -217,11 +220,25 @@ export function sellItem(item) {
   const inv = G.state.inv.equip; const i = inv.findIndex((x) => x.uid === item.uid);
   if (i < 0) return; inv.splice(i, 1); G.state.gold += Math.round(item.value * 0.4); touch();
 }
+// ── Advanced classes ──
+// A hero that reaches Level 30 with no job finds a page bearing its name in the bag; reading it opens the choice.
+export function grantJobPages() {
+  const st = G.state; if (!st?.inv) return;
+  const need = myHeroes().filter(jobReady).length, have = st.inv.cons.job_page || 0;
+  if (need > have) addConsumable('job_page', need - have);
+}
+// Take the job for good: the page is spent, and the job's three first cards go to the collection and into the deck.
+export function chooseJob(hero, job) {
+  const st = G.state; if (!(st.inv.cons.job_page > 0) || !takeJob(hero, job)) return false;
+  if (!--st.inv.cons.job_page) delete st.inv.cons.job_page;
+  for (const id of JOB_STARTERS[job] || []) { addCard(id); if (hero.deck.length < DECK_MAX) hero.deck.push(id); }
+  touch(); return true;
+}
 // Use a consumable outside battle
 export function useConsumable(id, hero) {
   const st = G.state; if (!(st.inv.cons[id] > 0)) return false;
   const u = CONSUMABLES[id].use; const s = computeStats(hero);
-  if (u.bomb || u.raise) return false;
+  if (u.bomb || u.raise || u.job) return false;
   if (hero.hp <= 0 && !u.revive) return false;
   if (u.healPct) hero.hp = Math.min(s.hp, Math.max(hero.hp, 0) + Math.round(s.hp * u.healPct));
   if (u.mp) hero.mp = Math.min(s.mp, hero.mp + u.mp);

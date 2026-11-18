@@ -3,6 +3,8 @@
 //   dmg {v, s:'atk'|'matk', hits}   block {v}   heal {v, s}     (board-game scale: dice + v + stat)
 //   status {st, n, self}  move {v}  teleport  dash  push {v}  pull {v}
 //   draw {v}  energy {v} (extra Action Slots this turn)  mp {v}  cleanse  taunt  summon {id}  revive {pct}
+//   trample (run to the far end of the card's line, hitting everything on the way)
+//   dmg extras: onKill {energy, draw, heal} (paid when the card kills)  perPlayed v (+v per card played before it this turn)
 // charge: true — the card may take up to 2 extra Action Slots, each adding a die
 // tg: enemy | ally | self | hex | any     shape: single | line | cone | area | burst
 import { t } from '../core/i18n.js';
@@ -229,6 +231,180 @@ add([
   { id: 'n_breath', cls: 'any', name: 'Deep Breath', cat: 'buff', icon: 'wind', tg: 'self', cost: 0, cd: 3, fx: [{ t: 'mp', v: 5 }, { t: 'cleanse' }] },
 ]);
 
+// ───────── ADVANCED CLASSES (jobs, from level 30; see src/data/jobs.js and docs/jobs.md) ─────────
+// Each job has twelve cards. `start` marks the three given when the job is taken; `ult` the job's Legendary.
+function jobCards(job, cls, list) { add(list.map((c) => ({ cls, job, ...c }))); }
+jobCards('lordknight', 'knight', [
+  { id: 'lk_thrust', start: true, name: 'Lance Thrust', cat: 'attack', icon: 'sword', range: 2, fx: [{ t: 'dmg', v: 2, s: 'atk' }] },
+  { id: 'lk_spur', start: true, name: 'Spur Charge', cat: 'movement', icon: 'boot', range: 3, cd: 1, fx: [{ t: 'dash' }, { t: 'dmg', v: 1, s: 'atk' }] },
+  { id: 'lk_impale', start: true, name: 'Impale', cat: 'attack', icon: 'sword', range: 2, cd: 1, fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'bleed', n: 2 }, { t: 'status', st: 'root', n: 1 }] },
+  { id: 'lk_banner', name: 'War Banner', cat: 'buff', icon: 'banner', tg: 'self', shape: 'burst', size: 2, allies: true, cd: 3, fx: [{ t: 'status', st: 'strength', n: 1 }, { t: 'status', st: 'haste', n: 1 }] },
+  { id: 'lk_sweep', name: 'Halberd Sweep', cat: 'attack', icon: 'whirl', tg: 'any', shape: 'cone', size: 2, cost: 2, cd: 2, fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'push', v: 1 }] },
+  { id: 'lk_trample', name: 'Trample', cat: 'attack', icon: 'boot', rarity: 'rare', tg: 'any', shape: 'line', size: 4, cost: 2, cd: 2, fx: [{ t: 'trample' }, { t: 'dmg', v: 2, s: 'atk' }] },
+  { id: 'lk_brace', name: 'Brace the Spear', cat: 'defense', icon: 'shield', rarity: 'rare', tg: 'self', cd: 2, fx: [{ t: 'block', v: 2 }, { t: 'status', st: 'thorns', n: 2 }] },
+  { id: 'lk_skewer', name: 'Skewer', cat: 'attack', icon: 'sword', rarity: 'rare', tg: 'any', shape: 'line', size: 2, cost: 2, cd: 2, fx: [{ t: 'dmg', v: 2, s: 'atk' }, { t: 'status', st: 'vulnerable', n: 2 }] },
+  { id: 'lk_momentum', name: 'Momentum', cat: 'buff', icon: 'boot', rarity: 'rare', tg: 'self', cost: 0, cd: 3, fx: [{ t: 'energy', v: 1 }, { t: 'status', st: 'haste', n: 1 }] },
+  { id: 'lk_leap', name: 'Dragoon Leap', cat: 'attack', icon: 'meteor', rarity: 'epic', tg: 'any', range: 4, shape: 'area', size: 1, cost: 3, mp: 6, cd: 3, fx: [{ t: 'dmg', v: 3, s: 'atk' }, { t: 'status', st: 'stun', n: 1 }] },
+  { id: 'lk_line', name: 'Unbroken Line', cat: 'defense', icon: 'banner', rarity: 'epic', tg: 'self', shape: 'burst', size: 2, allies: true, cost: 2, mp: 6, cd: 4, fx: [{ t: 'block', v: 3 }, { t: 'status', st: 'strength', n: 2 }] },
+  { id: 'lk_charge1000', name: 'Thousand-Lance Charge', cat: 'attack', icon: 'sword', rarity: 'legendary', ult: true, tg: 'any', shape: 'line', size: 6, cost: 3, mp: 10, cd: 5, fx: [{ t: 'trample' }, { t: 'dmg', v: 4, s: 'atk' }, { t: 'status', st: 'bleed', n: 2 }, { t: 'push', v: 1 }] },
+]);
+jobCards('paladin', 'knight', [
+  { id: 'pa_blade', start: true, name: 'Sacred Blade', cat: 'attack', icon: 'sword', el: 'holy', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'block', v: 1, self: true }] },
+  { id: 'pa_faith', start: true, name: 'Shield of Faith', cat: 'defense', icon: 'shield', tg: 'ally', range: 3, cd: 1, el: 'holy', fx: [{ t: 'block', v: 3 }] },
+  { id: 'pa_consecrate', start: true, name: 'Consecrate', cat: 'attack', icon: 'sun', tg: 'self', shape: 'burst', size: 1, cd: 2, el: 'holy', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'weak', n: 1 }] },
+  { id: 'pa_hands', name: 'Lay on Hands', cat: 'buff', icon: 'cross', tg: 'ally', range: 1, cd: 2, el: 'holy', fx: [{ t: 'heal', v: 3 }] },
+  { id: 'pa_oath', name: 'Oath of Light', cat: 'buff', icon: 'sun', tg: 'self', cost: 0, cd: 3, el: 'holy', fx: [{ t: 'cleanse' }, { t: 'status', st: 'regen', n: 2 }] },
+  { id: 'pa_bond', name: 'Aegis Bond', cat: 'defense', icon: 'shield', rarity: 'rare', tg: 'ally', range: 3, cd: 2, el: 'holy', fx: [{ t: 'block', v: 3 }, { t: 'block', v: 2, self: true }] },
+  { id: 'pa_dawn', name: 'Hammer of Dawn', cat: 'attack', icon: 'mace', rarity: 'rare', cost: 2, cd: 2, el: 'holy', fx: [{ t: 'dmg', v: 2, s: 'atk' }, { t: 'status', st: 'stun', n: 1 }] },
+  { id: 'pa_ground', name: 'Holy Ground', cat: 'buff', icon: 'cross', rarity: 'rare', tg: 'self', shape: 'burst', size: 2, allies: true, cost: 2, mp: 4, cd: 3, el: 'holy', fx: [{ t: 'status', st: 'regen', n: 3 }, { t: 'block', v: 1 }] },
+  { id: 'pa_aura', name: 'Retribution Aura', cat: 'defense', icon: 'sun', rarity: 'rare', tg: 'self', cd: 3, el: 'holy', fx: [{ t: 'status', st: 'thorns', n: 3 }, { t: 'status', st: 'fortify', n: 1 }] },
+  { id: 'pa_divine', name: 'Divine Shield', cat: 'defense', icon: 'shield', rarity: 'epic', tg: 'self', shape: 'burst', size: 2, allies: true, cost: 2, mp: 8, cd: 4, el: 'holy', fx: [{ t: 'block', v: 4 }, { t: 'cleanse' }] },
+  { id: 'pa_crusader', charge: true, name: 'Crusader Strike', cat: 'attack', icon: 'sword', rarity: 'epic', cost: 2, cd: 3, el: 'holy', fx: [{ t: 'dmg', v: 3, s: 'atk' }, { t: 'status', st: 'vulnerable', n: 2 }] },
+  { id: 'pa_judgment', name: 'Judgment of Heaven', cat: 'attack', icon: 'sun', rarity: 'legendary', ult: true, tg: 'any', range: 5, shape: 'area', size: 2, cost: 3, mp: 12, cd: 5, el: 'holy', fx: [{ t: 'dmg', v: 4, s: 'atk' }, { t: 'status', st: 'weak', n: 2 }, { t: 'status', st: 'stun', n: 1 }] },
+]);
+jobCards('sorcerer', 'mage', [
+  { id: 'so_lash', start: true, name: 'Flame Lash', cat: 'attack', icon: 'flame', range: 4, el: 'fire', proj: 'fire', fx: [{ t: 'dmg', v: 2, s: 'matk' }, { t: 'status', st: 'burn', n: 1 }] },
+  { id: 'so_rime', start: true, name: 'Rime Spear', cat: 'attack', icon: 'snow', range: 4, cd: 1, el: 'ice', proj: 'ice', fx: [{ t: 'dmg', v: 1, s: 'matk' }, { t: 'status', st: 'chill', n: 2 }] },
+  { id: 'so_steam', start: true, name: 'Steam Burst', cat: 'attack', icon: 'smoke', range: 4, cd: 1, el: 'fire', fx: [{ t: 'dmg', v: 1, s: 'matk', perStatus: { st: 'chill', v: 2, consume: true } }] },
+  { id: 'so_ward', name: 'Mana Ward', cat: 'defense', icon: 'orb', tg: 'self', cd: 2, fx: [{ t: 'block', v: 2 }, { t: 'mp', v: 4 }] },
+  { id: 'so_embers', name: 'Ember Field', cat: 'special', icon: 'flame', tg: 'any', range: 4, shape: 'area', size: 1, cd: 2, el: 'fire', fx: [{ t: 'status', st: 'burn', n: 2 }] },
+  { id: 'so_firestorm', name: 'Firestorm', cat: 'attack', icon: 'flame', rarity: 'rare', tg: 'any', range: 4, shape: 'area', size: 1, cost: 2, mp: 4, cd: 2, el: 'fire', fx: [{ t: 'dmg', v: 2, s: 'matk' }, { t: 'status', st: 'burn', n: 2 }] },
+  { id: 'so_glacier', name: 'Glacier', cat: 'attack', icon: 'snow', rarity: 'rare', tg: 'any', shape: 'line', size: 4, cost: 2, mp: 4, cd: 2, el: 'ice', fx: [{ t: 'dmg', v: 1, s: 'matk' }, { t: 'status', st: 'chill', n: 2 }, { t: 'status', st: 'root', n: 1 }] },
+  { id: 'so_attune', name: 'Attunement', cat: 'buff', icon: 'star', rarity: 'rare', tg: 'self', cost: 0, cd: 3, fx: [{ t: 'energy', v: 1 }, { t: 'mp', v: 6 }] },
+  { id: 'so_frostfire', name: 'Frostfire Bolt', cat: 'attack', icon: 'orb', rarity: 'rare', range: 5, cost: 2, mp: 4, cd: 2, el: 'fire', proj: 'fire', fx: [{ t: 'dmg', v: 2, s: 'matk' }, { t: 'status', st: 'burn', n: 2 }, { t: 'status', st: 'chill', n: 2 }] },
+  { id: 'so_inferno', name: 'Inferno', cat: 'attack', icon: 'flame', rarity: 'epic', tg: 'self', shape: 'burst', size: 2, cost: 3, mp: 8, cd: 4, el: 'fire', fx: [{ t: 'dmg', v: 3, s: 'matk' }, { t: 'status', st: 'burn', n: 3 }] },
+  { id: 'so_zero', name: 'Absolute Zero', cat: 'attack', icon: 'snow', rarity: 'epic', tg: 'any', range: 5, shape: 'area', size: 2, cost: 3, mp: 8, cd: 4, el: 'ice', fx: [{ t: 'dmg', v: 2, s: 'matk' }, { t: 'status', st: 'frozen', n: 1 }, { t: 'status', st: 'chill', n: 2 }] },
+  { id: 'so_cataclysm', name: 'Cataclysm', cat: 'attack', icon: 'meteor', rarity: 'legendary', ult: true, tg: 'any', range: 6, shape: 'area', size: 2, cost: 3, mp: 12, cd: 5, el: 'fire', fx: [{ t: 'dmg', v: 4, s: 'matk' }, { t: 'status', st: 'burn', n: 2 }, { t: 'status', st: 'chill', n: 2 }] },
+]);
+jobCards('warlock', 'mage', [
+  { id: 'wl_hex', start: true, name: 'Hex Bolt', cat: 'attack', icon: 'orb', range: 4, el: 'shadow', proj: 'shadow', fx: [{ t: 'dmg', v: 1, s: 'matk' }, { t: 'status', st: 'curse', n: 2 }] },
+  { id: 'wl_siphon', start: true, name: 'Siphon', cat: 'attack', icon: 'heart', range: 3, cd: 1, el: 'shadow', fx: [{ t: 'dmg', v: 1, s: 'matk', drain: 0.5 }] },
+  { id: 'wl_pact', start: true, name: 'Dark Pact', cat: 'buff', icon: 'skull', tg: 'self', cost: 0, cd: 2, el: 'shadow', fx: [{ t: 'selfdmg', v: 2 }, { t: 'mp', v: 6 }, { t: 'draw', v: 1 }] },
+  { id: 'wl_wither', name: 'Wither', cat: 'special', icon: 'skull', range: 4, cd: 1, el: 'shadow', fx: [{ t: 'status', st: 'weak', n: 2 }, { t: 'status', st: 'curse', n: 1 }] },
+  { id: 'wl_grasp', name: 'Shadow Grasp', cat: 'special', icon: 'blink', range: 4, cd: 2, el: 'shadow', fx: [{ t: 'pull', v: 2 }, { t: 'status', st: 'root', n: 1 }] },
+  { id: 'wl_agony', name: 'Agony', cat: 'attack', icon: 'skull', rarity: 'rare', range: 4, cost: 2, cd: 2, el: 'shadow', fx: [{ t: 'dmg', v: 0, s: 'matk', perStatus: { st: 'curse', v: 2 } }] },
+  { id: 'wl_spread', name: 'Spreading Curse', cat: 'special', icon: 'skull', rarity: 'rare', range: 4, mp: 3, cd: 2, el: 'shadow', fx: [{ t: 'status', st: 'curse', n: 2 }, { t: 'spread', sts: ['curse'] }] },
+  { id: 'wl_ritual', name: 'Blood Ritual', cat: 'buff', icon: 'heart', rarity: 'rare', tg: 'self', cd: 3, el: 'shadow', fx: [{ t: 'selfdmg', v: 3 }, { t: 'energy', v: 1 }, { t: 'draw', v: 1 }] },
+  { id: 'wl_leech', name: 'Soul Leech', cat: 'attack', icon: 'skull', rarity: 'rare', tg: 'self', shape: 'burst', size: 1, cost: 2, mp: 4, cd: 2, el: 'shadow', fx: [{ t: 'dmg', v: 1, s: 'matk', drain: 0.5 }] },
+  { id: 'wl_doom', name: 'Doom', cat: 'special', icon: 'skull', rarity: 'epic', range: 5, cost: 2, mp: 6, cd: 4, el: 'shadow', fx: [{ t: 'status', st: 'curse', n: 5 }, { t: 'status', st: 'vulnerable', n: 2 }] },
+  { id: 'wl_chains', name: 'Abyssal Chains', cat: 'attack', icon: 'blink', rarity: 'epic', tg: 'any', range: 4, shape: 'area', size: 1, cost: 3, mp: 8, cd: 4, el: 'shadow', fx: [{ t: 'dmg', v: 2, s: 'matk' }, { t: 'status', st: 'root', n: 2 }, { t: 'status', st: 'curse', n: 2 }] },
+  { id: 'wl_eclipse', name: 'Eclipse', cat: 'attack', icon: 'orb', rarity: 'legendary', ult: true, tg: 'self', shape: 'burst', size: 3, cost: 3, mp: 12, cd: 5, el: 'shadow', fx: [{ t: 'dmg', v: 3, s: 'matk', drain: 0.5 }, { t: 'status', st: 'curse', n: 3 }] },
+]);
+jobCards('marksman', 'archer', [
+  { id: 'mk_steady', start: true, name: 'Steady Shot', cat: 'attack', icon: 'arrow', range: 6, proj: 'arrow', fx: [{ t: 'dmg', v: 1, s: 'atk', crit: 15 }] },
+  { id: 'mk_spot', start: true, name: "Spotter's Mark", cat: 'special', icon: 'eye', range: 7, cost: 0, cd: 1, fx: [{ t: 'status', st: 'mark', n: 1 }, { t: 'status', st: 'vulnerable', n: 1 }] },
+  { id: 'mk_ricochet', start: true, name: 'Ricochet', cat: 'attack', icon: 'arrows', range: 5, cd: 1, proj: 'arrow', fx: [{ t: 'dmg', v: 0, s: 'atk', hits: 2 }] },
+  { id: 'mk_reposition', name: 'Reposition', cat: 'movement', icon: 'boot', tg: 'hex', range: 3, cd: 2, fx: [{ t: 'move', v: 3 }, { t: 'draw', v: 1 }] },
+  { id: 'mk_cripple', name: 'Crippling Shot', cat: 'attack', icon: 'arrow', range: 5, cd: 1, proj: 'arrow', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'root', n: 1 }, { t: 'status', st: 'weak', n: 1 }] },
+  { id: 'mk_pierce', name: 'Piercing Bolt', cat: 'attack', icon: 'arrow', rarity: 'rare', tg: 'any', shape: 'line', size: 6, cost: 2, cd: 2, el: 'wind', fx: [{ t: 'dmg', v: 2, s: 'atk', far: { d: 4, v: 2 } }] },
+  { id: 'mk_deadeye', name: 'Deadeye', cat: 'buff', icon: 'eye', rarity: 'rare', tg: 'self', cd: 3, fx: [{ t: 'status', st: 'strength', n: 3 }, { t: 'draw', v: 1 }] },
+  { id: 'mk_kill', name: 'Kill Shot', cat: 'attack', icon: 'skull', rarity: 'rare', range: 6, cost: 2, cd: 2, proj: 'arrow', fx: [{ t: 'dmg', v: 1, s: 'atk', execute: 0.3, onKill: { energy: 1 } }] },
+  { id: 'mk_suppress', name: 'Suppressing Fire', cat: 'attack', icon: 'arrows', rarity: 'rare', tg: 'any', range: 5, shape: 'area', size: 1, cost: 2, cd: 2, fx: [{ t: 'dmg', v: 0, s: 'atk' }, { t: 'status', st: 'weak', n: 2 }] },
+  { id: 'mk_breaker', name: 'Armor Breaker', cat: 'attack', icon: 'arrow', rarity: 'epic', range: 6, cost: 2, cd: 3, proj: 'arrow', fx: [{ t: 'breakBlock' }, { t: 'dmg', v: 3, s: 'atk' }, { t: 'status', st: 'vulnerable', n: 2 }] },
+  { id: 'mk_barrage', name: 'Barrage', cat: 'attack', icon: 'arrows', rarity: 'epic', tg: 'any', range: 6, shape: 'area', size: 1, cost: 3, mp: 6, cd: 4, fx: [{ t: 'dmg', v: 1, s: 'atk', hits: 2 }] },
+  { id: 'mk_oneshot', charge: true, name: 'One Shot', cat: 'attack', icon: 'eye', rarity: 'legendary', ult: true, range: 9, cost: 3, mp: 10, cd: 5, proj: 'arrow', fx: [{ t: 'dmg', v: 6, s: 'atk', crit: 50, execute: 0.4 }] },
+]);
+jobCards('ranger', 'archer', [
+  { id: 'rg_hawk', start: true, name: 'Call Hawk', cat: 'special', icon: 'phoenix', tg: 'hex', range: 2, cost: 2, cd: 3, el: 'wind', fx: [{ t: 'summon', id: 'hawk' }] },
+  { id: 'rg_barbed', start: true, name: 'Barbed Arrow', cat: 'attack', icon: 'arrow', range: 5, proj: 'arrow', fx: [{ t: 'dmg', v: 2, s: 'atk' }, { t: 'status', st: 'bleed', n: 2 }] },
+  { id: 'rg_beartrap', start: true, name: 'Bear Trap', cat: 'special', icon: 'trap', range: 3, cd: 1, fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'root', n: 2 }] },
+  { id: 'rg_thorn', name: 'Thornshot', cat: 'attack', icon: 'arrow', range: 4, cd: 1, el: 'poison', proj: 'arrow', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'poison', n: 2 }, { t: 'status', st: 'bleed', n: 1 }] },
+  { id: 'rg_fleet', name: 'Fleet Step', cat: 'movement', icon: 'wind', tg: 'hex', range: 3, cd: 1, el: 'wind', fx: [{ t: 'move', v: 3 }, { t: 'status', st: 'haste', n: 1, self: true }] },
+  { id: 'rg_dive', name: 'Hawk Dive', cat: 'attack', icon: 'phoenix', rarity: 'rare', range: 6, cost: 2, cd: 2, el: 'wind', fx: [{ t: 'dmg', v: 2, s: 'atk' }, { t: 'status', st: 'mark', n: 1 }] },
+  { id: 'rg_net', name: 'Net Trap', cat: 'special', icon: 'trap', rarity: 'rare', tg: 'any', range: 4, shape: 'area', size: 1, cost: 2, cd: 3, fx: [{ t: 'status', st: 'root', n: 2 }] },
+  { id: 'rg_pack', name: 'Pack Tactics', cat: 'buff', icon: 'banner', rarity: 'rare', tg: 'self', shape: 'burst', size: 2, allies: true, cd: 3, fx: [{ t: 'status', st: 'haste', n: 2 }, { t: 'status', st: 'strength', n: 1 }] },
+  { id: 'rg_spikes', name: 'Poison Spikes', cat: 'attack', icon: 'trap', rarity: 'rare', tg: 'any', range: 4, shape: 'area', size: 1, cost: 2, cd: 2, el: 'poison', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'poison', n: 3 }] },
+  { id: 'rg_wildhunt', name: 'Wild Hunt', cat: 'attack', icon: 'arrows', rarity: 'epic', range: 6, cost: 2, mp: 6, cd: 3, el: 'wind', proj: 'arrow', fx: [{ t: 'dmg', v: 2, s: 'atk', hits: 3 }] },
+  { id: 'rg_snarefield', name: 'Snare Field', cat: 'special', icon: 'trap', rarity: 'epic', tg: 'any', range: 4, shape: 'area', size: 2, cost: 3, mp: 6, cd: 4, el: 'poison', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'root', n: 1 }, { t: 'status', st: 'poison', n: 2 }] },
+  { id: 'rg_greathunt', name: 'The Great Hunt', cat: 'attack', icon: 'phoenix', rarity: 'legendary', ult: true, tg: 'self', shape: 'burst', size: 4, cost: 3, mp: 12, cd: 5, el: 'wind', fx: [{ t: 'dmg', v: 3, s: 'atk' }, { t: 'status', st: 'root', n: 1 }, { t: 'status', st: 'mark', n: 1 }] },
+]);
+jobCards('reaper', 'assassin', [
+  { id: 'rp_sweep', start: true, name: 'Scythe Sweep', cat: 'attack', icon: 'whirl', tg: 'any', shape: 'cone', size: 2, cd: 1, el: 'shadow', fx: [{ t: 'dmg', v: 1, s: 'atk' }] },
+  { id: 'rp_harvest', start: true, name: 'Harvest', cat: 'attack', icon: 'skull', cd: 1, fx: [{ t: 'dmg', v: 1, s: 'atk', execute: 0.3 }] },
+  { id: 'rp_gravestep', start: true, name: 'Grave Step', cat: 'movement', icon: 'blink', range: 4, cd: 2, el: 'shadow', fx: [{ t: 'dash' }, { t: 'dmg', v: 1, s: 'atk', onKill: { draw: 1 } }] },
+  { id: 'rp_tithe', name: 'Soul Tithe', cat: 'attack', icon: 'heart', cd: 1, el: 'shadow', fx: [{ t: 'dmg', v: 1, s: 'atk', drain: 0.3 }] },
+  { id: 'rp_omen', name: 'Omen', cat: 'special', icon: 'eye', range: 3, cost: 0, cd: 2, el: 'shadow', fx: [{ t: 'status', st: 'vulnerable', n: 1 }, { t: 'status', st: 'mark', n: 1 }] },
+  { id: 'rp_reap', name: 'Reap', cat: 'attack', icon: 'skull', rarity: 'rare', cd: 2, el: 'shadow', fx: [{ t: 'dmg', v: 2, s: 'atk', onKill: { energy: 1 } }] },
+  { id: 'rp_wail', name: 'Wailing Scythe', cat: 'attack', icon: 'whirl', rarity: 'rare', tg: 'self', shape: 'burst', size: 1, cost: 2, cd: 2, el: 'shadow', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'weak', n: 2 }] },
+  { id: 'rp_shroud', name: 'Soul Shroud', cat: 'defense', icon: 'smoke', rarity: 'rare', tg: 'self', cd: 3, el: 'shadow', fx: [{ t: 'status', st: 'stealth', n: 1 }, { t: 'block', v: 2 }] },
+  { id: 'rp_gravecall', name: 'Gravecall', cat: 'special', icon: 'blink', rarity: 'rare', range: 3, cd: 2, el: 'shadow', fx: [{ t: 'pull', v: 2 }, { t: 'dmg', v: 1, s: 'atk' }] },
+  { id: 'rp_rites', name: 'Final Rites', cat: 'attack', icon: 'skull', rarity: 'epic', cost: 2, mp: 6, cd: 3, el: 'shadow', fx: [{ t: 'dmg', v: 3, s: 'atk', execute: 0.3, onKill: { energy: 1 } }] },
+  { id: 'rp_danse', name: 'Danse Macabre', cat: 'attack', icon: 'whirl', rarity: 'epic', tg: 'self', shape: 'burst', size: 2, cost: 3, mp: 8, cd: 4, el: 'shadow', fx: [{ t: 'dmg', v: 2, s: 'atk', drain: 0.3 }, { t: 'status', st: 'bleed', n: 2 }] },
+  { id: 'rp_reaping', name: 'The Reaping', cat: 'attack', icon: 'skull', rarity: 'legendary', ult: true, tg: 'self', shape: 'burst', size: 3, cost: 3, mp: 12, cd: 5, el: 'shadow', fx: [{ t: 'dmg', v: 2, s: 'atk', execute: 0.3 }, { t: 'status', st: 'bleed', n: 3 }] },
+]);
+jobCards('venomancer', 'assassin', [
+  { id: 'vm_dart', start: true, name: 'Toxin Dart', cat: 'attack', icon: 'dagger', range: 4, el: 'poison', proj: 'knife', fx: [{ t: 'dmg', v: 0, s: 'atk' }, { t: 'status', st: 'poison', n: 3 }] },
+  { id: 'vm_cloud', start: true, name: 'Noxious Cloud', cat: 'special', icon: 'smoke', tg: 'any', range: 4, shape: 'area', size: 1, cd: 1, el: 'poison', fx: [{ t: 'status', st: 'poison', n: 2 }] },
+  { id: 'vm_virulence', start: true, name: 'Virulence', cat: 'special', icon: 'skull', range: 4, cost: 0, cd: 2, el: 'poison', fx: [{ t: 'status', st: 'poison', n: 1 }, { t: 'spread', sts: ['poison'] }] },
+  { id: 'vm_mithridate', name: 'Mithridate', cat: 'defense', icon: 'heart', tg: 'self', cd: 2, el: 'poison', fx: [{ t: 'cleanse' }, { t: 'block', v: 2 }] },
+  { id: 'vm_corrode', name: 'Corrode', cat: 'attack', icon: 'dagger', range: 3, cd: 1, el: 'poison', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'vulnerable', n: 1 }] },
+  { id: 'vm_fester', name: 'Fester Bloom', cat: 'attack', icon: 'smoke', rarity: 'rare', tg: 'any', range: 4, shape: 'area', size: 1, cost: 2, cd: 2, el: 'poison', fx: [{ t: 'dmg', v: 0, s: 'atk', perStatus: { st: 'poison', v: 1 } }] },
+  { id: 'vm_blight', name: 'Blight', cat: 'special', icon: 'skull', rarity: 'rare', range: 4, cd: 2, el: 'poison', fx: [{ t: 'status', st: 'poison', n: 4 }, { t: 'status', st: 'weak', n: 1 }] },
+  { id: 'vm_blood', name: 'Toxic Blood', cat: 'defense', icon: 'heart', rarity: 'rare', tg: 'self', cd: 3, el: 'poison', fx: [{ t: 'status', st: 'thorns', n: 3 }, { t: 'status', st: 'regen', n: 2 }] },
+  { id: 'vm_paralytic', name: 'Paralytic', cat: 'attack', icon: 'dagger', rarity: 'rare', range: 4, cost: 2, cd: 3, el: 'poison', proj: 'knife', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'stun', n: 1 }] },
+  { id: 'vm_pandemic', name: 'Pandemic', cat: 'special', icon: 'skull', rarity: 'epic', range: 5, cost: 2, mp: 6, cd: 3, el: 'poison', fx: [{ t: 'status', st: 'poison', n: 3 }, { t: 'spread', sts: ['poison', 'bleed'] }] },
+  { id: 'vm_necrotic', name: 'Necrotic Burst', cat: 'attack', icon: 'smoke', rarity: 'epic', tg: 'any', range: 4, shape: 'area', size: 1, cost: 3, mp: 8, cd: 4, el: 'poison', fx: [{ t: 'dmg', v: 2, s: 'atk', perStatus: { st: 'poison', v: 1, consume: true } }] },
+  { id: 'vm_plague', name: 'Plague', cat: 'attack', icon: 'skull', rarity: 'legendary', ult: true, tg: 'self', shape: 'burst', size: 4, cost: 3, mp: 12, cd: 5, el: 'poison', fx: [{ t: 'dmg', v: 2, s: 'atk' }, { t: 'status', st: 'poison', n: 5 }, { t: 'status', st: 'weak', n: 2 }] },
+]);
+jobCards('bishop', 'priest', [
+  { id: 'bi_heal', start: true, name: 'Greater Heal', cat: 'buff', icon: 'cross', tg: 'ally', range: 3, cd: 1, el: 'holy', fx: [{ t: 'heal', v: 3, s: 'matk' }] },
+  { id: 'bi_word', start: true, name: 'Holy Word', cat: 'attack', icon: 'sun', range: 4, el: 'holy', proj: 'holy', fx: [{ t: 'dmg', v: 1, s: 'matk' }, { t: 'status', st: 'weak', n: 1 }] },
+  { id: 'bi_ward', start: true, name: 'Sacred Ward', cat: 'defense', icon: 'shield', tg: 'ally', range: 3, cd: 1, el: 'holy', fx: [{ t: 'block', v: 2 }, { t: 'status', st: 'regen', n: 2 }] },
+  { id: 'bi_bene', name: 'Benediction', cat: 'buff', icon: 'star', tg: 'ally', range: 3, cd: 2, el: 'holy', fx: [{ t: 'status', st: 'strength', n: 2 }, { t: 'status', st: 'haste', n: 1 }] },
+  { id: 'bi_absolve', name: 'Absolution', cat: 'buff', icon: 'cross', tg: 'ally', range: 3, cost: 0, cd: 1, el: 'holy', fx: [{ t: 'cleanse' }, { t: 'block', v: 1 }] },
+  { id: 'bi_mending', name: 'Prayer of Mending', cat: 'buff', icon: 'heart', rarity: 'rare', tg: 'self', shape: 'burst', size: 2, allies: true, cost: 2, mp: 5, cd: 3, el: 'holy', fx: [{ t: 'heal', v: 2, s: 'matk' }, { t: 'status', st: 'regen', n: 1 }] },
+  { id: 'bi_censure', name: 'Censure', cat: 'attack', icon: 'sun', rarity: 'rare', range: 4, cost: 2, cd: 2, el: 'holy', proj: 'holy', fx: [{ t: 'dmg', v: 2, s: 'matk' }, { t: 'status', st: 'vulnerable', n: 2 }] },
+  { id: 'bi_sanctify', name: 'Sanctify', cat: 'defense', icon: 'shield', rarity: 'rare', tg: 'self', shape: 'burst', size: 2, allies: true, cd: 3, el: 'holy', fx: [{ t: 'block', v: 2 }] },
+  { id: 'bi_holyfire', name: 'Holy Fire', cat: 'attack', icon: 'flame', rarity: 'rare', tg: 'any', range: 4, shape: 'area', size: 1, cost: 2, mp: 4, cd: 2, el: 'holy', fx: [{ t: 'dmg', v: 1, s: 'matk' }, { t: 'status', st: 'burn', n: 1 }] },
+  { id: 'bi_massres', name: 'Mass Resurrection', cat: 'special', icon: 'phoenix', rarity: 'epic', tg: 'self', cost: 3, mp: 12, cd: 5, el: 'holy', fx: [{ t: 'revive', pct: 0.6 }] },
+  { id: 'bi_intervene', name: 'Divine Intervention', cat: 'defense', icon: 'shield', rarity: 'epic', tg: 'ally', range: 4, cost: 2, mp: 6, cd: 4, el: 'holy', fx: [{ t: 'block', v: 5 }, { t: 'status', st: 'fortify', n: 1 }, { t: 'cleanse' }] },
+  { id: 'bi_miracle', name: 'Miracle', cat: 'buff', icon: 'phoenix', rarity: 'legendary', ult: true, tg: 'self', shape: 'burst', size: 3, allies: true, cost: 3, mp: 12, cd: 5, el: 'holy', fx: [{ t: 'heal', v: 4, s: 'matk' }, { t: 'revive', pct: 0.5 }, { t: 'status', st: 'regen', n: 3 }] },
+]);
+jobCards('monk', 'priest', [
+  { id: 'mo_palm', start: true, name: 'Palm Strike', cat: 'attack', icon: 'roar', el: 'holy', fx: [{ t: 'dmg', v: 1, s: 'matk' }, { t: 'push', v: 1 }] },
+  { id: 'mo_flurry', start: true, name: 'Flurry', cat: 'attack', icon: 'whirl', cd: 1, fx: [{ t: 'dmg', v: 0, s: 'atk', hits: 3 }] },
+  { id: 'mo_center', start: true, name: 'Centering', cat: 'defense', icon: 'orb', tg: 'self', cost: 0, cd: 2, fx: [{ t: 'block', v: 3 }, { t: 'draw', v: 1 }] },
+  { id: 'mo_kick', name: 'Rising Kick', cat: 'attack', icon: 'boot', cd: 1, combo: { after: 'attack', bonus: { dmg: 2 } }, fx: [{ t: 'dmg', v: 1, s: 'atk' }] },
+  { id: 'mo_flow', name: 'Flowing Step', cat: 'movement', icon: 'wind', tg: 'hex', range: 2, cost: 0, cd: 2, fx: [{ t: 'move', v: 2 }, { t: 'status', st: 'haste', n: 1, self: true }] },
+  { id: 'mo_chi', name: 'Chi Burst', cat: 'attack', icon: 'sun', rarity: 'rare', tg: 'self', shape: 'burst', size: 1, cost: 2, cd: 2, el: 'holy', fx: [{ t: 'dmg', v: 1, s: 'matk', perPlayed: 1 }] },
+  { id: 'mo_ironbody', name: 'Iron Body', cat: 'defense', icon: 'shield', rarity: 'rare', tg: 'self', cd: 2, fx: [{ t: 'block', v: 4 }, { t: 'status', st: 'thorns', n: 2 }] },
+  { id: 'mo_pressure', name: 'Pressure Point', cat: 'attack', icon: 'eye', rarity: 'rare', cd: 2, fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'weak', n: 2 }, { t: 'status', st: 'vulnerable', n: 1 }] },
+  { id: 'mo_innerfire', name: 'Inner Fire', cat: 'buff', icon: 'flame', rarity: 'rare', tg: 'self', cost: 0, cd: 3, el: 'holy', fx: [{ t: 'energy', v: 1 }, { t: 'status', st: 'strength', n: 1 }] },
+  { id: 'mo_sevenstar', name: 'Seven-Star Strike', cat: 'attack', icon: 'star', rarity: 'epic', cost: 2, cd: 3, fx: [{ t: 'dmg', v: 0, s: 'atk', hits: 5, perPlayed: 1 }] },
+  { id: 'mo_dragon', name: "Dragon's Ascent", cat: 'attack', icon: 'phoenix', rarity: 'epic', cost: 3, mp: 6, cd: 4, el: 'holy', fx: [{ t: 'dmg', v: 3, s: 'matk' }, { t: 'push', v: 3 }, { t: 'status', st: 'stun', n: 1 }] },
+  { id: 'mo_hundredfists', name: 'Hundred Fists', cat: 'attack', icon: 'roar', rarity: 'legendary', ult: true, cost: 3, mp: 10, cd: 5, el: 'holy', fx: [{ t: 'dmg', v: 1, s: 'matk', hits: 6, perPlayed: 1 }, { t: 'push', v: 2 }] },
+]);
+jobCards('engineer', 'blacksmith', [
+  { id: 'en_cannon', start: true, name: 'Deploy Cannon', cat: 'special', icon: 'turret', tg: 'hex', range: 2, cost: 2, cd: 3, el: 'fire', fx: [{ t: 'summon', id: 'cannon' }] },
+  { id: 'en_rivet', start: true, name: 'Rivet Gun', cat: 'attack', icon: 'wrench', range: 4, proj: 'knife', fx: [{ t: 'dmg', v: 1, s: 'atk', hits: 2 }] },
+  { id: 'en_patch', start: true, name: 'Patch Up', cat: 'buff', icon: 'wrench', tg: 'ally', range: 3, cd: 1, fx: [{ t: 'heal', v: 2 }, { t: 'block', v: 1 }] },
+  { id: 'en_smoke', name: 'Smoke Charge', cat: 'special', icon: 'smoke', tg: 'any', range: 3, shape: 'area', size: 1, cd: 2, fx: [{ t: 'status', st: 'weak', n: 2 }] },
+  { id: 'en_calibrate', name: 'Calibrate', cat: 'buff', icon: 'wrench', tg: 'self', cost: 0, cd: 2, fx: [{ t: 'draw', v: 1 }, { t: 'cool', v: 1 }] },
+  { id: 'en_pylon', name: 'Shield Pylon', cat: 'defense', icon: 'turret', rarity: 'rare', tg: 'hex', range: 2, cost: 2, cd: 4, fx: [{ t: 'summon', id: 'pylon' }] },
+  { id: 'en_grenade', name: 'Grenade', cat: 'attack', icon: 'flame', rarity: 'rare', tg: 'any', range: 4, shape: 'area', size: 1, cost: 2, cd: 2, el: 'fire', proj: 'fire', fx: [{ t: 'dmg', v: 2, s: 'atk' }, { t: 'status', st: 'burn', n: 1 }] },
+  { id: 'en_tesla', name: 'Tesla Coil', cat: 'attack', icon: 'bolt', rarity: 'rare', tg: 'any', shape: 'line', size: 4, cost: 2, mp: 4, cd: 3, el: 'wind', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'vulnerable', n: 1 }, { t: 'status', st: 'stun', n: 1 }] },
+  { id: 'en_plate', name: 'Bulwark Plate', cat: 'defense', icon: 'anvil', rarity: 'rare', tg: 'ally', range: 3, cost: 2, cd: 3, fx: [{ t: 'block', v: 4 }] },
+  { id: 'en_rockets', name: 'Rocket Barrage', cat: 'attack', icon: 'meteor', rarity: 'epic', tg: 'any', range: 6, shape: 'area', size: 2, cost: 3, mp: 8, cd: 4, el: 'fire', fx: [{ t: 'dmg', v: 2, s: 'atk' }, { t: 'push', v: 1 }] },
+  { id: 'en_mech', name: 'Mech Suit', cat: 'buff', icon: 'anvil', rarity: 'epic', tg: 'self', cost: 2, mp: 8, cd: 5, fx: [{ t: 'status', st: 'mech', n: 3, self: true }, { t: 'block', v: 3 }] },
+  { id: 'en_artillery', name: 'Artillery Barrage', cat: 'attack', icon: 'turret', rarity: 'legendary', ult: true, tg: 'any', range: 7, shape: 'area', size: 2, cost: 3, mp: 12, cd: 5, el: 'fire', fx: [{ t: 'dmg', v: 4, s: 'atk' }, { t: 'status', st: 'stun', n: 1 }] },
+]);
+jobCards('forgemaster', 'blacksmith', [
+  { id: 'fm_molten', start: true, name: 'Molten Hammer', cat: 'attack', icon: 'hammer', el: 'fire', fx: [{ t: 'dmg', v: 2, s: 'atk' }, { t: 'status', st: 'burn', n: 1 }] },
+  { id: 'fm_guard', start: true, name: 'Anvil Guard', cat: 'defense', icon: 'anvil', tg: 'self', cd: 1, fx: [{ t: 'block', v: 3 }] },
+  { id: 'fm_heat', start: true, name: 'Heat the Steel', cat: 'buff', icon: 'flame', tg: 'self', cost: 0, cd: 2, el: 'fire', fx: [{ t: 'status', st: 'strength', n: 2 }, { t: 'draw', v: 1 }] },
+  { id: 'fm_crush', name: 'Crushing Blow', cat: 'attack', icon: 'hammer', cd: 1, el: 'earth', fx: [{ t: 'breakBlock' }, { t: 'dmg', v: 1, s: 'atk' }] },
+  { id: 'fm_slag', name: 'Slag Throw', cat: 'attack', icon: 'flame', range: 3, cd: 1, el: 'fire', proj: 'fire', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'burn', n: 2 }] },
+  { id: 'fm_seismic', name: 'Seismic Hammer', cat: 'attack', icon: 'quake', rarity: 'rare', tg: 'any', shape: 'line', size: 4, cost: 2, cd: 2, el: 'earth', fx: [{ t: 'dmg', v: 2, s: 'atk' }, { t: 'push', v: 1 }] },
+  { id: 'fm_quench', name: 'Quench', cat: 'defense', icon: 'snow', rarity: 'rare', tg: 'self', cd: 3, fx: [{ t: 'cleanse' }, { t: 'block', v: 3 }, { t: 'status', st: 'fortify', n: 1 }] },
+  { id: 'fm_tempered', name: 'Tempered Edge', cat: 'buff', icon: 'anvil', rarity: 'rare', tg: 'self', shape: 'burst', size: 2, allies: true, cost: 2, cd: 3, fx: [{ t: 'status', st: 'strength', n: 2 }] },
+  { id: 'fm_bellows', name: 'Bellows Blast', cat: 'attack', icon: 'wind', rarity: 'rare', tg: 'any', shape: 'cone', size: 3, cost: 2, mp: 4, cd: 2, el: 'fire', fx: [{ t: 'dmg', v: 1, s: 'atk' }, { t: 'status', st: 'burn', n: 2 }, { t: 'push', v: 1 }] },
+  { id: 'fm_shatter', name: 'Shatter Armor', cat: 'attack', icon: 'hammer', rarity: 'epic', cost: 2, cd: 3, el: 'earth', fx: [{ t: 'breakBlock' }, { t: 'dmg', v: 3, s: 'atk' }, { t: 'status', st: 'vulnerable', n: 3 }] },
+  { id: 'fm_magma', name: 'Magma Pool', cat: 'attack', icon: 'meteor', rarity: 'epic', tg: 'any', range: 4, shape: 'area', size: 1, cost: 3, mp: 8, cd: 4, el: 'fire', fx: [{ t: 'dmg', v: 2, s: 'atk' }, { t: 'status', st: 'burn', n: 3 }, { t: 'status', st: 'root', n: 1 }] },
+  { id: 'fm_worldforge', name: 'Worldforge Slam', cat: 'attack', icon: 'quake', rarity: 'legendary', ult: true, tg: 'any', shape: 'line', size: 6, cost: 3, mp: 12, cd: 5, el: 'earth', fx: [{ t: 'dmg', v: 4, s: 'atk' }, { t: 'status', st: 'burn', n: 3 }, { t: 'status', st: 'stun', n: 1 }] },
+]);
+// The three cards a hero is given on taking each job.
+export const JOB_STARTERS = Object.values(CARDS).filter((c) => c.start).reduce((o, c) => { (o[c.job] ||= []).push(c.id); return o; }, {});
+
 export const STARTER_DECKS = {
   knight: ['k_slash', 'k_slash', 'k_shieldwall', 'k_charge', 'k_bash', 'k_advance', 'k_taunt', 'k_vow'],
   mage: ['m_firebolt', 'm_firebolt', 'm_frostshard', 'm_frostshard', 'm_barrier', 'm_blink', 'm_fireball', 'm_surge'],
@@ -239,7 +415,7 @@ export const STARTER_DECKS = {
 };
 
 export const DECK_MIN = 8;
-export const DECK_MAX = 18;
+export const DECK_MAX = 22;
 
 // ───────── Upgrades ─────────
 // Level 1: +1 to numeric bases. Level 2: +1 die and +1 status stack. Level 3: +1 again and -1 cooldown.
@@ -259,12 +435,40 @@ export function cardStats(id, level = 0) {
   if (level >= 3 && c.cd > 0) c.cd -= 1;
   return c;
 }
+// Skill-tree nodes that change cards (a `cardMod`, see jobs.js): every mod whose filters all match is applied to a copy.
+const modMatches = (c, m) => (!m.job || c.job === m.job) && (!m.cls || c.cls === m.cls) && (!m.cat || c.cat === m.cat) && (!m.el || c.el === m.el)
+  && (!m.shape || c.shape === m.shape) && (!m.rarity || c.rarity === m.rarity) && (!m.ids || m.ids.includes(c.id)) && (!m.tg || c.tg === m.tg)
+  && (!m.fx || c.fx.some((f) => f.t === m.fx || f[m.fx] != null)) && (!m.st || c.fx.some((f) => f.t === 'status' && f.st === m.st));
+export function applyCardMods(card, mods) {
+  const hit = (mods || []).filter((m) => modMatches(card, m)); if (!hit.length) return card;
+  const c = { ...card, fx: card.fx.map((f) => ({ ...f, onKill: f.onKill && { ...f.onKill }, far: f.far && { ...f.far }, perStatus: f.perStatus && { ...f.perStatus } })) };
+  for (const m of hit) {
+    if (m.range && c.tg !== 'self') c.range += m.range;
+    if (m.cd) c.cd = Math.max(0, c.cd + m.cd);
+    if (m.mp) c.mp = Math.max(0, c.mp + m.mp);
+    if (m.dice) c.diceBonus = (c.diceBonus || 0) + m.dice;
+    if (m.self) c.fx.push({ t: 'status', st: m.self.st, n: m.self.n, self: true });
+    for (const f of c.fx) {
+      if (f.t === 'dmg') { if (m.dmg) f.v += m.dmg; if (m.hits && f.hits > 1) f.hits += m.hits; if (m.drain && f.drain) f.drain += m.drain; if (m.far && f.far) f.far.v += m.far;
+        if (m.keepMark) f.keepMark = true; if (m.execute && f.execute) f.execute += m.execute; if (m.onKill && f.onKill) for (const k of Object.keys(f.onKill)) f.onKill[k] *= m.onKill;
+        if (m.perStatus && f.perStatus) f.perStatus.v += m.perStatus; if (m.perPlayed && f.perPlayed) f.perPlayed += m.perPlayed; }
+      if (f.t === 'block' && m.block) f.v += m.block;
+      if (f.t === 'heal' && m.heal) f.v += m.heal;
+      if (f.t === 'status' && m.stacks && !f.self && (!m.st || f.st === m.st) && !['stun', 'frozen', 'mark', 'stealth', 'fortify', 'mech'].includes(f.st)) f.n += m.stacks;
+      if (f.t === 'push' && m.push) f.v += m.push;
+      if (f.t === 'draw' && m.draw) f.v += m.draw;
+      if (f.t === 'revive' && m.revive) f.pct = Math.min(1, f.pct + m.revive);
+    }
+  }
+  return c;
+}
 export function upgradeCost(card, level) {
   const r = { common: 1, rare: 2, epic: 3, legendary: 4 }[card.rarity] || 1;
   return { gold: 40 * (level + 1) * r, shards: 8 * (level + 1) * r };
 }
 
-const SUMMON_TEXT = { turret: 'Build a Turret that fires each round.', barricade: 'Raise an Iron Barricade (8 HP).', mortar: 'Build a Mortar that shells a group of enemies each round. It cannot aim at enemies next to it.' };
+const SUMMON_TEXT = { turret: 'Build a Turret that fires each round.', barricade: 'Raise an Iron Barricade (8 HP).', mortar: 'Build a Mortar that shells a group of enemies each round. It cannot aim at enemies next to it.',
+  hawk: 'Call a Hawk. Each round it strikes the nearest enemy within 4 hexes.', cannon: 'Build a Cannon that fires down a line of 5 hexes each round.', pylon: 'Build a Shield Pylon that gives allies next to it 2 Block each round.' };
 const STAT_NAMES = { atk: 'ATK', matk: 'MATK', def: 'DEF' };
 export const STATUS_INFO = {
   burn: { name: 'Burn', color: '#ff7a33', icon: '🔥', desc: 'Takes damage equal to stacks at turn start; stacks decay by 1.', debuff: true },
@@ -284,6 +488,8 @@ export const STATUS_INFO = {
   stealth: { name: 'Stealth', color: '#9a8ab0', icon: '◐', desc: '+50% evasion. Breaks when you attack.' },
   fortify: { name: 'Fortify', color: '#9fc8ff', icon: '⛨', desc: 'Your Block is not lost at the start of your next turn.' },
   thorns: { name: 'Thorns', color: '#d9a441', icon: '✴', desc: 'Enemies that hit you from the next hex take 1 damage per stack. Ends at your next turn.' },
+  mech: { name: 'Mech', color: '#d8a040', icon: '⚙', desc: 'Riding a war machine: +2 Movement and +2 damage on every hit. Lasts the turns shown.' },
+  curse: { name: 'Curse', color: '#b06aff', icon: '☾', desc: 'Takes 1 more damage per stack from every hit. Decays by 1 each turn.', debuff: true },
 };
 
 // ───────── dice ─────────
@@ -306,7 +512,7 @@ export function diceOf(card) {
   const off = card.fx.find((f) => f.t === 'dmg'); const sup = card.fx.find((f) => f.t === 'block' || f.t === 'heal');
   if (!off && !sup) return null;
   const color = off ? (off.s === 'matk' ? 'blue' : 'red') : 'green';
-  const n = Math.min(5, 1 + (card.cost >= 2 ? 1 : 0) + (card.cost >= 3 ? 1 : 0) + (['epic', 'legendary'].includes(card.rarity) ? 1 : 0) + (card.level >= 2 ? 1 : 0));
+  const n = Math.min(6, 1 + (card.cost >= 2 ? 1 : 0) + (card.cost >= 3 ? 1 : 0) + (['epic', 'legendary'].includes(card.rarity) ? 1 : 0) + (card.level >= 2 ? 1 : 0) + (card.diceBonus || 0));
   return { color, n };
 }
 // Card text carries dice as a marker like ⟦red:2⟧; diceText() makes it plain text, cards render it as chips.
@@ -337,7 +543,9 @@ export function describeCard(card, unit = null) {
         if (f.spendBlock) s += t(', spends all your Block: +1 each');
         if (f.spendMp) s += t(', spends all your MP: +1 per {n} MP', { n: f.spendMp });
         if (f.execute) s += t('. Double vs targets under {n}% HP', { n: f.execute * 100 });
-        if (f.drain) s += t('. Heal {n}% of damage dealt', { n: f.drain * 100 });
+        if (f.drain) s += t('. Heal {n}% of damage dealt', { n: Math.round(f.drain * 100) });
+        if (f.perPlayed) s += t(', +{n} per card you played before it this turn', { n: f.perPlayed });
+        if (f.onKill) s += f.onKill.energy ? t('. On a kill: +{n} Action Slot', { n: f.onKill.energy }) : f.onKill.draw ? t('. On a kill: draw {n}', { n: f.onKill.draw }) : t('. On a kill: heal {n}', { n: f.onKill.heal });
         parts.push(s + t('.')); break;
       }
       case 'block': parts.push(t(f.self ? 'Gain {v} Block.' : 'Grant {v} Block.', { v: dice?.color === 'green' ? withDice(flat(f, unit)) : flat(f, unit) })); break;
@@ -360,6 +568,7 @@ export function describeCard(card, unit = null) {
       case 'breakBlock': parts.push(t("Destroy the target's Block.")); break;
       case 'cool': parts.push(t('Your cooling cards return {n} round(s) sooner.', { n: f.v })); break;
       case 'recall': parts.push(t('Take {n} random card(s) back from your discard pile.', { n: f.v })); break;
+      case 'trample': parts.push(t('Charge to the end of the line, striking everything on the way.')); break;
       default: break;
     }
   }

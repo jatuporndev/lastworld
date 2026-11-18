@@ -153,6 +153,17 @@ export class BattleScene {
     this.world.clearLayers(); this.world.setHover(null); this.world.setTurnRing(null);
   }
 
+  // A hero in a Mech Suit is drawn in the machine; when the turns run out it climbs back down. The figure is
+  // painted once per look (a second sheet), so the swap costs one sprite, not a repaint per frame.
+  mechLook(u) {
+    const want = !!(u.alive && u.status.mech); if (want === !!u._mech) return;
+    if (!u._base) u._base = { key: u.spriteKey, look: u.look };
+    u._mech = want; u.spriteKey = want ? u._base.key + '_mech' : u._base.key; u.look = want ? { ...u._base.look, mech: true } : u._base.look;
+    const w = this.world; const ring = w.turnUid === u.uid;
+    w.removeUnit(u.uid); w.addUnit(u, this.battle.cellsOf(u)); w.setFacing(u.uid, u.facing); if (ring) w.setTurnRing(u.uid);
+    w.ring(this.world.unitPos(u.uid, 0.1), 0xffb040, 1.6, 360);
+  }
+
   addUnit(u) {
     const w = this.world; const b = this.battle;
     w.addUnit(u, b.cellsOf(u));
@@ -420,7 +431,7 @@ export class BattleScene {
     }
     E.whose.textContent = !active && u ? (cur && !this.canControl(u) ? t("{name}'s hand", { name: u.name }) : t('Your hand')) : '';
     E.exec.disabled = !active || !u.plan.length; E.end.disabled = !active; E.undo.disabled = !active || !u.plan.length;
-    const cons = Object.values(this.consOf(u)).reduce((s, v) => s + v, 0);
+    const cons = Object.entries(this.consOf(u)).reduce((s, [id, v]) => s + (CONSUMABLES[id].use.job ? 0 : v), 0);
     E.items.disabled = !active || u.itemUsed || !cons; E.items.querySelector('span').textContent = t('Items ({n})', { n: cons });
     this.setHint();
   }
@@ -658,7 +669,7 @@ export class BattleScene {
 
   openItems() {
     const u = this.hero(); if (!u || !this.inputOn) return;
-    const list = Object.entries(this.consOf(u)).map(([id, n]) => { const c = CONSUMABLES[id];
+    const list = Object.entries(this.consOf(u)).filter(([id]) => !CONSUMABLES[id].use.job).map(([id, n]) => { const c = CONSUMABLES[id];
       const idle = c.use.raise && !this.battle.raiseTarget(u); // a leaf with nobody to raise stays in the bag
       return h('div.item' + (idle ? '.dim' : ''), { style: { '--rar': c.color }, onclick: async () => { if (idle) { audio.sfx('error'); toast(t('No ally has fallen'), 'bad'); return; } m.close(); if (!this.inputOn || u.itemUsed) return; this.inputOn = false; await this.act({ k: 'item', id }); } },
         h('div.item-icon', itemPic(c.icon, c.color, 34)), h('div.item-info', h('div.item-name', c.name), h('div.item-sub', c.desc)), h('div.item-tag', '×' + n)); });
@@ -710,7 +721,7 @@ export class BattleScene {
         break;
       }
       case 'refresh': this.syncAll(); break;
-      case 'turnEnd': { this.syncAll(); if (d.unit.cards) { this.inputOn = false; this.pending = null; w.clearLayers(['telegraph']); this.renderHand(); } break; }
+      case 'turnEnd': { this.mechLook(d.unit); this.syncAll(); if (d.unit.cards) { this.inputOn = false; this.pending = null; w.clearLayers(['telegraph']); this.renderHand(); } break; }
       case 'move': {
         const u = d.unit; let prev = { q: u.q, r: u.r };
         const steps = d.path.map((c) => { const s = { pos: w.footPos(b.cellsOf(u, c)), dir: Hex.directionTo(prev, c) }; prev = c; return s; });
@@ -775,6 +786,7 @@ export class BattleScene {
         w.floatText(pos(d.unit, 1.9), `${info.icon} ${info.name}`, 'status' + (info.debuff ? ' debuff' : ' buffed'));
         w.rise(pos(d.unit, 0.3), { color: new THREE.Color(info.color).getHex(), count: 7, speed: 1.2 });
         if (!info.debuff) audio.sfx('buff'); else if (d.st === 'frozen' || d.st === 'chill') audio.sfx('ice');
+        if (d.st === 'mech') this.mechLook(d.unit);
         this.syncLabel(d.unit); this.renderParty(); await sleep(150); break;
       }
       case 'text': { w.floatText(pos(d.unit, 1.9), d.text, 'note'); await sleep(260); break; }

@@ -181,6 +181,47 @@ function weapon(ctx, type, look, glow) {
       ctx.beginPath(); ctx.moveTo(-5, -50); ctx.lineTo(0, -66); ctx.lineTo(5, -50); ctx.closePath(); path(ctx, look.cloth ? grad(ctx, -66, -50, '#fff8d0', look.cloth) : metal); break;
     case 'claw':
       for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(i * 3, 0); ctx.quadraticCurveTo(i * 4 + 2, -8, i * 3 + 4, -13); path(ctx, null, '#e8e0c0', 2); } break;
+    // ── the weapons of the advanced classes ──
+    case 'lance': // a long cone of steel with a guard and a pennant in the rider's colour
+      rrect(ctx, -1.8, -20, 3.6, 32, 1, '#6a4a2a');
+      ctx.beginPath(); ctx.moveTo(-6.5, -18); ctx.lineTo(0, -84); ctx.lineTo(6.5, -18); ctx.closePath(); path(ctx, metal);
+      ctx.beginPath(); ctx.moveTo(0, -24); ctx.lineTo(0, -76); path(ctx, null, 'rgba(255,255,255,0.7)', 1.2);
+      ellipse(ctx, 0, -17, 9.5, 3.6, grad(ctx, -21, -13, '#f0d070', '#8a6a20'));
+      ctx.beginPath(); ctx.moveTo(1, -64); ctx.lineTo(17, -59); ctx.lineTo(1, -52); ctx.closePath(); path(ctx, look.cloth || '#c03030', OUT, 1.6); break;
+    case 'greatbow': // taller than its archer, tipped with brass
+      ctx.beginPath(); ctx.moveTo(0, -42); ctx.quadraticCurveTo(22, 0, 0, 42); path(ctx, null, OUT, 6.5);
+      ctx.beginPath(); ctx.moveTo(0, -42); ctx.quadraticCurveTo(22, 0, 0, 42); path(ctx, null, '#5a3a22', 4.2);
+      ellipse(ctx, 1, -41, 2.6, 2.6, '#e0b050', OUT, 1.4); ellipse(ctx, 1, 41, 2.6, 2.6, '#e0b050', OUT, 1.4); rrect(ctx, 6, -5, 6, 10, 2, '#3a2a1a', OUT, 1.4);
+      ctx.beginPath(); ctx.moveTo(0, -42); ctx.lineTo(-glow * 12, 0); ctx.lineTo(0, 42); path(ctx, null, '#e8e0d0', 1); break;
+    case 'scythe': { // a black pole and a long pale blade
+      // the blade sweeps forward, away from the head, so it reads at any size
+      rrect(ctx, -1.8, -54, 3.6, 66, 1.5, grad(ctx, -54, 12, '#4a3a40', '#16101a'));
+      ctx.beginPath(); ctx.moveTo(-1, -52); ctx.quadraticCurveTo(22, -66, 46, -42); ctx.quadraticCurveTo(24, -50, 1, -43); ctx.closePath(); path(ctx, grad(ctx, -64, -40, '#f4f6ff', '#7a8494'));
+      if (look.glowEyes) glowCircle(ctx, 24, -52, 12 + glow * 8, look.glowEyes, 0.35 + glow * 0.3);
+      rrect(ctx, -3.5, -56, 7, 6, 1.5, '#c8c0b0', OUT, 1.6); break;
+    }
+    case 'crozier': { // a bishop's staff: a golden crook, a light in its curl
+      rrect(ctx, -2, -56, 4, 64, 2, grad(ctx, -56, 8, '#f6e8b8', '#a08040'));
+      ctx.beginPath(); ctx.moveTo(0, -54); ctx.quadraticCurveTo(1, -78, -12, -74); ctx.quadraticCurveTo(-19, -68, -9, -63); path(ctx, null, OUT, 6);
+      ctx.beginPath(); ctx.moveTo(0, -54); ctx.quadraticCurveTo(1, -78, -12, -74); ctx.quadraticCurveTo(-19, -68, -9, -63); path(ctx, null, '#e8c450', 3.6);
+      const orb = look.crownColor || '#fff0b0'; glowCircle(ctx, -6, -68, 11 + glow * 8, orb, 0.6 + glow * 0.3); ellipse(ctx, -6, -68, 3.4, 3.4, '#ffffff', OUT, 1.2);
+      rrect(ctx, -4.5, -56, 9, 5, 1.5, '#e8c450', OUT, 1.6); break;
+    }
+    case 'fists': // a wrapped fist
+      ellipse(ctx, 0, -4, 6, 5.4, rgrad(ctx, -2, -6, 7, '#ffffff', look.bandColor || '#e8e0d0'));
+      ctx.beginPath(); ctx.moveTo(-5, -6); ctx.lineTo(5, -2); ctx.moveTo(-5, -2); ctx.lineTo(5, 2); path(ctx, null, shade(look.bandColor || '#c8c0b0', -0.3), 1.2);
+      if (glow > 0) glowCircle(ctx, 0, -4, 10 + glow * 10, look.crownColor || '#fff0b0', 0.5 * glow); break;
+    case 'wrench':
+      rrect(ctx, -2.2, -30, 4.4, 38, 2, grad(ctx, -30, 8, '#c8ccd4', '#6a7078'));
+      ctx.beginPath(); ctx.moveTo(-9, -30); ctx.lineTo(-9, -40); ctx.lineTo(-3, -42); ctx.lineTo(-3, -34); ctx.lineTo(3, -34); ctx.lineTo(3, -42); ctx.lineTo(9, -40); ctx.lineTo(9, -30); ctx.lineTo(4, -26); ctx.lineTo(-4, -26); ctx.closePath(); path(ctx, grad(ctx, -42, -26, '#e8ecf4', '#7a808a'));
+      rrect(ctx, -3, -6, 6, 12, 2, look.cloth || '#d8a040', OUT, 1.6); break;
+    case 'bighammer': { // a head as big as its smith, glowing from inside the cracks
+      rrect(ctx, -2.6, -34, 5.2, 44, 2, '#4a3426');
+      rrect(ctx, -17, -54, 34, 22, 3, grad(ctx, -54, -32, '#5a5458', '#1e1a1e'));
+      const hot = look.seams || '#ff8a30';
+      ctx.beginPath(); ctx.moveTo(-12, -50); ctx.lineTo(-5, -43); ctx.lineTo(-9, -36); ctx.moveTo(6, -52); ctx.lineTo(2, -44); ctx.lineTo(9, -38); ctx.lineTo(13, -35); path(ctx, null, hot, 1.8);
+      glowCircle(ctx, 0, -43, 18 + glow * 10, hot, 0.45 + glow * 0.3); rrect(ctx, -17, -46, 34, 4, 1, '#8a8a90', null); break;
+    }
     default: break;
   }
 }
@@ -194,7 +235,20 @@ function offhand(ctx, type, look) {
     case 'book':
       rrect(ctx, -8, -10, 16, 18, 2, '#7a2a2a'); rrect(ctx, -6, -8, 12, 14, 1, '#e8dcc0', null);
       ctx.fillStyle = '#c9a040'; ctx.fillRect(-1, -6, 2, 10); ctx.fillRect(-4, -3, 8, 2); break;
-    case 'dagger': case 'sword': weapon(ctx, type, look, 0); break;
+    case 'dagger': case 'sword': case 'fists': weapon(ctx, type, look, 0); break;
+    case 'sunshield': { // a great round shield with the sun on it
+      ellipse(ctx, 0, 0, 15, 17, grad(ctx, -17, 17, shade(look.armor, 0.3), look.armor2));
+      const sun = look.cloth || '#e0b040';
+      for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 5, Math.sin(a) * 5); ctx.lineTo(Math.cos(a) * 12, Math.sin(a) * 13); path(ctx, null, sun, 2.4); }
+      ellipse(ctx, 0, 0, 5.4, 5.4, rgrad(ctx, -1, -1, 6, '#fff8d0', sun), OUT, 1.6); glowCircle(ctx, 0, 0, 16, look.crownColor || '#ffe080', 0.35); break;
+    }
+    case 'chainbook': // a black book bound in chains, a violet light leaking out
+      rrect(ctx, -9, -11, 18, 20, 2, '#2a1830'); rrect(ctx, -7, -9, 14, 16, 1, '#4a2a5a', null);
+      ctx.beginPath(); ctx.moveTo(-10, -4); ctx.lineTo(10, 2); ctx.moveTo(-10, 3); ctx.lineTo(10, -3); path(ctx, null, '#a8a8b0', 1.8);
+      glowCircle(ctx, 0, -1, 14, look.crownColor || '#b060ff', 0.5); ellipse(ctx, 0, -1, 2.2, 2.2, look.crownColor || '#b060ff', OUT, 1); break;
+    case 'flask': // a round flask of green poison
+      rrect(ctx, -2, -16, 4, 6, 1, '#8a6a4a', OUT, 1.4); ellipse(ctx, 0, -2, 8, 9, rgrad(ctx, -2, -4, 9, '#e0ff90', look.cloth || '#7ac03a'));
+      glowCircle(ctx, 0, -2, 13, look.cloth || '#7ac03a', 0.5); ellipse(ctx, -3, -5, 1.8, 1.8, 'rgba(255,255,255,0.8)', null); break;
     default: break;
   }
 }

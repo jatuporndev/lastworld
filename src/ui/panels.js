@@ -3,8 +3,10 @@ import { h, fmt } from '../core/util.js';
 import { t, LANG, setLang } from '../core/i18n.js';
 import { audio } from '../core/audio.js';
 import { G, myHeroes, touch, usedCopies, canAddToDeck, canRemoveFromDeck, tryUpgradeCard, spareCopy, tryDismantle, equipItem, unequip, sellItem, useConsumable, questStatus, claimQuest, progress, addItem } from '../game/state.js';
-import { computeStats, attributes, canLearn, learnSkill, canEquip, clampVitals } from '../game/character.js';
-import { CLASSES, SKILL_TREES, STAT_INFO, expToNext } from '../data/classes.js';
+import { computeStats, attributes, canLearn, learnSkill, canEquip, clampVitals, treeOf, jobReady } from '../game/character.js';
+import { openJobChoice } from './jobUI.js';
+import { CLASSES, STAT_INFO, expToNext, className, canUseCard, levelCap } from '../data/classes.js';
+import { JOBS } from '../data/jobs.js';
 import { CARDS, RARITY, MAX_CARD_LEVEL, upgradeCost, DECK_MIN, DECK_MAX } from '../data/cards.js';
 import { CONSUMABLES, MATERIALS, RECIPES, BASES, ITEM_RARITY, makeEquipment } from '../data/items.js';
 import { QUESTS } from '../data/events.js';
@@ -50,7 +52,7 @@ export function openQuests(app) {
 
 function heroPicker(render) {
   return h('div.hero-picker', ...myHeroes().map((hero, i) => h('div.hp-item' + (i === sel ? '.on' : ''), { onclick: () => { sel = i; audio.sfx('click'); render(); } },
-    heroSprite(hero, { size: 60, zoom: 1.4, oy: 0.26 }), h('div', h('b', hero.name), h('small', `Lv ${hero.level} ${CLASSES[hero.cls].name}`)),
+    heroSprite(hero, { size: 60, zoom: 1.4, oy: 0.26 }), h('div', h('b', hero.name), h('small', `Lv ${hero.level} ${className(hero)}`)),
     hero.statPoints + hero.skillPoints > 0 ? h('i.pip', '!') : null)));
 }
 
@@ -60,20 +62,22 @@ function heroTab(render) {
   const attrRow = (k) => h('div.attr', { 'data-tip': `${STAT_INFO[k].full} — ${STAT_INFO[k].desc}` }, h('span.attr-n', STAT_INFO[k].name), h('b', a[k]),
     h('button.plus', { disabled: hero.statPoints <= 0, onclick: () => { hero.alloc[k]++; hero.statPoints--; clampVitals(hero); touch(); audio.sfx('buff'); render(); } }, '+'));
   const d = (label, v, tip) => h('div.derived', { 'data-tip': tip }, h('span', label), h('b', v));
-  const tree = SKILL_TREES[hero.cls];
-  const branch = (b) => h('div.branch', ...tree.filter((n) => n.branch === b).map((n) => {
+  const tree = treeOf(hero); const J = JOBS[hero.job];
+  const branch = (b, job = null) => h('div.branch', job ? h('div.branch-name', J.branches[b]) : null, ...tree.filter((n) => n.branch === b && (n.job || null) === job).map((n) => {
     const known = hero.skills.includes(n.id); const can = canLearn(hero, n);
     return h('div.skill' + (known ? '.known' : can ? '.can' : '.locked'), { 'data-tip': `${n.desc}${known ? '' : t(' — Cost: {n} SP', { n: n.cost || 1 })}`, onclick: () => { if (learnSkill(hero, n)) { clampVitals(hero); touch(); audio.sfx('levelup'); render(); } else if (!known) audio.sfx('error'); } },
       h('div.skill-tier', 'I'.repeat(n.tier)), h('div.skill-name', n.name), h('div.skill-desc', n.desc));
   }));
   return h('div.tab-hero', heroPicker(render),
     h('div.hero-sheet',
-      h('div.hero-col.portrait', h('div.hero-stage', heroSprite(hero, { size: 220, zoom: 1.1 })), h('div.hero-name', hero.name), h('div.hero-class', `${C.name} · ${C.title}`),
-        h('div.lvl', t('Level {n}', { n: hero.level })), bar('exp', hero.exp, expToNext(hero.level)), bar('hp', hero.hp, s.hp), bar('mp', hero.mp, s.mp)),
+      h('div.hero-col.portrait', h('div.hero-stage', heroSprite(hero, { size: 220, zoom: 1.1 })), h('div.hero-name', hero.name), h('div.hero-class', `${(J || C).name} · ${(J || C).title}`),
+        h('div.lvl', t('Level {n}', { n: hero.level })), hero.level >= levelCap(hero) ? h('div.cap-note', t(hero.job ? 'Highest level reached' : 'Take an advanced class to grow past Level 30'), jobReady(hero) && G.state.inv.cons.job_page ? btn(t('Choose a class'), () => openJobChoice(hero, render), { cls: 'small primary' }) : null) : bar('exp', hero.exp, expToNext(hero.level)), bar('hp', hero.hp, s.hp), bar('mp', hero.mp, s.mp)),
       h('div.hero-col', h('div.sec-title', t('Attributes'), h('span.points' + (hero.statPoints ? '.has' : ''), t('{n} points', { n: hero.statPoints }))), ...['str', 'agi', 'vit', 'int', 'dex'].map(attrRow),
         h('div.sec-title', t('Combat Stats')),
         h('div.derived-grid', d('ATK', s.atk, t('Physical attack power')), d('MATK', s.matk, t('Magic attack power')), d('DEF', s.def, t('Reduces damage taken')), d(t('Speed'), s.spd, t('Determines turn order')), d(t('Crit'), s.crit + '%', t('Critical hit chance')), d(t('Evasion'), s.eva + '%', t('Chance to dodge')), d(t('Move'), s.move + (s.passives.move || 0), t('Hexes per turn')), d(t('Action Slots'), s.energy, t('How many slots of cards you can play each turn')))),
-      h('div.hero-col.wide', h('div.sec-title', t('Skill Tree'), h('span.points' + (hero.skillPoints ? '.has' : ''), `${hero.skillPoints} SP`)), h('div.tree', branch(0), branch(1)))));
+      h('div.hero-col.wide', h('div.sec-title', t('Skill Tree'), h('span.points' + (hero.skillPoints ? '.has' : ''), `${hero.skillPoints} SP`)),
+        J ? h('div.tree-title', J.name) : null, J ? h('div.tree.job', branch(0, hero.job), branch(1, hero.job), branch(2, hero.job)) : null,
+        J ? h('div.tree-title', C.name) : null, h('div.tree', branch(0), branch(1)))));
 }
 
 // ───── Bag: equipment slots and one grid of everything carried ─────
@@ -87,12 +91,13 @@ function equipTab(render) {
   const st = G.state; const hero = myHeroes()[sel];
   const pick = (k, id) => { picked = picked && picked.k === k && picked.id === id ? null : { k, id }; audio.sfx('click'); render(); };
   const on = (k, id) => (picked && picked.k === k && picked.id === id ? '.on' : '');
-  const wear = (it) => { if (equipItem(hero, it)) { audio.sfx('place'); picked = null; render(); } else { audio.sfx('error'); toast(t('{cls} cannot equip {type}', { cls: CLASSES[hero.cls].name, type: t(it.type) }), 'bad'); } };
+  const wear = (it) => { if (equipItem(hero, it)) { audio.sfx('place'); picked = null; render(); } else { audio.sfx('error'); toast(t('{cls} cannot equip {type}', { cls: className(hero), type: t(it.type) }), 'bad'); } };
   const takeOff = (name) => { unequip(hero, name); audio.sfx('close'); picked = null; render(); };
   const sell = async (it) => { const n = Math.round(it.value * 0.4);
     if (!(await confirmBox(t('Sell Item'), t('Sell {name} for {n} gold? This cannot be undone.', { name: it.name, n }), t('Sell {n}g', { n })))) return;
     sellItem(it); audio.sfx('coin'); picked = null; render(); };
   const use = (id) => { const c = CONSUMABLES[id];
+    if (c.use.job) { if (jobReady(hero)) { picked = null; openJobChoice(hero, render); } else { audio.sfx('error'); toast(t('Only a hero of Level 30 with no advanced class can read it'), 'bad'); } return; }
     if (useConsumable(id, hero)) { audio.sfx('heal'); toast(t('{hero} used {item}', { hero: hero.name, item: c.name })); if (!st.inv.cons[id]) picked = null; render(); }
     else { audio.sfx('error'); toast(t(c.use.bomb || c.use.raise ? 'Only usable in battle' : 'Cannot use that now'), 'bad'); } };
   const ghost = (it, color) => h('div.cell.ghost', itemPic(it.icon, color, 40, it));
@@ -126,7 +131,7 @@ function equipTab(render) {
       detail = h('div.bag-detail', html, h('div.row', picked.k === 'slot' ? btn(t('Unequip'), () => takeOff(picked.id), { cls: 'small primary' }) : btn(t('Equip'), () => wear(gear), { cls: 'small primary', disabled: !canEquip(hero, gear) }),
         picked.k === 'gear' ? btn(t('Sell {n}g', { n: Math.round(gear.value * 0.4) }), () => sell(gear), { cls: 'small' }) : null)); }
     else if (picked.k === 'cons' && st.inv.cons[picked.id]) { const c = CONSUMABLES[picked.id];
-      detail = h('div.bag-detail', h('div.bag-tip', h('div.tip-title', `${c.name} ×${st.inv.cons[picked.id]}`), h('div.tip-sub', c.desc)), h('div.row', btn(t('Use on {name}', { name: hero.name }), () => use(picked.id), { cls: 'small primary' }))); }
+      detail = h('div.bag-detail', h('div.bag-tip', h('div.tip-title', `${c.name} ×${st.inv.cons[picked.id]}`), h('div.tip-sub', c.desc)), h('div.row', btn(c.use.job ? t('Read it ({name})', { name: hero.name }) : t('Use on {name}', { name: hero.name }), () => use(picked.id), { cls: 'small primary' }))); }
     else if (picked.k === 'mat' && st.inv.mats[picked.id]) { const c = MATERIALS[picked.id];
       detail = h('div.bag-detail', h('div.bag-tip', h('div.tip-title', `${c.name} ×${st.inv.mats[picked.id]}`), h('div.tip-sub', t('A material. The Forge turns materials into equipment.')))); }
   }
@@ -145,7 +150,7 @@ function deckTab(render) {
   const st = G.state; const hero = myHeroes()[sel];
   // every copy is laid out as its own card, so what is held can be read at a glance without counting numbers
   const deckIds = [...hero.deck].sort((a, b) => CARDS[a].cost - CARDS[b].cost || a.localeCompare(b));
-  const pool = Object.keys(st.cards).filter((id) => CARDS[id] && (CARDS[id].cls === 'any' || CARDS[id].cls === hero.cls)).sort((a, b) => CARDS[a].cost - CARDS[b].cost || a.localeCompare(b));
+  const pool = Object.keys(st.cards).filter((id) => canUseCard(hero, CARDS[id])).sort((a, b) => CARDS[a].cost - CARDS[b].cost || a.localeCompare(b));
   const deckCard = (id) => { const el = cardEl(id, st.cards[id]?.lv || 0, { small: true });
     const take = () => { if (!canRemoveFromDeck(hero)) { toast(t('A deck needs at least {n} cards', { n: DECK_MIN }), 'bad'); audio.sfx('error'); return; } hero.deck.splice(hero.deck.indexOf(id), 1); touch(); audio.sfx('close'); render(); };
     el.onclick = take;
@@ -183,8 +188,8 @@ function forgeTab(render) {
 // Card upgrades: a second copy of the same card is melted into the first. Each row reads left to right:
 // the card as it is, plus the spare copy that will be used up, becomes the stronger card.
 function upgradeCol(render) {
-  const st = G.state; const classes = new Set(myHeroes().map((x) => x.cls));
-  const ids = Object.keys(st.cards).filter((id) => CARDS[id] && (CARDS[id].cls === 'any' || classes.has(CARDS[id].cls)));
+  const st = G.state;
+  const ids = Object.keys(st.cards).filter((id) => myHeroes().some((x) => canUseCard(x, CARDS[id])));
   const info = (id) => { const c = st.cards[id]; const max = c.lv >= MAX_CARD_LEVEL; const cost = upgradeCost(CARDS[id], c.lv); const spare = c.n - usedCopies(id);
     const why = max ? null : c.n < 2 ? t('You own one copy. Find a second one to upgrade it.') : spare < 1 ? t('Every copy is in a deck. Take one out on the Deck page.') : st.gold < cost.gold ? t('Not enough gold.') : st.shards < cost.shards ? t('Not enough shards.') : null;
     return { id, c, max, cost, spare, why, ok: !max && !why }; };

@@ -7,8 +7,9 @@ import { MONSTERS } from '../data/monsters.js';
 import { CARDS, RARITY, MAX_CARD_LEVEL } from '../data/cards.js';
 import { BASES, makeEquipment, makeUnique, rollRarity, CONSUMABLES, MATERIALS } from '../data/items.js';
 import { EVENTS } from '../data/events.js';
-import { CLASSES } from '../data/classes.js';
-import { G, touch, addCard, addItem, addConsumable, addMaterial, healParty, progress, myHeroes } from './state.js';
+import { CLASSES, canUseCard } from '../data/classes.js';
+import { JOBS } from '../data/jobs.js';
+import { G, touch, addCard, addItem, addConsumable, addMaterial, healParty, progress, myHeroes, grantJobPages } from './state.js';
 import { grantExp, computeStats } from './character.js';
 
 export const NODE_INFO = {
@@ -113,13 +114,16 @@ export class StageManager {
   markCleared(c) { this.run.cleared[Hex.key(c.q, c.r)] = 1; touch(); }
 
   // ───── rewards ─────
-  cardPool(minRarity = 'common') {
-    const classes = new Set(myHeroes().map((h) => h.cls));
-    const order = ['common', 'rare', 'epic', 'legendary'];
-    return Object.values(CARDS).filter((c) => !c.id.startsWith('r_') && (c.cls === 'any' || classes.has(c.cls)) && order.indexOf(c.rarity) >= order.indexOf(minRarity));
+  // Cards of a hero's job are found from stage 7 on: Epic ones only from a mini boss or an MVP, and the Legendary one
+  // only now and then from an MVP of stage 9 or later (always from stage 12 on, see docs/jobs.md).
+  cardPool(minRarity = 'common', kind = 'normal') {
+    const heroes = myHeroes(); const order = ['common', 'rare', 'epic', 'legendary']; const sid = this.stage.id;
+    const jobOk = (c) => !c.job || (sid >= 7 && (c.rarity !== 'epic' || kind !== 'normal') && (c.rarity !== 'legendary' || (kind === 'boss' && (sid >= 12 || this.legendRoll))));
+    return Object.values(CARDS).filter((c) => !c.id.startsWith('r_') && heroes.some((h) => canUseCard(h, c)) && jobOk(c) && order.indexOf(c.rarity) >= order.indexOf(minRarity));
   }
-  rollCards(rng, n, minRarity = 'common') {
-    const pool = this.cardPool(minRarity); const out = [];
+  rollCards(rng, n, minRarity = 'common', kind = 'normal') {
+    this.legendRoll = kind === 'boss' && this.stage.id >= 9 && rng.chance(0.05);
+    const pool = this.cardPool(minRarity, kind); const out = [];
     const w = { common: 10, rare: 4 + this.stage.id, epic: 1 + this.stage.id * 0.8, legendary: 0.5 };
     let guard = 0;
     while (out.length < n && guard++ < 200) {
@@ -129,8 +133,9 @@ export class StageManager {
     return out;
   }
   rollEquip(rng, luck = 0, minRarity = null) {
-    const classes = myHeroes().map((h) => CLASSES[h.cls]);
-    const usable = Object.keys(BASES).filter((b) => { const B = BASES[b]; return B.slot === 'accessory' || classes.some((c) => c.weaponTypes.includes(B.type) || c.armorTypes.includes(B.type)); });
+    const heroes = myHeroes(); const classes = heroes.map((h) => CLASSES[h.cls]);
+    const jobArmor = heroes.flatMap((h) => JOBS[h.job]?.armorTypes || []);
+    const usable = Object.keys(BASES).filter((b) => { const B = BASES[b]; return B.slot === 'accessory' || jobArmor.includes(B.type) || classes.some((c) => c.weaponTypes.includes(B.type) || c.armorTypes.includes(B.type)); });
     let rar = rollRarity(() => rng.float(), luck);
     const order = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
     if (minRarity && order.indexOf(rar) < order.indexOf(minRarity)) rar = minRarity;
@@ -154,13 +159,13 @@ export class StageManager {
     } else if (kind === 'mini') {
       r.items.push(this.rollEquip(rng, 2, 'rare'));
       r.cons.push('hipotion');
-      r.cardChoices = this.rollCards(rng, 3, 'rare');
+      r.cardChoices = this.rollCards(rng, 3, 'rare', 'mini');
       const m = rng.pick(s.mats); r.mats[m] = (r.mats[m] || 0) + 2;
     } else if (kind === 'boss') {
       r.first = !st.stats.bosses[s.id];
       r.items.push(this.rollEquip(rng, 4, 'epic'));
       if (r.first) { r.items.push(makeUnique(s.rewardUnique)); r.fixedCards.push(s.rewardCard); } else r.shards += 60;
-      r.cardChoices = this.rollCards(rng, 3, 'rare');
+      r.cardChoices = this.rollCards(rng, 3, 'rare', 'boss');
       s.mats.forEach((m) => { r.mats[m] = (r.mats[m] || 0) + 3; });
       r.cons.push('elixir');
     }
@@ -175,6 +180,7 @@ export class StageManager {
       const lv = grantExp(h, was ? Math.round(r.exp * 0.5) : r.exp);
       if (lv) r.levelUps.push({ hero: h, levels: lv });
     });
+    grantJobPages();
     progress('kills', battle.kills.length);
     if (battle.combos) progress('combos', battle.combos);
     if (kind === 'mini') progress('mini', 1);
@@ -263,7 +269,7 @@ export class StageManager {
     const scale = Math.pow(1.5, s.id - 1);
     if (o.gold) { const g = Math.round(o.gold * scale); st.gold += g; gains.push(t('+{n} Gold', { n: g })); pieces.push({ k: 'gold', n: g }); }
     if (o.shards) { st.shards += o.shards + s.id * 3; gains.push(t('+{n} Shards', { n: o.shards + s.id * 3 })); pieces.push({ k: 'shards', n: o.shards + s.id * 3 }); }
-    if (o.exp) { const e = Math.round(o.exp * scale); myHeroes().forEach((h) => grantExp(h, e)); gains.push(t('+{n} EXP', { n: e })); pieces.push({ k: 'exp', n: e }); }
+    if (o.exp) { const e = Math.round(o.exp * scale); myHeroes().forEach((h) => grantExp(h, e)); grantJobPages(); gains.push(t('+{n} EXP', { n: e })); pieces.push({ k: 'exp', n: e }); }
     if (o.healPct) { healParty(o.healPct, 0, false); pieces.push({ k: 'heal', pct: o.healPct }); }
     if (o.fullHeal) { healParty(1, 1, true); pieces.push({ k: 'heal', pct: 1 }); }
     if (o.mp) myHeroes().forEach((h) => { h.mp = Math.min(computeStats(h).mp, h.mp + o.mp); });

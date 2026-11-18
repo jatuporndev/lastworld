@@ -1,4 +1,5 @@
-// Character classes, base stats and skill trees.
+// Character classes, base stats and skill trees. The advanced classes taken at level 30 are in jobs.js.
+import { JOBS, JOB_LEVEL } from './jobs.js';
 
 export const CLASSES = {
   knight: {
@@ -52,10 +53,18 @@ const FEMALE_LOOK = {
   assassin: { hair: '#2a2030' }, priest: { hair: '#e8c46a' }, blacksmith: { hair: '#b8431a', beard: null, bulky: false },
 };
 // The sprite key and look for a hero ({ cls, gender }) or a bare class id.
+// A hero with a job wears the job's look over its class look: { cls, gender, job } or a bare class id.
 export function heroLook(hero) {
   const cls = typeof hero === 'string' ? hero : hero.cls; const female = typeof hero !== 'string' && hero.gender === 'f';
-  return female ? { key: 'cls_' + cls + '_f', look: { ...CLASSES[cls].look, female: true, ...FEMALE_LOOK[cls] } } : { key: 'cls_' + cls, look: CLASSES[cls].look };
+  const J = typeof hero !== 'string' && JOBS[hero.job]; const key = 'cls_' + (J ? hero.job : cls) + (female ? '_f' : '');
+  const look = { ...CLASSES[cls].look, ...(J ? J.look : {}) };
+  return female ? { key, look: { ...look, female: true, ...FEMALE_LOOK[cls], ...(J?.female || {}) } } : { key, look };
 }
+// The name a hero goes by: its job once it has one.
+export const className = (hero) => (JOBS[hero.job] || CLASSES[hero.cls]).name;
+export const levelCap = (hero) => (hero.job ? MAX_LEVEL : JOB_LEVEL);
+// Whether a hero may put a card in its deck: cards of its class (a job's cards only once it has that job) and cards for anyone.
+export const canUseCard = (hero, card) => !!card && (card.cls === 'any' || (card.cls === hero.cls && (!card.job || card.job === hero.job)));
 
 export const CLASS_ORDER = ['knight', 'mage', 'archer', 'assassin', 'priest', 'blacksmith'];
 
@@ -121,4 +130,4 @@ export const STAT_INFO = {
 };
 
 export const expToNext = (level) => Math.round(40 * Math.pow(level, 1.45) + 20);
-export const MAX_LEVEL = 30;
+export const MAX_LEVEL = 50;

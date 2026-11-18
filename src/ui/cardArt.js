@@ -825,6 +825,14 @@ const ITEM = {
   },
 
   // ── potions and the like: a different vessel for each, so they are told apart without reading ──
+  page(c, P) { // a torn page from an old book; a name is being written on it, in a light that is not ink
+    poly(c, [[146, 96], [452, 74], [474, 520], [128, 542]], '#5a4026');
+    poly(c, [[156, 104], [444, 84], [462, 508], [140, 530]], '#ecdcb0');
+    poly(c, [[156, 104], [444, 84], [446, 132], [158, 152]], '#f8eed2');
+    for (let i = 0; i < 6; i++) line(c, 196, 214 + i * 46, 404 - (i % 3) * 40, 208 + i * 46, 9, 'rgba(58,42,32,0.5)');
+    line(c, 200, 470, 400, 452, 14, P.hot); line(c, 220, 470, 380, 455, 6, P.core); disc(c, 404, 450, 18, P.core);
+    halo(c, P, 400, 450, 200, 0.6);
+  },
   potion(c, P) {
     c.fillStyle = wood(c, 268, 60, 332, 60); c.fillRect(266, 62, 68, 60); c.fillStyle = 'rgba(220,235,255,0.5)'; c.fillRect(256, 116, 88, 100); c.fillStyle = 'rgba(255,255,255,0.7)'; c.fillRect(244, 108, 112, 20);
     disc(c, 300, 370, 176, 'rgba(210,228,255,0.35)'); c.save(); c.beginPath(); c.arc(300, 370, 160, 0, TAU); c.clip(); c.fillStyle = lin(c, 0, 280, 0, 540, [P.hot, P.mid, P.deep]); c.fillRect(100, 290, 400, 300); c.fillStyle = P.core; c.fillRect(100, 290, 400, 12);
