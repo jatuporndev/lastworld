@@ -27,7 +27,7 @@ export const coopError = (e) => {
 
 const defaultName = () => {
   try { const n = localStorage.getItem('lw_name'); if (n) return n; } catch (e) { /* ignore */ }
-  return Net.user?.email ? Net.user.email.split('@')[0].slice(0, 14) : t('Player') + ' ' + Math.floor(100 + Math.random() * 900);
+  return t('Player') + ' ' + Math.floor(100 + Math.random() * 900); // (never the email: everyone in the room sees this name)
 };
 
 // ───────── create / join ─────────
@@ -136,6 +136,6 @@ export function guestWaitScreen(app, text) {
 // Host the world you are already in (from the world map).
 export async function inviteFriends(app) {
   const st = G.state; if (!st?.worldId) return;
-  try { await app.hostRoom(st.worldId, st.charId, defaultName()); lobbyModal(app); audio.sfx('buff'); }
+  try { await app.hostRoom(st.worldId, st.charId, (G.profile.chars[st.charId]?.hero.name || defaultName()).slice(0, 16)); lobbyModal(app); audio.sfx('buff'); }
   catch (e) { console.warn('[co-op]', e); toast(coopError(e), 'bad'); }
 }

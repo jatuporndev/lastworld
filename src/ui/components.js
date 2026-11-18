@@ -4,7 +4,7 @@ import { t } from '../core/i18n.js';
 import { audio } from '../core/audio.js';
 import { getSheet, drawFrame, iconCanvas, FRAMES } from '../engine/sprites.js';
 import { CARDS, cardStats, describeCard, ELEMENTS, CATEGORIES, RARITY, STATUS_INFO, DICE_NAME, diceLabel } from '../data/cards.js';
-import { ITEM_RARITY, STAT_LABEL, CONSUMABLES, MATERIALS } from '../data/items.js';
+import { ITEM_RARITY, STAT_LABEL, CONSUMABLES, MATERIALS, itemName, perkText } from '../data/items.js';
 import { cardArt, itemArt } from './cardArt.js';
 import { CLASSES, heroLook } from '../data/classes.js';
 import { MONSTERS } from '../data/monsters.js';
@@ -85,14 +85,14 @@ export function itemEl(item, { onClick = null, tag = null } = {}) {
   const r = ITEM_RARITY[item.rarity];
   return h('div.item', { style: { '--rar': r.color }, onclick: onClick, 'data-tip-html': itemTip(item) },
     h('div.item-icon', itemPic(item.icon, r.color, 34, item)),
-    h('div.item-info', h('div.item-name', item.name), h('div.item-sub', `${r.name} · ${t('Tier {n}', { n: item.tier })} ${t(item.type)}`)),
+    h('div.item-info', h('div.item-name', itemName(item)), h('div.item-sub', `${r.name} · ${t('Tier {n}', { n: item.tier })} ${t(item.type)}`)),
     tag ? h('div.item-tag', tag) : null);
 }
 export function itemTip(item) {
   const r = ITEM_RARITY[item.rarity];
-  return `<div class="tip-title" style="color:${r.color}">${item.name}</div><div class="tip-sub">${r.name} ${t(item.type)} · ${t('Tier {n}', { n: item.tier })}</div>` +
+  return `<div class="tip-title" style="color:${r.color}">${itemName(item)}</div><div class="tip-sub">${r.name} ${t(item.type)} · ${t('Tier {n}', { n: item.tier })}</div>` +
     Object.entries(item.stats).map(([k, v]) => `<div class="tip-stat"><span>${STAT_LABEL[k] || k}</span><b>+${v}</b></div>`).join('') +
-    (item.unique ? `<div class="tip-unique">${item.unique}</div>` : '') + `<div class="tip-sub">${t('Sell: {n} gold', { n: Math.round(item.value * 0.4) })}</div>`;
+    (item.unique ? `<div class="tip-unique">${t(item.unique)}</div>` : '') + (item.perks || []).map((k) => `<div class="tip-unique">${perkText(k)}</div>`).join('') + `<div class="tip-sub">${t('Sell: {n} gold', { n: Math.round(item.value * 0.4) })}</div>`;
 }
 
 export function statusChips(unit) {

@@ -783,6 +783,8 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .ts-ico:hover .ts-hex, .ts-ico:focus-visible .ts-hex { background: var(--coin); transform: translateY(-0.12em); } .ts-ico:hover .icon { filter: brightness(0.15); } .ts-ico:focus-visible { outline: none; }
 .ts-ico small { font-size: 0.78em; font-weight: 400; letter-spacing: 0.14em; text-transform: uppercase; color: #e6eefc; text-shadow: 0 0 0.5em rgba(0, 0, 0, 0.8); }
 .title-foot { position: absolute; left: 0; bottom: 1.6vh; }
+/* the signed-in email: small and faint, only on the owner's own title screen */
+.title-foot .net-id { opacity: 0.7; font-size: 0.9em; margin-left: auto; margin-right: 1.2em; }
 
 /* Action Slots are the only turn resource: a card is as wide as the slots it takes, a free card is a chip */
 .slot { --sw: 7.2em; width: var(--sw); } .slot.w2 { width: calc(var(--sw) * 2 + 0.5em); } .slot.w3 { width: calc(var(--sw) * 3 + 1em); }
@@ -1048,6 +1050,10 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .job-news { margin-top: 0.25em; font-weight: 600; color: var(--accent); }
 /* creation screen: the two paths this class can take, as paper tags */
 .cs-jobs { display: flex; gap: 0.7em; flex-wrap: wrap; padding: 0.4em 0.2em; }
+/* the two advanced classes stand in a narrow column at the right of the class page, so nothing needs scrolling */
+.cs-jobcol { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2em; padding-left: 0.6em; }
+.cs-jobcol .cs-jobs { flex-direction: column; flex-wrap: nowrap; gap: 0.5em; }
+.cs-hero { flex-basis: 17em; }
 /* the two advanced classes on the creation screen: just the hero dressed for each, and its name */
 .cs-job { display: flex; flex-direction: column; align-items: center; gap: 0.1em; min-width: 6em; color: var(--ink-d); }
 .cs-job b { font-family: var(--f-head); border-bottom: 0.2em solid var(--job); }
@@ -1084,6 +1090,16 @@ html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent
   .job-cols { gap: 0.6em; } .job-stage .sprite-canvas { width: 7em !important; height: 7em !important; } .job-desc { font-size: 0.82em; }
   .ps-main { gap: 0.8em; } .ps-col { padding: 0.6em 0.8em; gap: 0.5em; overflow-y: auto; } .ps-char.empty { min-height: 9em; }
   .cs-head h2 { font-size: 1.4em; } .cs-detail { gap: 1em; padding: 0.5em 0.8em; } .cs-title { font-size: 1.4em; } .cs-slot { height: 3.6em; min-width: 12em; }
+  /* the class page fits a phone held sideways with nothing to scroll: small class cards, a smaller hero, a smaller deck */
+  .cs-screen { grid-template-rows: auto auto minmax(0, 1fr) auto; }
+  .cs-list { gap: 0.5em; } .cs-card { width: 7.6em; padding: 0.2em 0.2em 0.35em; } .cs-card .sprite-canvas { width: 5.2em !important; height: 5.2em !important; margin: 0 auto; }
+  .cs-name { font-size: 0.95em; } .cs-role { display: none; }
+  .cs-hero { flex-basis: 9.5em; } .cs-hero .sprite-canvas { width: 10em !important; height: 10em !important; } .cs-pedestal { width: 8em; height: 2.4em; }
+  .cs-info p { margin: 0.15em 0; font-size: 0.85em; line-height: 1.25; } .cs-sub { font-size: 0.8em; }
+  .cs-stats { margin: 0.2em 0; gap: 0 1.2em; } .cs-stat { font-size: 0.78em; }
+  .cs-deck { gap: 0.35em; padding: 0.3em 0.2em; font-size: 0.78em; flex-wrap: nowrap; } .cs-deck-title { margin-top: 0.15em; font-size: 0.75em; }
+  .cs-slot .sprite-canvas { width: 3.4em !important; height: 3.4em !important; }
+  .cs-jobcol .sprite-canvas { width: 5.4em !important; height: 5.4em !important; } .cs-jobcol .cs-jobs { gap: 0.2em; padding: 0.2em 0; } .cs-job { min-width: 0; font-size: 0.85em; }
   /* world map */
   .wm-screen { padding: 0.5em 0.9em; gap: 0.5em; } .wm-top { gap: 0.8em; } .wm-top h2 { font-size: 1.3em; } .wm-actions .btn { padding: 0.45em 0.7em; font-size: 0.9em; }
   .wm-detail { flex-basis: 23em; padding: 0.6em 0.8em; } .wm-d-head h3 { font-size: 1.3em; } .wm-pin { width: 3em; height: 3em; }
@@ -1132,3 +1148,6 @@ html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent
   /* co-op tokens and the battle summary sit closer together */
   .rc-p { width: 7.4em; padding: 0.4em 0.3em; } .rc-face { width: 3.2em; height: 3.2em; } .rc-party { gap: 0.6em; margin-top: 0.5em; } .bsum { gap: 0.2em 0.6em; padding: 0.4em 0.6em; } #rc-slip .btn { min-height: 2.6em; }
 }
+
+/* Forge: what the next enhancing step adds */
+.enh-gain { color: #2f7d4a; font-size: 0.85em; } .enh-title { margin-top: 0.8em; }

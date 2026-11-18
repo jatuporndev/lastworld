@@ -226,9 +226,10 @@ export class StageManager {
   rest(c) { healParty(0.6, 0.6, true); this.markCleared(c); }
 
   // ───── shop ─────
-  shopStock(c) {
+  // mine: a co-op guest's own purchases at this merchant (the host's are in the run, which the host owns)
+  shopStock(c, mine = null) {
     const k = Hex.key(c.q, c.r); const rng = this.rngFor(c, 'shop'); const s = this.stage;
-    const bought = (this.run.shop[k] ||= {});
+    const bought = mine ? (mine[k] ||= {}) : (this.run.shop[k] ||= {});
     const stock = [];
     for (let i = 0; i < 4; i++) { const it = this.rollEquip(rng, 1, i === 0 ? 'rare' : 'uncommon'); it.uid = `shop${k}${i}`; stock.push({ key: 'e' + i, kind: 'equip', item: it, price: Math.round(it.value * 1.6) }); }
     this.rollCards(rng, 3).forEach((id, i) => stock.push({ key: 'c' + i, kind: 'card', id, price: Math.round(RARITY[CARDS[id].rarity].craft * (1.2 + s.id * 0.25)) }));
@@ -236,19 +237,19 @@ export class StageManager {
     stock.forEach((x) => { x.sold = !x.unlimited && !!bought[x.key]; });
     return stock;
   }
-  buy(c, entry) {
+  buy(c, entry, mine = null) {
     const st = G.state; if (entry.sold || st.gold < entry.price) return false;
     st.gold -= entry.price;
     if (entry.kind === 'equip') addItem({ ...entry.item, uid: entry.item.uid + Date.now().toString(36) });
     else if (entry.kind === 'card') addCard(entry.id);
     else addConsumable(entry.id);
-    if (!entry.unlimited) { this.run.shop[Hex.key(c.q, c.r)][entry.key] = 1; entry.sold = true; }
+    if (!entry.unlimited) { (mine || this.run.shop)[Hex.key(c.q, c.r)][entry.key] = 1; entry.sold = true; }
     touch(); return true;
   }
 
   // ───── events ─────
   eventFor(c) {
-    if (c.node.type === 'shrine') return SHRINE;
+    if (c.node?.type === 'shrine') return SHRINE;
     const rng = this.rngFor(c, 'ev');
     return rng.pick(EVENTS);
   }
@@ -259,13 +260,14 @@ export class StageManager {
     if (cost.item && !(st.inv.cons[cost.item] > 0)) return false;
     return true;
   }
-  // returns { msg, gains:[], fight }
-  resolveChoice(c, choice) {
+  // returns { msg, gains:[], fight, ok }. Co-op guests replay the host's choice on their own save (as: { ok }): the
+  // host's luck decides for everyone, the host alone pays the price, and each player gets their own share of what it gives.
+  resolveChoice(c, choice, as = null) {
     const st = G.state; const rng = new RNG(); const s = this.stage; const gains = []; const pieces = []; // gains: words (older co-op clients); pieces: what the reveal lays out
-    if (choice.cost?.gold) st.gold -= choice.cost.gold;
-    if (choice.cost?.item) { st.inv.cons[choice.cost.item]--; if (st.inv.cons[choice.cost.item] <= 0) delete st.inv.cons[choice.cost.item]; }
-    let o = choice.out;
-    if (o.chance != null && !rng.chance(o.chance)) o = o.fail || { msg: t('Nothing happens.') };
+    if (!as && choice.cost?.gold) st.gold -= choice.cost.gold;
+    if (!as && choice.cost?.item) { st.inv.cons[choice.cost.item]--; if (st.inv.cons[choice.cost.item] <= 0) delete st.inv.cons[choice.cost.item]; }
+    let o = choice.out; const ok = as ? as.ok !== false : !(o.chance != null && !rng.chance(o.chance));
+    if (!ok) o = o.fail || { msg: t('Nothing happens.') };
     const scale = Math.pow(1.5, s.id - 1);
     if (o.gold) { const g = Math.round(o.gold * scale); st.gold += g; gains.push(t('+{n} Gold', { n: g })); pieces.push({ k: 'gold', n: g }); }
     if (o.shards) { st.shards += o.shards + s.id * 3; gains.push(t('+{n} Shards', { n: o.shards + s.id * 3 })); pieces.push({ k: 'shards', n: o.shards + s.id * 3 }); }
@@ -291,7 +293,7 @@ export class StageManager {
     touch();
     // effects on heroes, replayed by co-op guests on their own characters
     const party = { healPct: o.healPct, fullHeal: o.fullHeal, mp: o.mp, dmgPct: o.dmgPct, exp: o.exp ? Math.round(o.exp * scale) : 0, skillPoint: o.skillPoint };
-    return { msg: o.msg || '', gains, pieces, fight: !!o.fight, party };
+    return { msg: o.msg || '', gains, pieces, fight: !!o.fight, party, ok };
   }
 
   leave() { G.state.run = null; touch(); }

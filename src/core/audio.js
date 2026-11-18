@@ -1,5 +1,8 @@
-// Procedural audio: every sound effect and music track is synthesized with WebAudio.
+// Audio: every sound effect is synthesized with WebAudio. The music is the game's songs (data/music.js), streamed;
+// where there are none, a tune composed here (TRACKS) plays instead.
+import { SONGS } from '../data/music.js';
 
+const SONG_GAIN = 0.55; // the songs are mastered loud; this sits them with the effects at the same slider setting
 const SFX_BOOST = 2.2; // effects were too quiet next to the music at the same slider setting
 class AudioSystem {
   constructor() {
@@ -7,6 +10,8 @@ class AudioSystem {
     this.master = null; this.sfxGain = null; this.musicGain = null;
     this.musicVol = 0.45; this.sfxVol = 0.7;
     this.track = null; this.trackTimer = null; this.trackName = null;
+    this.song = null; this.lastSong = {}; this.badSongs = new Set(); this.shipped = null;
+    this.loadSongList();
   }
 
   init() {
@@ -95,6 +100,48 @@ class AudioSystem {
     if (this.trackName === name) return;
     this.stopMusic();
     this.trackName = name;
+    if (this.playSong(name)) return; // the game's songs (data/music.js), when there are any for this place
+    this.compose(name);
+  }
+
+  // ---------- songs ----------
+  // A song from the list for `name`, streamed from public/music and played through the music volume; when it ends,
+  // another from the same list (never the same one twice in a row). A song that cannot be loaded is left out from
+  // then on, and if none of the list can be, the composed tune takes over.
+  playSong(name) {
+    if (!this.shipped) return false; // (the list of songs on the server is not in yet: see loadSongList)
+    const list = (SONGS[name] || []).map(([id]) => id).filter((id) => this.shipped.has(id) && !this.badSongs.has(id));
+    if (!list.length) return false;
+    const last = this.lastSong[name]; const pick = list.length > 1 ? list.filter((id) => id !== last) : list;
+    const id = pick[Math.floor(Math.random() * pick.length)]; this.lastSong[name] = id;
+    const el = new Audio(); el.preload = 'auto'; el.src = '/music/' + id + '.m4a';
+    const g = this.ctx.createGain(); g.gain.value = 0.0001; g.connect(this.musicGain);
+    let src = null; try { src = this.ctx.createMediaElementSource(el); src.connect(g); } catch (e) { g.disconnect(); return false; }
+    const song = { el, g, src, name }; this.song = song;
+    const mine = () => this.song === song && this.trackName === name;
+    el.addEventListener('playing', () => { if (mine()) { g.gain.cancelScheduledValues(this.ctx.currentTime); g.gain.setValueAtTime(0.0001, this.ctx.currentTime); g.gain.exponentialRampToValueAtTime(SONG_GAIN, this.ctx.currentTime + 1.5); } }, { once: true });
+    el.addEventListener('ended', () => { if (!mine()) return; this.dropSong(song, 0.1); this.song = null; if (!this.playSong(name)) this.compose(name); });
+    el.addEventListener('error', () => { this.badSongs.add(id); if (!mine()) return; this.dropSong(song, 0.1); this.song = null; if (!this.playSong(name)) this.compose(name); });
+    el.play().catch(() => {}); // (blocked until the first touch: init() resumes the context, and the element plays on)
+    return true;
+  }
+  // public/music/index.json names the songs that are on the server (tools/music.mjs writes it), so none is asked for
+  // that is not there. Once it is in, the place playing now switches to its songs.
+  loadSongList() {
+    if (typeof fetch === 'undefined') return;
+    fetch('/music/index.json').then((r) => (r.ok ? r.json() : [])).catch(() => []).then((ids) => {
+      this.shipped = new Set(Array.isArray(ids) ? ids : []);
+      const now = this.trackName; if (now && this.ctx && !this.song && this.shipped.size) { this.trackName = null; this.music(now); }
+    });
+  }
+  dropSong(song, fade = 1.2) {
+    const { el, g, src } = song;
+    try { g.gain.cancelScheduledValues(this.ctx.currentTime); g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), this.ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + fade); } catch (e) { /* (already gone) */ }
+    setTimeout(() => { el.pause(); el.removeAttribute('src'); el.load(); try { src.disconnect(); g.disconnect(); } catch (e) { /* (already gone) */ } }, fade * 1000 + 100);
+  }
+
+  // the game's own composed tune for `name` (TRACKS)
+  compose(name) {
     const def = TRACKS[name];
     if (!def) return;
     const bus = this.ctx.createGain(); bus.gain.value = 0.0001; bus.connect(this.musicGain);
@@ -237,6 +284,7 @@ class AudioSystem {
   }
 
   stopMusic() {
+    if (this.song) { this.dropSong(this.song); this.song = null; }
     if (this.track) {
       const bus = this.track.bus;
       try { bus.gain.cancelScheduledValues(this.ctx.currentTime); bus.gain.setValueAtTime(bus.gain.value, this.ctx.currentTime); bus.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 1.2); } catch (e) { /* ignore */ }
@@ -286,6 +334,10 @@ const SFX = {
   wind: (a) => { a.noise({ dur: 0.55, vol: 0.3, freq: 700, to: 3200, q: 4 }); a.noise({ dur: 0.45, vol: 0.18, freq: 2400, to: 600, q: 3, delay: 0.1 }); a.tone({ freq: 420, to: 900, type: 'sine', dur: 0.4, vol: 0.05, rev: 0.5 }); },
   ice: (a) => { [2093, 2637, 3136, 3951].forEach((f, i) => a.tone({ freq: f, type: 'sine', dur: 0.45, vol: 0.08, delay: i * 0.04, rev: 0.6 })); a.noise({ dur: 0.22, vol: 0.22, filter: 'highpass', freq: 5500, q: 1 }); a.pips(6, { vol: 0.16, freq: 7000, gap: 0.035, delay: 0.08 }); },
   fire: (a) => { a.noise({ dur: 0.55, vol: 0.4, filter: 'lowpass', freq: 3400, to: 240, q: 0.7 }); a.noise({ dur: 0.3, vol: 0.2, freq: 900, to: 2600, q: 2 }); a.tone({ freq: 170, to: 70, type: 'sawtooth', dur: 0.45, vol: 0.12 }); a.pips(7, { vol: 0.16, freq: 4200, gap: 0.045, delay: 0.12 }); },
+  // the story's small sounds: a voice ticking as words appear, a "!" over a head, the storyteller's slip
+  blip: (a) => { a.tone({ freq: 380 + Math.random() * 160, type: 'triangle', dur: 0.045, vol: 0.035, rev: 0 }); },
+  pop: (a) => { a.tone({ freq: 700, to: 1300, type: 'triangle', dur: 0.12, vol: 0.09 }); },
+  page: (a) => { a.noise({ dur: 0.32, vol: 0.09, freq: 1800, to: 3600, q: 0.8 }); },
   hit: (a) => { a.tone({ freq: 150, to: 45, type: 'sine', dur: 0.2, vol: 0.4, rev: 0.05 }); a.tone({ freq: 190, to: 70, type: 'square', dur: 0.1, vol: 0.14, rev: 0 }); a.noise({ dur: 0.14, vol: 0.34, freq: 1400, to: 300, q: 1 }); },
   slash: (a) => { a.noise({ dur: 0.2, vol: 0.4, freq: 5200, to: 900, q: 1.4 }); a.tone({ freq: 2600, to: 1300, type: 'triangle', dur: 0.14, vol: 0.09, rev: 0.3 }); a.noise({ dur: 0.07, vol: 0.2, filter: 'highpass', freq: 5000, delay: 0.03, rev: 0 }); },
 };
@@ -328,6 +380,22 @@ const TRACKS = {
     bars: [
       [[0, 3, 7], '12 - 12 15 14 - 12 10'], [[0, 3, 7], '12 - - - 7 - 10 -'], [[-4, 0, 3], '8 - 7 8 10 - 12 -'], [[-2, 2, 5], '14 - - - 10 - 14 -'],
       [[0, 3, 7], '15 - 14 12 14 - 15 17'], [[0, 3, 7], '19 - - - 15 - 12 -'], [[-4, 0, 3], '17 - 15 14 15 - 12 -'], [[-5, -1, 2], '11 - - - 14 - 11 -'],
+    ] },
+  // Story — G major, slow: harp under strings, a quiet flute, no drums. Under every scene that is not a boss arriving.
+  story: { bpm: 70, root: 196, lead: 'flute', leadVol: 0.6, pad: 'strings', restEvery: 2, echo: 'harp', gain: 0.8,
+    comp: { inst: 'harp', pat: '0..1..2...1..2..', vol: 0.65 },
+    bass: { inst: 'softbass', pat: 'r...............', len: 12 },
+    bars: [
+      [[0, 4, 7], '7 - - - 9 - 11 -'], [[-3, 0, 4], '12 - - - 11 - 9 -'], [[-7, -3, 0], '9 - - - 7 - 4 -'], [[2, 5, 9], '7 - - - - - . .'],
+      [[0, 4, 7], '4 - 7 - 11 - 12 -'], [[-5, -1, 2], '14 - - - 12 - 11 -'], [[-3, 0, 4], '12 - - - 9 - 7 -'], [[2, 6, 9], '9 - - - - - . .'],
+    ] },
+  // Dread — C minor, very slow: a choir and a low drone, a timpani heartbeat. Under a boss's arrival, until its name is up.
+  dread: { bpm: 60, root: 130.81, lead: 'brass', leadVol: 0.5, melOct: 0, pad: 'choir', restEvery: 2, echo: 'bell', reverb: 0.6, gain: 0.85,
+    bass: { inst: 'softbass', pat: 'r.......r.......', len: 7 },
+    drums: { t: 'x.....x.........' },
+    bars: [
+      [[0, 3, 7], '0 - - - 1 - - -'], [[1, 5, 8], '0 - - - - - . .'], [[0, 3, 7], '3 - - - 2 - 1 -'], [[-1, 2, 7], '-1 - - - - - . .'],
+      [[0, 3, 7], '7 - - - 8 - - -'], [[1, 5, 8], '7 - - - 5 - 3 -'], [[-4, 0, 3], '1 - - - 0 - - -'], [[-1, 2, 7], '-1 - - - - - . .'],
     ] },
   // MVP boss — C# phrygian, brass over a choir, timpani and double kick.
   boss: { bpm: 162, root: 138.59, lead: 'brass', melOct: 0, pad: 'choir', restEvery: 4, echo: 'bell', crash: true, reverb: 0.35,

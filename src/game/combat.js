@@ -263,6 +263,7 @@ export class Battle {
       await this.constructAct(u);
     } else {
       await monsterAct(this, u);
+      await this.followUp(u);
       u.intent = null;
       await this.emit('intentDone', { unit: u });
     }
@@ -933,6 +934,17 @@ export class Battle {
   // ───────── monster actions (called by AI) ─────────
   // The fixed part of a monster attack; its grey dice are rolled on top when it lands.
   intentPower(u, it) { return Math.round(u.stats.atk * (it.dmg || 0)); }
+
+  // A boss or mini boss facing three heroes or more gets a light extra blow after its move: the hero standing next to it
+  // that has the least life is struck (no move, no charge). A bigger party no longer means each hero is hit a third as often.
+  async followUp(u) {
+    if (!u.alive || (u.rank !== 'mvp' && u.rank !== 'mini') || this.heroes().length < 3 || this.checkEnd()) return;
+    if (u.status.stun || u.status.frozen) return;
+    const tgt = this.heroSide().filter((x) => this.dist(u, x) <= 1).sort((a, b) => a.hp - b.hp)[0];
+    if (!tgt) return;
+    await this.emit('text', { unit: u, text: t('Follow-up!'), color: '#ffb070' });
+    await this.monsterAttack(u, tgt, { k: 'strike', name: t('Follow-up'), dmg: 0.6 });
+  }
 
   async monsterAttack(u, tgt, it) {
     const tc = this.nearestCell(u, tgt);

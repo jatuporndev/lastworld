@@ -5,7 +5,7 @@ import * as Hex from './engine/hex.js';
 import { World } from './engine/renderer.js';
 import { bus, sleep, h } from './core/util.js';
 import { audio } from './core/audio.js';
-import { G, normalizeProfile, openSession, commitSession, myHeroes, fixHero, touch, healParty } from './game/state.js';
+import { G, normalizeProfile, mergeProfiles, emptyProfile, openSession, commitSession, myHeroes, fixHero, touch, healParty } from './game/state.js';
 import { StageManager } from './game/stageManager.js';
 import { grantExp, computeStats } from './game/character.js';
 import { Net } from './net/firebase.js';
@@ -13,9 +13,9 @@ import { CLASSES, CLASS_ORDER } from './data/classes.js';
 import { MONSTERS } from './data/monsters.js';
 import { STAGE_BY_ID, STAGES } from './data/stages.js';
 import { initTooltips, transition, toast, openModal, btn, topModal, banner } from './ui/components.js';
-import { titleScreen, playScreen, charCreateScreen, worldMapScreen, authModal, clearScreens, epilogue } from './ui/screens.js';
+import { titleScreen, playScreen, charCreateScreen, worldMapScreen, authModal, loginGate, clearScreens, epilogue } from './ui/screens.js';
 import { travelScene } from './ui/travelScene.js';
-import { ExploreScene, rewardsModal, stageIntro, lootModal, battleSummary, ownModalOpen } from './ui/exploreUI.js';
+import { ExploreScene, rewardsModal, stageIntro, lootModal, battleSummary, ownModalOpen, partyTiles } from './ui/exploreUI.js';
 import { BattleScene } from './ui/battleUI.js';
 import { Coop } from './net/coop.js';
 import { coopBadge, guestWaitScreen } from './ui/coopUI.js';
@@ -42,7 +42,7 @@ class App {
     const loading = h('div.screen.loading', h('div.loading-text', 'LAST WORLD'), h('div.loading-sub', t('Awakening the realms…')));
     document.getElementById('ui').appendChild(loading);
     await Net.init();
-    G.profile = normalizeProfile(await Net.load());
+    G.profile = normalizeProfile(Net.loadLocal()); // this device's copy; the cloud's is merged in once signed in (syncCloud)
     const vol = () => audio.setVolumes(G.profile.settings.music, G.profile.settings.sfx);
     vol();
     bus.on('state:changed', () => { this.queueSave(); this.queueHeroSync(); });
@@ -53,10 +53,12 @@ class App {
     window.addEventListener('beforeunload', () => { if (!G.profile) return; commitSession({ world: !Coop.isGuest }); Net.saveLocal(G.profile); });
     // leaving the tab is the last chance to back up, so push any pending change then
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') this.saveNow(); });
+    if (Net.online && this.signedIn()) await this.syncCloud().catch((e) => console.warn('[save] cloud sync failed', e));
     await sleep(500);
     loading.remove();
     titleScreen(this); audio.music('title');
     document.getElementById('fade').classList.remove('on');
+    if (Net.online && !this.signedIn()) await loginGate(this); // everyone plays signed in, so a save is never left on one browser only
   }
 
   // ───── saving ─────
@@ -72,6 +74,7 @@ class App {
     G.profile.updated = Date.now();
     const okLocal = Net.saveLocal(G.profile);
     let okCloud = false;
+    if (Net.user && !Net.synced && Date.now() - (this._syncTry || 0) > 60000) { this._syncTry = Date.now(); await this.syncCloud().catch(() => {}); } // (the first read failed: try again, at most once a minute, before any upload)
     if (Net.cloudDirty(G.profile)) {
       const wait = (this.lastCloudAt || 0) + gap - Date.now();
       clearTimeout(this.cloudTimer);
@@ -82,12 +85,34 @@ class App {
     this.saveInd.classList.add('on'); clearTimeout(this._si); this._si = setTimeout(() => this.saveInd.classList.remove('on'), 1600);
   }
   openAuth(done) { authModal(this, done); }
+  // Signed in to an account of one's own (Google or email). A guest account is not enough: it lives in one browser only.
+  signedIn() { return !!Net.user && !Net.user.guest; }
+  // The cloud copy and this device's copy become one (mergeProfiles), then both hold it. Done once per sign-in, before
+  // anything is uploaded (Net.synced), so the device's save can never be written over a richer cloud copy.
+  // A device's save that belongs to another signed-in account stays out of this one; a guest's is carried over.
+  async syncCloud() {
+    if (!Net.user) return;
+    const uid = Net.user.uid; let local = G.profile || emptyProfile();
+    if (local.owner && local.owner !== uid && !local.ownerGuest) local = { ...emptyProfile(), settings: local.settings };
+    const cloud = await Net.loadCloudFull(); // throws if it cannot be read: then nothing is uploaded this time
+    G.profile = normalizeProfile(cloud ? mergeProfiles(local, normalizeProfile(cloud)) : local);
+    G.profile.owner = uid; G.profile.ownerGuest = !!Net.user.guest;
+    Net.synced = true; Net.saveLocal(G.profile);
+    if ((await Net.saveCloud(G.profile)) === true) this.lastCloudAt = Date.now();
+  }
   async onSignedIn() {
-    const cloud = await Net.loadCloud(G.profile?.updated || 0); // null unless the cloud copy is newer
-    if (cloud) {
-      if (Coop.active) await this.leaveCoop({ silent: true });
-      G.profile = normalizeProfile(cloud); G.state = null; Net.saveLocal(G.profile); toast(t('Cloud save loaded'), 'good');
-    } else if (G.profile) { if ((await Net.saveCloud(G.profile)) === true) this.lastCloudAt = Date.now(); }
+    if (Coop.active) await this.leaveCoop({ silent: true });
+    G.state = null; await this.syncCloud();
+  }
+  // Sign out: the save is backed up first, and the sign-in page comes straight back.
+  async signOut() {
+    await this.saveNow();
+    if (Coop.active) await this.leaveCoop({ silent: true, toTitle: false });
+    await Net.signOut(); Net.synced = false; G.state = null;
+    document.querySelectorAll('.modal-wrap').forEach((w) => w.remove());
+    await this.menuScreen(() => { titleScreen(this); audio.music('title'); });
+    await loginGate(this);
+    titleScreen(this);
   }
 
   refreshHud() {
@@ -230,7 +255,7 @@ class App {
     await transition(async () => { clearScreens(); this.leaveDiorama(); bs = new BattleScene(this, { stage, enc, seed, party }); this.scene = bs; playing = bs.play(); await sleep(60); });
     const result = await playing;
     this.inBattle = false;
-    if (party) this.takeBack(bs.battle);
+    if (party) { this.takeBack(bs.battle); this.syncParty(); } // whoever left during the fight leaves the party now, and whoever came back joins it again
     if (result === 'victory') {
       const newGround = !G.state.cleared[stageId]; // this world had not beaten this realm before (a veteran hero may have, elsewhere)
       const r = this.sm.battleRewards(bs.battle, cell);
@@ -241,6 +266,7 @@ class App {
       await this.saveNow({ gap: enc.kind === 'boss' ? 0 : 3 * 60000 });
       if (guest) { bs.waitForHost?.(); return; } // the host's next scene takes the guest on
       if (enc.kind === 'boss') {
+        await this.waitForSpoils(bs); // the scene and the road that follow take the whole party along: nobody is pulled out of their rewards
         await this.story(STORY.after(stageId));
         this.sm.leave();
         const last = stageId === STAGES.length;
@@ -285,17 +311,45 @@ class App {
   // Each player brings one character. The host's world is the map; everyone's heroes form the party.
   bindCoop() {
     bus.on('coop:players', () => { coopBadge(this); if (!this.inBattle) this.syncParty(); });
-    bus.on('coop:join', (id) => { toast(t('{name} joined the room', { name: Coop.nameOf(id) }), 'good'); if (!this.inBattle) this.hostScene(); });
+    bus.on('coop:join', (id) => { toast(t('{name} joined the room', { name: Coop.nameOf(id) }), 'good'); if (!this.inBattle) this.hostScene(); else Coop.send({ t: 'wait', to: id, why: 'battle' }); }); // (mid-fight: they wait for its end)
     bus.on('coop:left', (id) => { toast(t('A player left the room')); delete this.pst[id]; bus.emit('coop:state', id); if (this.sv) this.storyVote(this.sv.id, id, false); }); // (one fewer to wait for)
     bus.on('coop:closed', (why) => this.onRoomClosed(why));
     bus.on('coop:msg', (m) => {
       if (m.t === 'b') { (Coop.bbuf ||= []).push(m); return; } // battle commands go to the battle scene
+      if (m.t === 'wait') { if (m.to === Coop.me) { this.waitWhy = m.why; this.showWaitWhy(); } return; } // just joined while the host fights: say so on the waiting slip
       if (m.t === 'storySkip') { (this.storyCut ||= new Set()).add(m.id); Story.skipStory(m.id); return; } // the host skipped: at once, not in turn
       if (m.t === 'storyVote') { this.storyVote(m.id, m.from, m.on); return; } // any player: "I would skip this" (or not, after all)
       if (m.t === 'story') this.sv = { id: m.id, set: new Set() };
       if (m.t === 'st') { (this.pst[m.from] ||= {})[m.k] = m.on || false; this.scene?.showStatus?.(m.from); bus.emit('coop:state', m.from); return; } // any player: "this is what I am doing"
       if (Coop.isGuest && m.from === Coop.hostId) this.guestQ = this.guestQ.then(() => this.guestHandle(m)).catch((e) => console.error('[co-op]', e));
     });
+  }
+  // Host, after an MVP fight: wait until every friend has collected their rewards (the slip shows who is still reading).
+  // Co-op: after the merchant, a treasure or an event, the host waits until every player has closed their own window
+  // (they shop, or read what they got, at their own pace). A slip shows who is still busy. Only players whose game
+  // says it is done (pst.acks) are waited for: one on an older version would never say so.
+  async waitForParty(aid) {
+    if (!Coop.isHost || !aid) return;
+    const left = () => Coop.partyIds().filter((id) => id !== Coop.me && Coop.players[id] && this.pst[id]?.acks && this.pst[id]?.done !== aid);
+    await sleep(400); if (!left().length) return;
+    await new Promise((res) => {
+      const box = h('div.rc-wait'); let offs = [], done = false;
+      const end = () => { done = true; offs.forEach((off) => off()); box.remove(); res(); };
+      const draw = () => { if (!left().length) return end(); box.replaceChildren(h('div.rc-wait-t', t('Waiting for the others to finish…')), partyTiles(this, (id) => !left().includes(id), (id) => t(left().includes(id) ? 'Not done yet' : 'Done'))); };
+      offs = [bus.on('coop:state', draw), bus.on('coop:players', draw)];
+      draw(); if (!done) document.getElementById('ui').appendChild(box);
+    });
+  }
+  // Guests: this player has closed their window for the host's action `aid` (or had none to close).
+  doneWith(aid) { if (aid) { this.setMine('busy', false); this.setMine('done', aid); } }
+  async waitForSpoils(bs) {
+    if (!Coop.isHost) return;
+    await sleep(800); // (a friend's "reading the spoils" may still be on its way)
+    const busy = () => Coop.partyIds().some((id) => id !== Coop.me && this.pst[id]?.sum);
+    if (!busy()) return;
+    bs.waitForHost?.();
+    await new Promise((res) => { const offs = []; const check = () => { if (busy()) return; offs.forEach((off) => off()); res(); }; offs.push(bus.on('coop:state', check), bus.on('coop:players', check)); });
+    document.querySelector('.rc-wait')?.remove();
   }
   // Tell the room what I am doing: 'bag' (journal open), 'sum' (reading the spoils), 'rdy' (ready for fight number …).
   setMine(k, on) {
@@ -332,9 +386,17 @@ class App {
   }
   async joinRoom(code, charId, name) {
     openSession(null, charId);
+    this.guestQ = Promise.resolve(); Coop.bbuf = []; this.inBattle = false; // nothing left over from a room this player was in before (a fight there never ends here)
     await Coop.join(code, name, this.heroSnap(G.profile.chars[charId].hero));
     coopBadge(this); this.syncParty();
+    this.setMine('acks', 1); // (this game tells the host when it is done with a shared action: see waitForParty)
+    this.waitWhy = null;
     await this.menuScreen(() => guestWaitScreen(this, t('Waiting for the host…')));
+    this.showWaitWhy();
+  }
+  showWaitWhy() {
+    const h2 = document.querySelector('.coop-wait h2'); if (!h2 || this.waitWhy !== 'battle') return;
+    h2.firstChild.textContent = t('The party is in a battle. You join them when it ends');
   }
   // Host → everyone: the current scene plus the world's progress.
   hostScene() {
@@ -391,12 +453,21 @@ class App {
         const r = m.kind === 'treasure' ? this.sm.openTreasure(c) : this.sm.gatherResource(c);
         sc.clearNode(c); audio.sfx('chest');
         const title = m.kind === 'treasure' ? 'Treasure Cache' : 'Resources Gathered';
-        if (ownModalOpen()) toast(t('{title}: your share is in the bag', { title: t(title) }), 'good'); else lootModal(title, r, { view: true });
+        if (ownModalOpen()) { toast(t('{title}: your share is in the bag', { title: t(title) }), 'good'); this.doneWith(m.aid); } else { this.setMine('busy', !!m.aid); lootModal(title, r, { view: true }).then(() => this.doneWith(m.aid)); }
         break;
       }
       case 'rest': { this.closeGuestModals(); const c = cellOf(m.cell); this.healMine(0.6, 0.6, true); if (sc && c) { this.sm.markCleared(c); sc.clearNode(c); } audio.sfx('heal'); toast(t('The party is rested'), 'good'); break; }
       case 'event': {
-        const o = m.out || {};
+        // the host's choice, replayed on this player's own save: their own gold, cards, items, upgrades (see resolveChoice)
+        const ec = cellOf(m.cell2 || m.cell), ch = ec && m.chi >= 0 ? this.sm.eventFor(ec)?.choices[m.chi] : null;
+        if (ch && ch.label === m.choice) {
+          const out = this.sm.resolveChoice(ec, ch, { ok: m.ok }); m = { ...m, msg: out.msg, pieces: out.pieces, gains: out.gains };
+          if (sc && !out.fight) sc.clearNode(ec);
+          this.closeGuestModals();
+          if (ownModalOpen() || !sc) { toast([m.title, m.msg].filter(Boolean).join(' — ')); this.doneWith(m.aid); } else { this.setMine('busy', !!m.aid); sc.eventView(m).then(() => this.doneWith(m.aid)); }
+          break;
+        }
+        const o = m.out || {}; // (an older host: words and the effects on heroes only)
         if (o.healPct) this.healMine(o.healPct, 0, false);
         if (o.fullHeal) this.healMine(1, 1, true);
         myHeroes().forEach((hero) => {
@@ -413,7 +484,12 @@ class App {
         break;
       }
       case 'note': if (m.close) this.closeGuestModals(); if (m.text) toast(t(m.text, m.vars || {})); break;
-      case 'view': this.closeGuestModals(); if (!ownModalOpen()) sc?.hostView?.(m); break;
+      case 'view': {
+        this.closeGuestModals(); if (ownModalOpen()) { if (m.kind === 'shop') this.doneWith(m.aid); break; } // (busy with something of their own: the merchant passes them by)
+        // the merchant: every player shops with their own gold, in their own window, as long as they like
+        const sc2 = m.kind === 'shop' && sc && cellOf(m.cell); if (sc2) { this.setMine('busy', !!m.aid); sc.shop(sc2, (this.guestShop ||= {})).then(() => { this.refreshHud(); this.doneWith(m.aid); }); break; }
+        sc?.hostView?.(m); break;
+      }
       case 'enc': this.closeGuestModals(); sc?.readyCheck(m.enc, { name: m.name }, m.rid); break;
       case 'battle': {
         this.closeGuestModals();

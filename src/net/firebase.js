@@ -17,7 +17,7 @@ const LOCAL_KEY = 'lastworld.save.v1';
 const isConfigured = () => firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith('YOUR_');
 
 export const Net = {
-  ready: false, online: false, user: null, error: null,
+  ready: false, online: false, user: null, error: null, synced: false,
   _auth: null, _db: null, _fa: null, _fd: null, _open: 0, _lastCloud: null,
   stats: { reads: 0, writes: 0, skipped: 0, bytesUp: 0, bytesDown: 0 },
 
@@ -61,7 +61,7 @@ export const Net = {
   label() {
     if (!this.online) return t('Offline — saved on this device');
     if (!this.user) return t('Not signed in — saved on this device');
-    return this.user.guest ? t('Guest account — cloud backup on') : t('{email} — cloud backup on', { email: this.user.email });
+    return this.user.guest ? t('Guest account — cloud backup on') : t('Signed in — cloud backup on'); // (no email here: this line can be on a shared screen)
   },
 
   async signIn(email, password) { await this._fa.signInWithEmailAndPassword(this._auth, email, password); },
@@ -73,6 +73,19 @@ export const Net = {
     } else await this._fa.createUserWithEmailAndPassword(this._auth, email, password);
   },
   async signInGuest() { await this._fa.signInAnonymously(this._auth); },
+  // Google, in a pop-up. A guest account is linked rather than replaced, so it keeps its uid and its save; if that
+  // Google account already plays the game, it is signed in instead (the guest's characters are merged into it, see App.syncCloud).
+  async signInGoogle() {
+    const fa = this._fa; const provider = new fa.GoogleAuthProvider(); provider.setCustomParameters({ prompt: 'select_account' });
+    const cur = this._auth.currentUser;
+    if (cur && cur.isAnonymous) {
+      try { const r = await fa.linkWithPopup(cur, provider); this._setUser(r.user); return; }
+      catch (e) { if (e.code !== 'auth/credential-already-in-use') throw e; const cred = fa.GoogleAuthProvider.credentialFromError(e); if (!cred) throw e; await fa.signInWithCredential(this._auth, cred); this._setUser(this._auth.currentUser); return; }
+    }
+    const r = await fa.signInWithPopup(this._auth, provider); this._setUser(r.user);
+  },
+  // (linking keeps the same user, so no auth event says it is no longer a guest)
+  _setUser(user) { if (!user) return; const next = { uid: user.uid, email: user.email || user.providerData?.[0]?.email || null, guest: user.isAnonymous }; if (next.uid !== this.user?.uid) this._lastCloud = null; this.user = next; bus.emit('auth', this.user); },
   async signOut() { if (this._auth) await this._fa.signOut(this._auth); },
 
   loadLocal() {
@@ -93,6 +106,17 @@ export const Net = {
       });
     } catch (e) { console.warn('[LAST WORLD] cloud load failed', e); return null; }
   },
+  // The whole cloud save, whatever its date (one read): null if there is none. Throws if it could not be read,
+  // so a failed read is never taken for an empty account (and the device's save never uploaded over it).
+  async loadCloudFull() {
+    if (!this.online || !this.user) return null;
+    return this._with(async () => {
+      const snap = await this._fd.get(this._ref()); this.stats.reads++;
+      if (!snap.exists()) { this._lastCloud = null; return null; }
+      const val = snap.val(); this.stats.bytesDown += JSON.stringify(val).length; this._lastCloud = this._fingerprint(val);
+      return val;
+    });
+  },
   // Newest of the cloud and local saves.
   async load() {
     const local = this.loadLocal();
@@ -109,6 +133,7 @@ export const Net = {
     if (!this.online || !this.user) return false;
     const fp = this._fingerprint(state);
     if (fp === this._lastCloud) { this.stats.skipped++; return 'unchanged'; }
+    if (!this.synced) return false; // not until the cloud copy has been read and merged once (App.syncCloud): never upload over it blind
     try {
       const json = JSON.stringify(state); // also strips undefined
       await this._with(() => this._fd.set(this._ref(), JSON.parse(json)));

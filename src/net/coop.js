@@ -108,7 +108,6 @@ export const Coop = {
     this._fd.set(this._ref(`/players/${this.me}/hero`), JSON.parse(json)).catch((e) => { this._heroJson = null; console.warn('[co-op] hero sync failed', e); });
   },
   // May this client act for a hero? Its owner, or the host when the owner has left.
-  controls(owner) { return !this.code || owner === this.me || (this.isHost && !this.players[owner]); },
   kick(id) { if (this.isHost) this._fd.remove(this._ref(`/players/${id}`)); },
 
   async leave() {

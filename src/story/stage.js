@@ -36,6 +36,9 @@ export function step(dt) {
   S.now += dt; S.cam.shake *= Math.pow(0.9, dt / 16); S.flash *= Math.pow(0.82, dt / 16);
   S.tweens = S.tweens.filter((w) => { const k = Math.min(1, (S.now - w.t0) / w.ms); w.step(w.e(k)); if (k >= 1) { w.res(); return false; } return true; });
   S.waits = S.waits.filter((w) => { if (S.now >= w.at) { w.res(); return false; } return true; });
+  // sound: footsteps while anyone walks, and a soft tick as a speaker's words come up
+  if (dt > 0 && S.now - (S.stepAt || 0) > 330 && S.actors.some((a) => a.anim === 'walk' && a.alpha > 0.3 && !a.buried)) { S.stepAt = S.now; sfx('step'); }
+  if (dt > 0 && S.now - (S.blipAt || 0) > 95 && S.actors.some((a) => a.talking)) { S.blipAt = S.now; sfx('blip'); }
   draw();
 }
 export const debug = { step: (dt) => { manual = true; step(dt); }, auto: () => { manual = false; } }; // for looking at one moment while testing
@@ -89,8 +92,9 @@ export const hop = (a, h, ms) => run(ms, (k) => { a.y = Math.sin(k * Math.PI) * 
 export const shake = (amp) => { S.cam.shake = Math.max(S.cam.shake, amp); };
 export const cut = (c) => { S.tweens = S.tweens.filter((w) => w.o !== S.cam || (w.res(), false)); Object.assign(S.cam, c); }; // a cut drops whatever move the camera was making
 export const drift = (ms, dz, more = {}) => tw(S.cam, { z: S.cam.z + S.cam.dir * dz, ...more }, ms, 'lin'); // the slow push every held shot has
-export const emote = (a, sign, ms = 900) => S.emotes.push({ a, sign, t0: S.now, ms });
+export const emote = (a, sign, ms = 900) => { S.emotes.push({ a, sign, t0: S.now, ms }); if (sign === '!' || sign === '?') sfx('pop'); };
 export const freeze = (ms) => { S.hold = ms; };
+export const music = (name) => { try { audio.music(name); } catch (e) { /* (as with sfx) */ } };
 export const sfx = (name) => { try { audio.sfx(name); } catch (e) { /* sound is never worth a broken scene */ } };
 // Turn `a` to look at `b` (an actor or a point): along the depth of the picture when they stand front to back, sideways when side by side.
 export function face(a, b) { const dx = b.x - a.x, dz = b.z - a.z; if (Math.abs(dz) >= Math.abs(dx) * 0.7) { a.fz = dz >= 0 ? 1 : -1; a.fx = 0; if (Math.abs(dx) > 0.3) a.lean = dx > 0 ? 1 : -1; } else { a.fx = dx > 0 ? 1 : -1; a.lean = a.fx; } }
@@ -105,7 +109,7 @@ export async function say(a, text, ms = readMs(text), kind = 'talk') {
   await wait(140);
 }
 // Words on a slip at the foot of the picture: the storyteller, not a character.
-export async function caption(text, ms = readMs(text) + 500) { S.caption = { text, t0: S.now }; try { await wait(ms); } finally { S.caption = null; } await wait(200); }
+export async function caption(text, ms = readMs(text) + 500) { S.caption = { text, t0: S.now }; sfx('page'); try { await wait(ms); } finally { S.caption = null; } await wait(200); }
 export function dirt(x, z, n = 30, sp = 1, cols = S.set.D.bits) { const R = Math.random; for (let i = 0; i < n; i++) { const a = R() * 6.28, v = (1.5 + R() * 4) * sp; S.bits.push({ x, y: 0.1, z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: (4 + R() * 7) * sp, r: 0.05 + R() * 0.12, c: cols[(R() * cols.length) | 0], life: 900 + R() * 600, t0: S.now }); } }
 export const burst = (name, x, y, z, s) => { img(name); S.fx.push({ name, x, y, z, s, t0: S.now }); }; // one of the game's own effect sheets, played once in the world
 export const preload = (...names) => names.forEach(img);

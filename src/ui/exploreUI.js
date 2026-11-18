@@ -175,6 +175,11 @@ export class ExploreScene {
   clearNode(c) { this.world.removeMarker(Hex.key(c.q, c.r)); this.refreshHud(); }
 
   async trigger(c) {
+    this.aid = Coop.isHost ? 1 + Math.floor(Math.random() * 1e9) : 0; // (with friends: the host goes on only when every player has closed their own window, see App.waitForParty)
+    await this.trigger_(c);
+    if (this.aid) await this.app.waitForParty(this.aid);
+  }
+  async trigger_(c) {
     const node = c.node; const sm = this.sm;
     switch (node.type) {
       case 'monster': case 'mini': case 'boss': {
@@ -193,10 +198,10 @@ export class ExploreScene {
         if (go) await this.app.startBattle(enc, c); else { this.share('note', { text: 'The host retreated.', close: true }); await this.retreat(); }
         break;
       }
-      case 'treasure': { audio.sfx('chest'); const r = sm.openTreasure(c); this.clearNode(c); this.share('loot', { kind: 'treasure', cell: { q: c.q, r: c.r } }); await lootModal(t('Treasure Cache'), r); break; }
-      case 'resource': { audio.sfx('coin'); const r = sm.gatherResource(c); this.clearNode(c); this.share('loot', { kind: 'resource', cell: { q: c.q, r: c.r } }); await lootModal(t('Resources Gathered'), r); break; }
+      case 'treasure': { audio.sfx('chest'); const r = sm.openTreasure(c); this.clearNode(c); this.share('loot', { kind: 'treasure', cell: { q: c.q, r: c.r }, aid: this.aid }); await lootModal(t('Treasure Cache'), r); break; }
+      case 'resource': { audio.sfx('coin'); const r = sm.gatherResource(c); this.clearNode(c); this.share('loot', { kind: 'resource', cell: { q: c.q, r: c.r }, aid: this.aid }); await lootModal(t('Resources Gathered'), r); break; }
       case 'rest': await this.app.story(STORY.explore(this.stage.id)); this.share('view', { kind: 'rest' }); await this.restPrompt(c); break;
-      case 'shop': this.share('view', { kind: 'shop', cards: this.sm.shopStock(c).filter((e) => e.kind === 'card').map((e) => e.id) }); await this.shop(c); this.share('note', { close: true }); break;
+      case 'shop': this.share('view', { kind: 'shop', cell: { q: c.q, r: c.r }, aid: this.aid, cards: this.sm.shopStock(c).filter((e) => e.kind === 'card').map((e) => e.id) }); await this.shop(c); this.share('note', { close: true }); break;
       case 'event': case 'shrine': await this.app.story(STORY.explore(this.stage.id)); await this.event(c); break;
       default: break;
     }
@@ -235,7 +240,7 @@ export class ExploreScene {
   eventView(m) {
     if (m.cell) this.clearNode(this.sm.cell(m.cell));
     // the host's outcome, as the host saw it; an older host sends words only
-    reveal({ title: m.title, text: [m.choice, m.msg, m.pieces ? null : (m.gains || []).join(' · ')].filter(Boolean).join(' — '), pieces: m.pieces || [], button: t('OK'), view: true });
+    return reveal({ title: m.title, text: [m.choice, m.msg, m.pieces ? null : (m.gains || []).join(' · ')].filter(Boolean).join(' — '), pieces: m.pieces || [], button: t('OK'), view: true });
   }
 
   // Guests: a read-only copy of the window the host has open (camp, merchant, an event's choices), until the host is done.
@@ -273,7 +278,7 @@ export class ExploreScene {
         const ids = Coop.partyIds(); const mine = isReady(Coop.me); const left = ids.filter((id) => !isReady(id)).length;
         body.replaceChildren(...encHead(enc), partyTiles(app, isReady),
           h('p.rc-count' + (left ? '' : '.all'), left ? t('Waiting for {n} player(s)…', { n: left }) : t('Everyone is ready!')),
-          host ? h('div.row.center', btn(t('Retreat'), () => end(false)), mine ? btn(t('Start without waiting'), () => end(true), { cls: 'small' }) : btn(t(boss ? 'Challenge the MVP' : 'Ready to fight'), ready, { cls: 'primary' }))
+          host ? h('div.row.center', btn(t('Retreat'), () => end(false)), mine ? h('p.note.center', t('Waiting for the others…')) : btn(t(boss ? 'Challenge the MVP' : 'Ready to fight'), ready, { cls: 'primary' }))
             : h('div.row.center', mine ? h('p.note.center', t('Waiting for the others…')) : btn(t('Ready'), ready, { cls: 'primary' })));
         slip?.replaceChildren(icon(boss ? 'crown' : 'sword', '#d9482f', 22), h('span', t('{host} is about to fight {name}', { host: Coop.nameOf(Coop.hostId), name: node.name })),
           mine ? h('b.rc-ok', '✔ ' + t('Ready')) : btn(t('Ready'), ready, { cls: 'small primary' }));
@@ -298,13 +303,14 @@ export class ExploreScene {
     });
   }
 
-  shop(c) {
+  // mine: a co-op guest shopping with their own gold, alongside the host (their purchases are kept apart from the host's)
+  shop(c, mine = null) {
     return new Promise((res) => {
       const body = h('div.shop'); const st = G.state;
       const render = () => {
-        const stock = this.sm.shopStock(c);
+        const stock = this.sm.shopStock(c, mine);
         const row = (e) => {
-          const buy = h('button.mini.up', { disabled: e.sold || st.gold < e.price, onclick: () => { if (this.sm.buy(c, e)) { audio.sfx('coin'); render(); this.refreshHud(); } } }, e.sold ? t('Sold') : t('{n} g', { n: e.price }));
+          const buy = h('button.mini.up', { disabled: e.sold || st.gold < e.price, onclick: () => { if (this.sm.buy(c, e, mine)) { audio.sfx('coin'); render(); this.refreshHud(); } } }, e.sold ? t('Sold') : t('{n} g', { n: e.price }));
           if (e.kind === 'equip') { const el = itemEl(e.item); el.appendChild(buy); return el; }
           if (e.kind === 'cons') { const k = CONSUMABLES[e.id]; return h('div.item', { style: { '--rar': k.color } }, h('div.item-icon', itemPic(k.icon, k.color, 30)), h('div.item-info', h('div.item-name', k.name), h('div.item-sub', k.desc)), h('div.item-tag', `×${st.inv.cons[e.id] || 0}`), buy); }
           return h('div.pool-item', cardEl(e.id, 0, { small: true }), h('div.pool-actions', buy));
@@ -326,7 +332,7 @@ export class ExploreScene {
       body.replaceChildren(h('div.big-icon', icon(ev.icon, '#e8d8a8', 72)), h('p.event-text', ev.text),
         h('div.choices', ...ev.choices.map((ch) => btn(ch.label, async () => {
           const out = this.sm.resolveChoice(c, ch);
-          this.share('event', { title: ev.title, icon: ev.icon, text: ev.text, choice: ch.label, msg: out.msg, gains: out.gains, pieces: out.pieces, out: out.party, cell: out.fight ? null : { q: c.q, r: c.r } });
+          this.share('event', { title: ev.title, icon: ev.icon, text: ev.text, choice: ch.label, chi: ev.choices.indexOf(ch), ok: out.ok, aid: out.fight ? 0 : this.aid, cell2: { q: c.q, r: c.r }, msg: out.msg, gains: out.gains, pieces: out.pieces, out: out.party, cell: out.fight ? null : { q: c.q, r: c.r } });
           audio.sfx(out.fight ? 'boss' : out.gains.length ? 'chest' : 'click');
           // the choice window closes and the outcome is laid on the table
           m.close(); this.refreshHud();
@@ -353,12 +359,12 @@ export const ownModalOpen = () => [...document.querySelectorAll('.modal-wrap:not
 // without it the token says who has finished with the spoils.
 export function partyTiles(app, isReady = null, label = null) {
   return h('div.rc-party', ...Coop.partyIds().map((id) => {
-    const hero = G.state.party.find((x) => x.owner === id); const s = app.pst[id] || {}; const ok = isReady ? isReady(id) : !label && !s.sum;
+    const hero = G.state.party.find((x) => x.owner === id); const s = app.pst[id] || {}; const ok = isReady ? isReady(id) : !label && !s.sum && !s.busy;
     return h('div.rc-p' + (ok ? '.ready' : ''), { style: { '--pc': Coop.colorOf(id) } },
       h('div.rc-face', hero ? heroSprite(hero, { size: 96, zoom: 1.5, oy: 0.3 }) : null),
       h('div.rc-name', Coop.nameOf(id), id === Coop.me ? h('small', ' (' + t('You') + ')') : null),
-      h('div.rc-st', s.sum ? t('Collecting rewards') : s.bag ? t('Looking in the bag') : label ? label(id) : isReady ? t(ok ? 'Ready' : 'Not ready yet') : t('Done')),
-      ok && isReady ? h('div.rc-stamp', t('READY')) : null);
+      h('div.rc-st', s.sum ? t('Collecting rewards') : s.busy ? t('Not done yet') : s.bag ? t('Looking in the bag') : label ? label(id) : isReady ? t(ok ? 'Ready' : 'Not ready yet') : t('Done')),
+      ok && isReady && !label ? h('div.rc-stamp', t('READY')) : null); // (a label of its own: the tile is not about being ready)
   }));
 }
 

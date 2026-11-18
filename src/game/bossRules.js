@@ -140,6 +140,9 @@ export const RULES = {
     async phase(b, R) { const n = Math.min(1, 3 - alive(R).length); if (n > 0) await raise(b, R, 'heart_root', pickSpots(b, n, R.boss, 3, 4, { avoid: alive(R) })); },
   },
 
+  // (A boss's great blow is announced a round ahead and can be escaped: a safe hex, cover, breaking the charge. So it
+  //  hits far harder than its everyday attacks: 1.6 to 2.4 times its attack, against 1.3 to 1.5.)
+
   // 2 · It goes under the sand, comes up where the sand sinks, and is off balance for a round after.
   sand_tyrant: {
     setup(b, R) { R.next = 2; },
@@ -156,7 +159,7 @@ export const RULES = {
         const at = spots[0] || { q: u.q, r: u.r };
         R.at = at; R.reserved = new Set(b.cellsOf(u, at).map(K));
         await b.emit('rule', { k: 'burrow', unit: u, at });
-        u.nextIntent = fin(b, u, { k: 'emerge', name: 'Erupt', dmg: 1.1, el: 'earth', shape: 'ring', size: 2, cells: around(b, u, at, 2, 3), fixed: true, center: at });
+        u.nextIntent = fin(b, u, { k: 'emerge', name: 'Erupt', dmg: 1.6, el: 'earth', shape: 'ring', size: 2, cells: around(b, u, at, 2, 3), fixed: true, center: at });
       } else if (it.k === 'emerge') {
         const at = R.at; u.q = at.q; u.r = at.r; u.hidden = false; R.reserved = null; R.at = null;
         await b.emit('rule', { k: 'emerge', unit: u });
@@ -177,12 +180,12 @@ export const RULES = {
       const u = R.boss; if (u.intent?.rule || u.nextIntent || b.round < R.next) return;
       const lack = b.heroes().length + 1 - safeCells(b, u).length;
       if (lack > 0 && alive(R).length < 6) await raise(b, R, 'ice_pillar', shadowSpots(b, Math.min(3, Math.ceil(lack / 2)), u, alive(R)));
-      u.intent = fin(b, u, { k: 'gather', name: 'Absolute Zero', turns: 1, dmg: 1.1, el: 'ice', cells: sightCells(b, u), sight: true });
+      u.intent = fin(b, u, { k: 'gather', name: 'Absolute Zero', turns: 1, dmg: 2.2, el: 'ice', cells: sightCells(b, u), sight: true });
     },
     async act(b, R, u, it) {
       if (it.k === 'gather') {
         await b.emit('rule', { k: 'gather', unit: u });
-        u.nextIntent = fin(b, u, { k: 'zero', name: 'Absolute Zero', dmg: 1.1, el: 'ice', status: { st: 'chill', n: 2 }, shape: 'sight', cells: sightCells(b, u), fixed: true, sight: true });
+        u.nextIntent = fin(b, u, { k: 'zero', name: 'Absolute Zero', dmg: 2.2, el: 'ice', status: { st: 'chill', n: 2 }, shape: 'sight', cells: sightCells(b, u), fixed: true, sight: true });
       } else {
         it.cells = sightCells(b, u);
         await b.monsterAoe(u, it, it.cells, { q: u.q, r: u.r });
@@ -231,7 +234,7 @@ export const RULES = {
         for (let i = 0; i < 3 + (u.phase === 2 ? 2 : 0); i++) seeds.push(b.rng.pick(open));
         const own = b.cellsOf(u); const seen = new Set(); const cells = [];
         for (const s of seeds) for (const h of Hex.spiral(s, 1)) if (b.cell(h) && !seen.has(K(h)) && !own.some((o) => Hex.hexEq(o, h))) { seen.add(K(h)); cells.push(h); }
-        u.nextIntent = fin(b, u, { k: 'dive', name: 'Starfall', dmg: 1.2, el: 'holy', status: { st: 'burn', n: 2 }, shape: 'stars', cells, fixed: true, center: { q: u.q, r: u.r } });
+        u.nextIntent = fin(b, u, { k: 'dive', name: 'Starfall', dmg: 1.8, el: 'holy', status: { st: 'burn', n: 2 }, shape: 'stars', cells, fixed: true, center: { q: u.q, r: u.r } });
       } else {
         await b.monsterAoe(u, it, it.cells, { q: u.q, r: u.r });
         u.aloft = false; R.next = b.round + 3;
@@ -291,12 +294,12 @@ export const RULES = {
     round(b, R) {
       const u = R.boss; if (R.charging || u.intent?.rule || u.nextIntent || b.round < R.next) return;
       R.charging = true; R.need = R.goal = Math.max(4, Math.round(u.maxHp * 0.08));
-      u.intent = fin(b, u, { k: 'charge', name: 'Overload Core', turns: 1, dmg: 1.6, el: 'wind', cells: around(b, u, u, 2, 5) });
+      u.intent = fin(b, u, { k: 'charge', name: 'Overload Core', turns: 1, dmg: 2.4, el: 'wind', cells: around(b, u, u, 2, 5) });
     },
     async act(b, R, u, it) {
       if (it.k === 'charge') {
         await b.emit('rule', { k: 'charge', unit: u });
-        u.nextIntent = fin(b, u, { k: 'overload', name: 'Overload Core', dmg: 1.6, el: 'wind', status: { st: 'stun', n: 1 }, shape: 'burst', size: 4, cells: around(b, u, u, 2, 5), fixed: true });
+        u.nextIntent = fin(b, u, { k: 'overload', name: 'Overload Core', dmg: 2.4, el: 'wind', status: { st: 'stun', n: 1 }, shape: 'burst', size: 4, cells: around(b, u, u, 2, 5), fixed: true });
       } else if (it.k === 'overload') {
         R.charging = false; R.next = b.round + 4;
         await b.monsterAoe(u, it, it.cells, { q: u.q, r: u.r });

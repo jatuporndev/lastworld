@@ -2,7 +2,7 @@
 // hero or four. The leader speaks the main lines, the second hero the doubting ones (alone, the leader has both), and
 // the others act with their bodies. What is said, and why, is docs/story.md; the words are in lines.js.
 // A scene is `async (P) => { … }` with P.party = the heroes; it builds its stage with newScene(set) and ends in black.
-import { S, W, H, quiet, newScene, wait, tw, run, actor, thing, act, hop, shake, cut, drift, emote, freeze, sfx, face, walkTo, readMs, say, caption, dirt, burst, preload, showPic, hidePic, look, closeOn, castHero, castMon, castNpc, pathX } from './stage.js';
+import { music, S, W, H, quiet, newScene, wait, tw, run, actor, thing, act, hop, shake, cut, drift, emote, freeze, sfx, face, walkTo, readMs, say, caption, dirt, burst, preload, showPic, hidePic, look, closeOn, castHero, castMon, castNpc, pathX } from './stage.js';
 import { picture, MAP_AT } from './sets.js';
 import { vista } from './vista.js';
 import { L } from './lines.js';
@@ -41,7 +41,7 @@ async function inkMap(id, prior = [], o = {}) {
 }
 // The fallen boss says its last, and is gone.
 async function lastWords(boss, key, o = {}) { boss.anim = 'hurt'; boss.still = true; boss.dark = 0.3; await tell(boss, key, { d: 5.4, f: 1000, sy: H * 0.66, ...o }); tw(boss, { alpha: 0, dark: 0.9 }, 1500, 'in'); for (let i = 0; i < 3; i++) dirt(boss.x + (i - 1) * 1.4, boss.z, 14, 0.7); await wait(1300); boss.hide = true; }
-const nameSlip = (id, stage) => { S.title = { big: MONSTERS[id].name.toUpperCase(), small: 'MVP · ' + (STAGE_BY_ID[stage]?.name || ''), t0: S.now }; sfx('smash'); shake(8); }; // (the name is the game's own: Thai when the game is in Thai)
+const nameSlip = (id, stage) => { S.title = { big: MONSTERS[id].name.toUpperCase(), small: 'MVP · ' + (STAGE_BY_ID[stage]?.name || ''), t0: S.now }; sfx('smash'); shake(8); music('boss'); }; // (the name is the game's own: Thai when the game is in Thai; with it the dread breaks into the boss's music)
 
 // ───── an MVP's entrance, shared by the realms where nothing else needs to happen first ─────
 // No two arrive alike. o.set: the realm · o.id: the boss · o.side: stood off the road by this much ·

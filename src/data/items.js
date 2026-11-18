@@ -58,7 +58,75 @@ export function makeEquipment(baseId, tier, rarity, rng = Math.random) {
     affixNames.push(t(a.name));
   }
   const name = base.names[Math.min(5, tier - 1)] + (affixNames[0] ? ' ' + affixNames[0] : '');
-  return { uid: uid(), kind: 'equip', base: baseId, slot: base.slot, type: base.type, tier, rarity, name, stats, icon: base.icon, value: Math.round(25 * tierMul * r.mul * (1 + r.affixes)) };
+  const item = { uid: uid(), kind: 'equip', base: baseId, slot: base.slot, type: base.type, tier, rarity, name, stats, icon: base.icon, value: Math.round(25 * tierMul * r.mul * (1 + r.affixes)) };
+  rollPerks(item, rng);
+  return item;
+}
+
+// ───── perks: an effect of its own on a rare or better item (rare and epic one, legendary two) ─────
+// n(tier) is the perk's number; p(n) the passive it gives (the same keys as the skill trees, see SKILL_TREES).
+// Perks with the same `hit` group are never on one item (a hero has one on-hit status at a time).
+export const PERKS = {
+  burn: { slot: 'weapon', hit: 1, text: 'Attacks apply Burn {n}.', n: () => 1, p: (n) => ({ onHitStatus: { st: 'burn', n } }) },
+  poison: { slot: 'weapon', hit: 1, text: 'Attacks apply Poison {n}.', n: () => 1, p: (n) => ({ onHitStatus: { st: 'poison', n } }) },
+  chill: { slot: 'weapon', hit: 1, text: 'Attacks apply Chill {n}.', n: () => 1, p: (n) => ({ onHitStatus: { st: 'chill', n } }) },
+  drain: { slot: 'weapon', text: 'Heal {n}% of the damage you deal.', n: (t) => Math.min(15, 5 + t), p: (n) => ({ lifesteal: n / 100 }) },
+  critdmg: { slot: 'weapon accessory', text: 'Critical hits deal +{n}% damage.', n: (t) => Math.min(30, 10 + 3 * t), p: (n) => ({ critDmg: n / 100 }) },
+  slayer: { slot: 'weapon accessory', text: '+{n}% damage to bosses.', n: (t) => Math.min(25, 8 + 2 * t), p: (n) => ({ bossDmg: n / 100 }) },
+  block: { slot: 'armor', text: 'Start every battle with {n} Block.', n: (t) => 1 + Math.floor(t / 2), p: (n) => ({ startBlock: n }) },
+  thorns: { slot: 'armor', text: 'Enemies that hit you up close take {n} damage.', n: (t) => 1 + Math.floor(t / 4), p: (n) => ({ thorns: n }) },
+  mend: { slot: 'armor accessory', text: 'Regenerate {n} HP each round.', n: (t) => 1 + Math.floor(t / 5), p: (n) => ({ regenFlat: n }) },
+  haste: { slot: 'accessory', text: 'Start every battle with Haste {n}.', n: () => 1, p: (n) => ({ startStatus: { haste: n } }) },
+  might: { slot: 'accessory', text: 'Start every battle with Strength {n}.', n: (t) => 1 + Math.floor(t / 4), p: (n) => ({ startStatus: { strength: n } }) },
+};
+const PERK_COUNT = { rare: 1, epic: 1, legendary: 2 };
+function rollPerks(item, rng) {
+  const want = PERK_COUNT[item.rarity] || 0; if (!want) return;
+  const tt = Math.min(9, item.tier);
+  let pool = Object.keys(PERKS).filter((id) => PERKS[id].slot.split(' ').includes(item.slot));
+  item.perks = [];
+  while (item.perks.length < want && pool.length) {
+    const id = pool[Math.floor(rng() * pool.length)]; const P = PERKS[id];
+    item.perks.push({ id, n: P.n(tt) });
+    pool = pool.filter((x) => x !== id && !(P.hit && PERKS[x].hit));
+  }
+  item.passive = mergePassives(item.perks.map((k) => PERKS[k.id].p(k.n)));
+  item.value = Math.round(item.value * (1 + 0.3 * item.perks.length));
+}
+function mergePassives(list) {
+  const out = {};
+  for (const p of list) for (const [k, v] of Object.entries(p)) {
+    if (typeof v === 'number') out[k] = (out[k] || 0) + v;
+    else if (k === 'startStatus') { out[k] ||= {}; for (const [kk, vv] of Object.entries(v)) out[k][kk] = (out[k][kk] || 0) + vv; }
+    else out[k] = v;
+  }
+  return out;
+}
+export const perkText = (k) => (PERKS[k.id] ? t(PERKS[k.id].text, { n: k.n }) : '');
+
+// ───── enhancing at the Forge: +1 to +5, never fails ─────
+// Each step adds about 12% to the item's own larger stats (HP, MP, crit, evasion, speed: at least +1), and step +4
+// adds +1 to its ATK / MATK / DEF (they are small on purpose: dice carry the hits).
+export const MAX_PLUS = 5;
+export const itemName = (item) => item.name + (item.plus ? ' +' + item.plus : '');
+export const enhanceCost = (item) => { const n = (item.plus || 0) + 1; return { gold: 30 * Math.max(1, item.tier) * n, shards: 4 * n }; };
+export function enhanceGain(item) {
+  const next = (item.plus || 0) + 1; const own = Object.keys(BASES[item.base]?.stats || {}).filter((k) => BASES[item.base].stats[k] > 0 && item.stats[k]);
+  const keys = own.length ? own : Object.keys(item.stats).slice(0, 1);
+  const gain = {};
+  for (const k of keys) {
+    if (SMALL.includes(k)) { if (next === 4) gain[k] = 1; }
+    else gain[k] = Math.max(1, Math.round((item.stats[k] - (item.plusGain?.[k] || 0)) * 0.12));
+  }
+  return gain;
+}
+export function enhance(item) {
+  if ((item.plus || 0) >= MAX_PLUS) return false;
+  const gain = enhanceGain(item);
+  item.plusGain ||= {};
+  for (const [k, v] of Object.entries(gain)) { item.stats[k] = (item.stats[k] || 0) + v; item.plusGain[k] = (item.plusGain[k] || 0) + v; }
+  item.plus = (item.plus || 0) + 1; item.value = Math.round(item.value * 1.15);
+  return true;
 }
 
 // Unique stage reward equipment (granted by MVP bosses)

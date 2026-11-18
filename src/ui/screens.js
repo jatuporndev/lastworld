@@ -50,11 +50,11 @@ export function titleScreen(app) {
         item(t('Play'), () => app.toPlay(), { main: !resume }),
         item(t('Play with Friends'), () => coopModal(app), { disabled: !Net.online }))),
     h('div.ts-top',
-      shortcut(t(Net.online && Net.user ? 'Account' : 'Sign In'), 'book', () => app.openAuth(() => app.toTitle(true))),
+      shortcut(t(app.signedIn() ? 'Account' : 'Sign In'), 'book', () => app.openAuth(() => app.toTitle(true))),
       shortcut(t('Settings'), 'wrench', () => settingsModal(app)),
       shortcut(t('Fullscreen'), 'flag', toggleFullscreen),
       shortcut(LANG === 'th' ? 'English' : 'ภาษาไทย', 'star', () => setLang(LANG === 'th' ? 'en' : 'th'))),
-    h('div.title-foot', h('span.net' + (Net.online && Net.user ? '.on' : ''), Net.label()), h('span', 'v1.1')));
+    h('div.title-foot', h('span.net' + (Net.online && Net.user ? '.on' : ''), Net.label()), Net.user?.email ? h('span.net-id', Net.user.email) : null, h('span', 'v1.1'))); // (the email only here, small, on the owner's own title screen)
   // the board sits to the right of the menu
   app.world.focus({ x: -4.6, z: 0.6, size: 13 }, 700);
   return mount(el);
@@ -66,6 +66,9 @@ const authHead = (title, sub, ic = 'crown') => h('div.auth-head',
   h('div.auth-crest', h('div.auth-crest-ring'), icon(ic, '#f6d98a', 46)),
   h('h2.auth-title', title), sub ? h('p.auth-sub', sub) : null);
 const AUTH_ERRORS = {
+  'auth/popup-blocked': 'The browser blocked the sign-in window. Allow pop-ups for this site and try again.',
+  'auth/unauthorized-domain': 'This site is not allowed to sign in yet.',
+  'auth/account-exists-with-different-credential': 'This email already has an account. Sign in with email and password.',
   'auth/invalid-email': 'That email address is not valid.',
   'auth/invalid-credential': 'Wrong email or password.',
   'auth/wrong-password': 'Wrong email or password.',
@@ -81,42 +84,49 @@ const AUTH_ERRORS = {
 };
 const authError = (e) => t(AUTH_ERRORS[e?.code] || 'Something went wrong');
 
+// The account window from the title screen: who is signed in (seen only here, on this player's own screen) and Sign Out.
 export function authModal(app, done) {
-  const finish = (m) => { m.close(); done?.(); };
   if (!Net.online) {
     const m = openModal(h('div.auth',
       authHead(t('Offline Mode'), t('Cloud accounts are not configured for this build, so the game is running in offline mode. Your campaign is saved automatically in this browser.'), 'shield'),
       h('div.auth-actions', btn(t('OK'), () => m.close(), { cls: 'primary block' }))), { cls: 'auth-modal' });
     return m;
   }
-  if (Net.user) {
-    const m = openModal(h('div.auth',
-      authHead(Net.user.guest ? t('Guest Adventurer') : t('Account'), Net.user.guest ? t('You are playing on a guest account. Register an email to keep your save across devices.') : null, Net.user.guest ? 'flag' : 'crown'),
-      Net.user.guest ? null : h('div.auth-id', h('small', t('Signed in as')), h('b', Net.user.email)),
-      h('div.auth-status', h('i.dot.on'), Net.label()),
-      Net.user.guest ? authForm(app, () => finish(m), 'upgrade') : null,
-      h('div.auth-actions.split',
-        btn(t('Sign Out'), async () => { await app.saveNow(); await Net.signOut(); toast(t('Signed out')); finish(m); }, { cls: 'ghost' }),
-        btn(t('Close'), () => m.close(), { cls: Net.user.guest ? 'ghost' : 'primary' }))), { cls: 'auth-modal' });
-    return m;
-  }
-  const body = h('div.auth');
-  const m = openModal(body, { cls: 'auth-modal' });
-  let mode = 'signin';
-  const render = () => body.replaceChildren(
-    authHead(t('Adventurer Account'), t('Sign in to save your campaign to the cloud and continue on any device.')),
-    h('div.auth-tabs', ...[['signin', 'Sign In'], ['signup', 'Create Account']].map(([id, label]) =>
-      h('button.auth-tab' + (mode === id ? '.on' : ''), { type: 'button', onclick: () => { if (mode !== id) { mode = id; audio.sfx('click'); render(); } } }, t(label)))),
-    authForm(app, () => finish(m), mode),
-    h('div.auth-or', h('span', t('or'))),
-    btn(t('Play as Guest'), async (e) => {
-      const b = e.currentTarget; b.disabled = true;
-      try { await Net.signInGuest(); await app.onSignedIn(); finish(m); }
-      catch (err) { toast(authError(err), 'bad'); audio.sfx('error'); b.disabled = false; }
-    }, { cls: 'ghost block', iconName: 'flag' }),
-    h('p.auth-note', t('Your progress is always saved on this device too.')));
-  render();
+  if (!app.signedIn()) { loginGate(app).then(() => done?.()); return null; }
+  const m = openModal(h('div.auth',
+    authHead(t('Account'), null, 'crown'),
+    h('div.auth-id', h('small', t('Signed in as')), h('b', Net.user.email || t('Your account'))),
+    h('div.auth-status', h('i.dot.on'), Net.label()),
+    h('div.auth-actions.split',
+      btn(t('Sign Out'), () => { m.close(); app.signOut(); }, { cls: 'ghost' }),
+      btn(t('Close'), () => m.close(), { cls: 'primary' }))), { cls: 'auth-modal' });
   return m;
+}
+
+// Everyone plays signed in: before the game, the paper asks for an account (Google, or an email and password).
+// A guest from before keeps their characters: the guest account is linked to the new sign-in (see Net.signInGoogle).
+// Resolves once signed in and the cloud copy is merged in.
+export function loginGate(app) {
+  return new Promise((resolve) => {
+    const body = h('div.auth'); let mode = 'signin';
+    const msg = h('div.auth-msg', { role: 'status' });
+    const m = openModal(body, { cls: 'auth-modal', closable: false });
+    const ok = async () => { m.close(); audio.sfx('levelup'); resolve(); };
+    const google = btn(t('Sign in with Google'), async () => {
+      google.disabled = true; msg.textContent = t('Signing in') + '…'; msg.className = 'auth-msg busy';
+      try { await Net.signInGoogle(); await app.onSignedIn(); ok(); }
+      catch (err) { const quiet = ['auth/popup-closed-by-user', 'auth/cancelled-popup-request'].includes(err?.code); msg.textContent = quiet ? '' : authError(err); msg.className = 'auth-msg' + (quiet ? '' : ' bad'); if (!quiet) { audio.sfx('error'); console.warn('[auth]', err?.code || err); } google.disabled = false; }
+    }, { cls: 'primary block big', iconName: 'crown' });
+    const render = () => body.replaceChildren(
+      authHead(t('Adventurer Account'), t('Sign in to play. Your characters are kept in your account, safe on any device.')),
+      Net.user?.guest ? h('p.auth-note', t('Your characters on this device come with you.')) : null,
+      google, msg,
+      h('div.auth-or', h('span', t('or with email'))),
+      h('div.auth-tabs', ...[['signin', 'Sign In'], ['signup', 'Create Account']].map(([id, label]) =>
+        h('button.auth-tab' + (mode === id ? '.on' : ''), { type: 'button', onclick: () => { if (mode !== id) { mode = id; audio.sfx('click'); render(); } } }, t(label)))),
+      authForm(app, ok, mode));
+    render();
+  });
 }
 
 // mode: 'signin' | 'signup' | 'upgrade' (link the current guest account to an email)
@@ -156,7 +166,7 @@ export function playScreen(app, sel = {}) {
   const chars = h('div.ps-chars'); const worlds = h('div.ps-worlds'); const go = h('div.ps-go');
   const render = () => {
     const list = charList();
-    chars.replaceChildren(...Array.from({ length: MAX_CHARS }, (_, i) => {
+    chars.replaceChildren(...Array.from({ length: Math.max(MAX_CHARS, list.length) }, (_, i) => { // (two saves merged may hold more than the slots)
       const c = list[i];
       if (!c) return h('button.ps-char.empty', { onclick: () => app.toCharCreate({ world: worldId }) }, h('div.ps-plus', '+'), h('b', t('Create Character')), h('small', t('Slot {n}', { n: i + 1 })));
       const hero = c.hero; const C = CLASSES[hero.cls];
@@ -233,9 +243,9 @@ export function charCreateScreen(app, back = {}) {
       h('div.cs-hero', h('div.cs-pedestal'), big),
       h('div.cs-info', h('div.cs-title', { style: { color: C.color } }, C.name), h('div.cs-sub', `${C.title} · ${ELEMENTS[C.element].name}`), h('p', C.desc),
         h('div.cs-stats', statBar('HP', s.hp, 130), statBar('MP', s.mp, 60), statBar('ATK', s.atk, 26), statBar('MATK', s.matk, 26), statBar('DEF', s.def, 14), statBar('SPD', s.spd, 34), statBar(t('MOVE'), s.move, 5)),
-        h('div.cs-deck-title', t('Starting Deck')), h('div.cs-deck', ...[...new Set(STARTER_DECKS[focus])].map((id) => cardEl(id, 0, { small: true }))),
-        // what this class may become at the job level: only how each one looks; its cards wait to be found in the game
-        h('div.cs-deck-title', t('Who you may become at Level {n}', { n: JOB_LEVEL })),
+        h('div.cs-deck-title', t('Starting Deck')), h('div.cs-deck', ...[...new Set(STARTER_DECKS[focus])].map((id) => cardEl(id, 0, { small: true })))),
+      // what this class may become at the job level, in its own column so the page needs no scrolling: only how each one looks; its cards wait to be found in the game
+      h('div.cs-jobcol', h('div.cs-deck-title', t('At Level {n}', { n: JOB_LEVEL })),
         h('div.cs-jobs', ...jobsOf(focus).map((j) => h('div.cs-job', { style: { '--job': JOBS[j].color } },
           heroSprite({ cls: focus, gender, job: j }, { size: 110, zoom: 1.2, oy: 0.1 }), h('b', JOBS[j].name))))));
     const pick = (g, label) => h('button.cs-gender' + (gender === g ? '.on' : ''), { onclick: () => { audio.sfx('click'); gender = g; render(); } }, label);

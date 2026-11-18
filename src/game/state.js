@@ -40,8 +40,9 @@ export function createWorld(name) {
   G.profile.worlds[w.id] = w; touchProfile();
   return w;
 }
-export function deleteCharacter(id) { delete G.profile.chars[id]; if (G.profile.last.char === id) G.profile.last.char = null; touchProfile(); }
-export function deleteWorld(id) { delete G.profile.worlds[id]; if (G.profile.last.world === id) G.profile.last.world = null; touchProfile(); }
+// A deleted character or world is remembered (gone: id -> when), so a copy of the save from before does not bring it back when the two are merged.
+export function deleteCharacter(id) { delete G.profile.chars[id]; (G.profile.gone ||= {})[id] = Date.now(); if (G.profile.last.char === id) G.profile.last.char = null; touchProfile(); }
+export function deleteWorld(id) { delete G.profile.worlds[id]; (G.profile.gone ||= {})[id] = Date.now(); if (G.profile.last.world === id) G.profile.last.world = null; touchProfile(); }
 export const charList = () => Object.values(G.profile?.chars || {}).sort((a, b) => a.created - b.created);
 export const worldList = () => Object.values(G.profile?.worlds || {}).sort((a, b) => a.created - b.created);
 
@@ -112,6 +113,25 @@ function rescaleChar(c) {
 }
 // Load any save into the current profile shape. A version-1 save (one campaign with a 1–3 hero party)
 // becomes one world plus one character per hero; the first hero keeps the gold, bag and cards.
+// Two copies of one player's save (this device and the cloud) become one: each character and world is kept from
+// whichever copy changed it last, and nothing either copy holds is lost, except what was deleted after it last changed.
+// Settings and "last played" come from the copy saved last.
+export function mergeProfiles(a, b) {
+  if (!a) return b; if (!b) return a;
+  const newer = (b.updated || 0) > (a.updated || 0) ? b : a;
+  const gone = { ...(a.gone || {}) }; for (const [k, v] of Object.entries(b.gone || {})) gone[k] = Math.max(gone[k] || 0, v);
+  const when = (x) => x.updated || x.created || 0;
+  const pick = (x = {}, y = {}) => {
+    const out = {};
+    for (const id of new Set([...Object.keys(x), ...Object.keys(y)])) {
+      const p = x[id], q = y[id]; const best = !p ? q : !q ? p : when(q) > when(p) ? q : p;
+      if (!(gone[id] && gone[id] >= when(best))) out[id] = best;
+    }
+    return out;
+  };
+  return { ...newer, chars: pick(a.chars, b.chars), worlds: pick(a.worlds, b.worlds), gone, updated: Math.max(a.updated || 0, b.updated || 0), last: { ...(newer.last || {}) } };
+}
+
 export function normalizeProfile(s) {
   if (!s) return emptyProfile();
   // Version 4 is a fresh start for everyone: before release the game changed too much for old characters to carry over
@@ -140,7 +160,7 @@ export function normalizeProfile(s) {
   }
   const old = (s.version || 1) < 3;
   s.version = SAVE_VERSION; s.settings = { music: 0.45, sfx: 0.7, ...(s.settings || {}) };
-  s.chars = s.chars || {}; s.worlds = s.worlds || {}; s.last = s.last || {};
+  s.chars = s.chars || {}; s.worlds = s.worlds || {}; s.last = s.last || {}; s.gone = s.gone || {};
   Object.values(s.chars).forEach(fixChar); Object.values(s.worlds).forEach(fixWorld);
   // Story scenes were first remembered by the character. A world from then takes over what its last character had seen,
   // as far as the world itself has got, so nothing plays a second time in the middle of it. (sv marks a world as moved.)

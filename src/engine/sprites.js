@@ -3,6 +3,7 @@
 // all facing right; left-facing directions are produced by mirroring UVs.
 
 import { paintChibi } from './chibi.js';
+import * as MK from './monsterKinds.js';
 
 export const ANIMS = ['idle', 'walk', 'attack', 'hurt', 'cast'];
 export const VIEWS = ['side', 'back', 'front'];
@@ -283,6 +284,7 @@ function offhand(ctx, type, look) {
 }
 
 PAINTERS_INIT();
+MK.useHelpers({ path, ellipse, rrect, grad, rgrad, glowCircle, shade, OUT });
 var PAINTERS;
 function PAINTERS_INIT() {
   PAINTERS = {
@@ -308,6 +310,7 @@ function PAINTERS_INIT() {
     },
 
     beast(ctx, L, view, p, f, anim) {
+      if (MK.hasBeastKind(L)) return MK.beast(ctx, L, view, p, f, anim); // a beast of a shape of its own (monsterKinds.js)
       const cast = anim === 'cast', cs = Math.sin(p.t || 0); // gathering a blow: crouched low, hackles up, jaws open, shaking
       ctx.translate(p.dx, p.bob * 0.6); ctx.rotate(p.lean * 0.5);
       if (cast) { ctx.translate(Math.cos((p.t || 0) * 2) * 1.3, 0); ctx.scale(1.06, 0.9 + cs * 0.025); if (view === 'side') ctx.rotate(0.1); }
@@ -319,7 +322,9 @@ function PAINTERS_INIT() {
         // far legs
         [[-18, p.leg], [18, -p.leg]].forEach(([x, a]) => { ctx.save(); ctx.translate(x - 4, -26); ctx.rotate(a * 0.8); rrect(ctx, -4, 0, 8, 26, 3, shade(legC, -0.2)); ctx.restore(); });
         ellipse(ctx, 0, -36, 32, 15, body);
-        if (L.accent) { for (let i = 0; i < (L.big ? 6 : 4); i++) { ctx.beginPath(); const x = -20 + i * 9; ctx.moveTo(x - 4, -48); ctx.lineTo(x, -58 - (L.big ? 6 : 0) - (cast ? 9 + cs * 2 : 0)); ctx.lineTo(x + 4, -48); path(ctx, L.accent, OUT, 1.5); } }
+        if (L.accent && L.crystals) { for (let i = 0; i < 4; i++) { const x = -18 + i * 9, hh = 14 + (i % 2) * 6 + (cast ? 8 : 0); ctx.beginPath(); ctx.moveTo(x - 3.5, -47); ctx.lineTo(x - 2.5, -47 - hh * 0.7); ctx.lineTo(x + 1, -47 - hh); ctx.lineTo(x + 3.5, -47 - hh * 0.7); ctx.lineTo(x + 3.5, -47); ctx.closePath(); path(ctx, grad(ctx, -47 - hh, -47, '#ffffff', L.accent), OUT, 1.4); } } // shards of ice in place of spikes
+        else if (L.accent) { for (let i = 0; i < (L.big ? 6 : 4); i++) { ctx.beginPath(); const x = -20 + i * 9; ctx.moveTo(x - 4, -48); ctx.lineTo(x, -58 - (L.big ? 6 : 0) - (cast ? 9 + cs * 2 : 0)); ctx.lineTo(x + 4, -48); path(ctx, L.accent, OUT, 1.5); } }
+        if (L.ruff) [[22, -52, 9], [26, -40, 10], [18, -44, 9], [30, -50, 8]].forEach(([x, y, r]) => ellipse(ctx, x, y, r, r * 0.9, shade(L.c1, 0.35), OUT, 1.6)); // a thick ruff of fur round the neck
         [[-18, -p.leg], [18, p.leg]].forEach(([x, a]) => { ctx.save(); ctx.translate(x, -26); ctx.rotate(a * 0.8); rrect(ctx, -4.5, 0, 9, 26, 3, legC); ellipse(ctx, 2, 25, 6, 3, '#2a1a10'); ctx.restore(); });
         // head
         ctx.save(); ctx.translate(30, -50 + (anim === 'attack' ? 6 : 0)); ctx.rotate(anim === 'attack' && f === 2 ? 0.3 : 0);
@@ -336,7 +341,8 @@ function PAINTERS_INIT() {
         if (!front) { ctx.beginPath(); ctx.moveTo(0, -40); ctx.quadraticCurveTo(10 + p.leg * 10, -60, 4, -78); path(ctx, null, OUT, 9); ctx.beginPath(); ctx.moveTo(0, -40); ctx.quadraticCurveTo(10 + p.leg * 10, -60, 4, -78); path(ctx, null, L.c1, 5); }
         [-1, 1].forEach((s, i) => { const lift = (i ? 1 : -1) * p.leg * 5; rrect(ctx, s * 12 - 4.5, -30 - Math.max(0, lift), 9, 28, 3, legC); });
         ellipse(ctx, 0, -38, 24, 18, body);
-        if (L.accent) { for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(i * 7 - 4, -52); ctx.lineTo(i * 7, -62 - (L.big ? 6 : 0) + Math.abs(i) * 2); ctx.lineTo(i * 7 + 4, -52); path(ctx, L.accent, OUT, 1.5); } }
+        if (L.accent) { for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(i * 7 - 4, -52); ctx.lineTo(i * 7, -62 - (L.big ? 6 : 0) + Math.abs(i) * 2 - (L.crystals ? 8 : 0)); ctx.lineTo(i * 7 + 4, -52); path(ctx, L.crystals ? grad(ctx, -70, -52, '#ffffff', L.accent) : L.accent, OUT, 1.5); } }
+        if (L.ruff && front) ellipse(ctx, 0, -38, 21, 11, shade(L.c1, 0.35), OUT, 1.6);
         if (front) {
           ctx.save(); ctx.translate(0, -46);
           [-1, 1].forEach((s) => { ctx.beginPath(); ctx.moveTo(s * 6, -10); ctx.lineTo(s * 14, -24); ctx.lineTo(s * 15, -6); path(ctx, shade(L.c1, -0.1)); });
@@ -393,6 +399,7 @@ function PAINTERS_INIT() {
     },
 
     floating(ctx, L, view, p, f, anim) {
+      if (MK.FLOAT_KINDS.has(L.kind)) return MK.floating(ctx, L, view, p, f, anim); // a spirit of a shape of its own (monsterKinds.js)
       const hover = Math.sin((f / 4) * Math.PI * 2) * 4;
       ctx.translate(p.dx, -24 + hover);
       glowCircle(ctx, 0, -30, 44, L.glow, 0.5 + p.glow * 0.4);
@@ -436,16 +443,19 @@ function PAINTERS_INIT() {
       // legs
       [-1, 1].forEach((s, i) => { const lift = (i ? 1 : -1) * p.leg * 5; rrect(ctx, s * 14 - 9, -30 - Math.max(0, lift), 18, 30, 5, shade(L.c2, -0.1)); });
       drawArm(-1, cast ? 2.75 - cs * 0.14 : view === 'side' ? armA * 0.6 : 0.2 - p.leg * 0.3);
-      ctx.beginPath(); ctx.moveTo(-30, -88); ctx.lineTo(30, -88); ctx.lineTo(24, -28); ctx.lineTo(-24, -28); ctx.closePath(); path(ctx, body);
+      if (!MK.golemTorso(ctx, L, body)) { ctx.beginPath(); ctx.moveTo(-30, -88); ctx.lineTo(30, -88); ctx.lineTo(24, -28); ctx.lineTo(-24, -28); ctx.closePath(); path(ctx, body); }
       // details
       if (L.bones) { ctx.strokeStyle = shade(L.c1, 0.5); ctx.lineWidth = 3; for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.moveTo(-20, -78 + i * 12); ctx.quadraticCurveTo(0, -72 + i * 12, 20, -78 + i * 12); ctx.stroke(); } }
       else { ctx.strokeStyle = shade(L.c2, -0.3); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-14, -84); ctx.lineTo(-6, -64); ctx.lineTo(-16, -44); ctx.moveTo(12, -80); ctx.lineTo(4, -58); ctx.lineTo(14, -36); ctx.stroke(); }
       if (L.lava) { ctx.strokeStyle = '#ffa020'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(-14, -84); ctx.lineTo(-6, -64); ctx.lineTo(-16, -44); ctx.moveTo(12, -80); ctx.lineTo(4, -58); ctx.stroke(); glowCircle(ctx, 0, -60, cast ? 52 + cs * 8 : 30, '#ff6010', cast ? 0.9 : 0.5); }
       if (view !== 'back') glowCircle(ctx, 0, -58, cast ? 24 + cs * 5 : 12, L.accent, cast ? 1 : 0.8);
+      MK.golemBody(ctx, L, view, cast, cs, f); // what grows on this one (monsterKinds.js)
       // head
-      rrect(ctx, -14, -108, 28, 22, 6, grad(ctx, -108, -86, shade(L.c1, 0.35), L.c1));
-      if (L.horns) [-1, 1].forEach((s) => { ctx.beginPath(); ctx.moveTo(s * 10, -104); ctx.quadraticCurveTo(s * 26, -110, s * 24, -128); ctx.quadraticCurveTo(s * 18, -112, s * 4, -106); path(ctx, '#2a1a1a'); });
-      if (view !== 'back') { (view === 'side' ? [6] : [-6, 6]).forEach((x) => { rrect(ctx, x - 3.5, -100, 7, 4, 1, L.eye, null); glowCircle(ctx, x, -98, 8, L.eye, 0.9); }); }
+      if (!MK.golemHead(ctx, L, view, cast, cs, f)) {
+        rrect(ctx, -14, -108, 28, 22, 6, grad(ctx, -108, -86, shade(L.c1, 0.35), L.c1));
+        if (L.horns) [-1, 1].forEach((s) => { ctx.beginPath(); ctx.moveTo(s * 10, -104); ctx.quadraticCurveTo(s * 26, -110, s * 24, -128); ctx.quadraticCurveTo(s * 18, -112, s * 4, -106); path(ctx, '#2a1a1a'); });
+        if (view !== 'back') { (view === 'side' ? [6] : [-6, 6]).forEach((x) => { rrect(ctx, x - 3.5, -100, 7, 4, 1, L.eye, null); glowCircle(ctx, x, -98, 8, L.eye, 0.9); }); }
+      }
       drawArm(1, armA);
       if (p.swing) { ctx.save(); ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.arc(10, -60, 50, -1.2, 1); ctx.strokeStyle = '#fff'; ctx.lineWidth = 8; ctx.stroke(); ctx.restore(); }
     },

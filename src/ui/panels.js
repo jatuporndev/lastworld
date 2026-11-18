@@ -8,7 +8,7 @@ import { openJobChoice } from './jobUI.js';
 import { CLASSES, STAT_INFO, expToNext, className, canUseCard, levelCap } from '../data/classes.js';
 import { JOBS, JOB_LEVEL } from '../data/jobs.js';
 import { CARDS, RARITY, MAX_CARD_LEVEL, upgradeCost, DECK_MIN, DECK_MAX } from '../data/cards.js';
-import { CONSUMABLES, MATERIALS, RECIPES, BASES, ITEM_RARITY, makeEquipment } from '../data/items.js';
+import { CONSUMABLES, MATERIALS, RECIPES, BASES, ITEM_RARITY, STAT_LABEL, makeEquipment, enhance, enhanceCost, enhanceGain, itemName, MAX_PLUS } from '../data/items.js';
 import { QUESTS } from '../data/events.js';
 import { Net } from '../net/firebase.js';
 import { Coop } from '../net/coop.js';
@@ -66,7 +66,7 @@ function heroTab(render) {
   const branch = (b, job = null) => h('div.branch', job ? h('div.branch-name', J.branches[b]) : null, ...tree.filter((n) => n.branch === b && (n.job || null) === job).map((n) => {
     const known = hero.skills.includes(n.id); const can = canLearn(hero, n);
     return h('div.skill' + (known ? '.known' : can ? '.can' : '.locked'), { 'data-tip': `${n.desc}${known ? '' : t(' — Cost: {n} SP', { n: n.cost || 1 })}`, onclick: () => { if (learnSkill(hero, n)) { clampVitals(hero); touch(); audio.sfx('levelup'); render(); } else if (!known) audio.sfx('error'); } },
-      h('div.skill-tier', 'I'.repeat(n.tier)), h('div.skill-name', n.name), h('div.skill-desc', n.desc));
+      h('div.skill-tier', ['I', 'II', 'III', 'IV'][n.tier - 1] || n.tier), h('div.skill-name', n.name), h('div.skill-desc', n.desc));
   }));
   return h('div.tab-hero', heroPicker(render),
     h('div.hero-sheet',
@@ -77,7 +77,7 @@ function heroTab(render) {
         h('div.derived-grid', d('ATK', s.atk, t('Physical attack power')), d('MATK', s.matk, t('Magic attack power')), d('DEF', s.def, t('Reduces damage taken')), d(t('Speed'), s.spd, t('Determines turn order')), d(t('Crit'), s.crit + '%', t('Critical hit chance')), d(t('Evasion'), s.eva + '%', t('Chance to dodge')), d(t('Move'), s.move + (s.passives.move || 0), t('Hexes per turn')), d(t('Action Slots'), s.energy, t('How many slots of cards you can play each turn')))),
       h('div.hero-col.wide', h('div.sec-title', t('Skill Tree'), h('span.points' + (hero.skillPoints ? '.has' : ''), `${hero.skillPoints} SP`)),
         J ? h('div.tree-title', J.name) : null, J ? h('div.tree.job', branch(0, hero.job), branch(1, hero.job), branch(2, hero.job)) : null,
-        J ? h('div.tree-title', C.name) : null, h('div.tree', branch(0), branch(1)))));
+        J ? h('div.tree-title', C.name) : null, h('div.tree', branch(0), branch(1), branch(2)))));
 }
 
 // ───── Bag: equipment slots and one grid of everything carried ─────
@@ -181,8 +181,28 @@ function forgeTab(render) {
         return h('div.item.recipe' + (ok ? '' : '.dim'), { style: { '--rar': ITEM_RARITY[r.rarity].color } }, h('div.item-icon', itemPic(B.icon, ITEM_RARITY[r.rarity].color, 32, r)),
           h('div.item-info', h('div.item-name', `${B.names[r.tier - 1]}`), h('div.item-sub', `${ITEM_RARITY[r.rarity].name} · ${t('Tier {n}', { n: r.tier })} ${t(B.type)}`),
             h('div.recipe-cost', ...Object.entries(r.mats).map(([m, n]) => h('span' + ((st.inv.mats[m] || 0) >= n ? '' : '.lack'), `${MATERIALS[m].name} ${st.inv.mats[m] || 0}/${n}`)), h('span' + (st.gold >= r.gold ? '' : '.lack'), t('{n} gold', { n: r.gold })))),
-          h('button.mini.up', { disabled: !ok, onclick: () => { Object.entries(r.mats).forEach(([m, n]) => { st.inv.mats[m] -= n; if (st.inv.mats[m] <= 0) delete st.inv.mats[m]; }); st.gold -= r.gold; const it = makeEquipment(r.base, r.tier, r.rarity); addItem(it); progress('craft', 1); audio.sfx('place'); audio.sfx('levelup'); toast(t('Forged {name}!', { name: it.name }), 'good'); render(); } }, t('Forge'))); }))));
+          h('button.mini.up', { disabled: !ok, onclick: () => { Object.entries(r.mats).forEach(([m, n]) => { st.inv.mats[m] -= n; if (st.inv.mats[m] <= 0) delete st.inv.mats[m]; }); st.gold -= r.gold; const it = makeEquipment(r.base, r.tier, r.rarity); addItem(it); progress('craft', 1); audio.sfx('place'); audio.sfx('levelup'); toast(t('Forged {name}!', { name: it.name }), 'good'); render(); } }, t('Forge'))); }),
+        ...enhanceRows(render))));
   root.appendChild(upgradeCol(render)); return root;
+}
+
+// Enhancing: worn gear first (whose wearer is named), then the bag; best tier first.
+function enhanceRows(render) {
+  const st = G.state;
+  const worn = myHeroes().flatMap((x) => ['weapon', 'armor', 'accessory'].map((s) => x.equip[s] && { it: x.equip[s], who: x.name, hero: x })).filter(Boolean);
+  const bag = st.inv.equip.slice().sort((a, b) => b.tier - a.tier || (b.plus || 0) - (a.plus || 0)).map((it) => ({ it }));
+  const row = ({ it, who, hero }) => {
+    const r = ITEM_RARITY[it.rarity]; const max = (it.plus || 0) >= MAX_PLUS; const cost = enhanceCost(it);
+    const ok = !max && st.gold >= cost.gold && st.shards >= cost.shards;
+    const pct = (k) => k === 'crit' || k === 'eva';
+    const gain = max ? '' : Object.entries(enhanceGain(it)).map(([k, v]) => `${t(STAT_LABEL[k] || k).replace(' %', '')} +${v}${pct(k) ? '%' : ''}`).join(' · ');
+    return h('div.item.recipe' + (ok || max ? '' : '.dim'), { style: { '--rar': r.color } }, h('div.item-icon', itemPic(it.icon, r.color, 32, it)),
+      h('div.item-info', h('div.item-name', itemName(it)), h('div.item-sub', who ? t('Worn by {name}', { name: who }) : `${r.name} · ${t('Tier {n}', { n: it.tier })}`),
+        max ? h('div.recipe-cost', h('span', t('Fully enhanced'))) : h('div.enh-gain', t('Next: {gain}', { gain })), max ? null : h('div.recipe-cost', h('span' + (st.gold >= cost.gold ? '' : '.lack'), t('{n} gold', { n: cost.gold })), h('span' + (st.shards >= cost.shards ? '' : '.lack'), `${cost.shards}◆`))),
+      max ? null : h('button.mini.up', { disabled: !ok, onclick: () => { if (!ok || !enhance(it)) return; st.gold -= cost.gold; st.shards -= cost.shards; if (hero) clampVitals(hero); touch(); audio.sfx('levelup'); toast(t('{name} is now +{n}', { name: it.name, n: it.plus }), 'good'); render(); } }, t('Enhance')));
+  };
+  const rows = [...worn, ...bag].map(row);
+  return rows.length ? [h('div.sec-title.enh-title', t('Enhance'), h('span.points', t('Up to +{n}, never fails', { n: MAX_PLUS }))), ...rows] : [];
 }
 
 // Card upgrades: a second copy of the same card is melted into the first. Each row reads left to right:
@@ -229,7 +249,7 @@ function systemTab(render, app, modal) {
     h('div.row', h('span', t('Language')), btn('ภาษาไทย', () => setLang('th'), { cls: 'small' + (LANG === 'th' ? ' primary' : '') }), btn('English', () => setLang('en'), { cls: 'small' + (LANG === 'en' ? ' primary' : '') })),
     h('div.row', btn(t('Toggle Fullscreen'), toggleFullscreen, { iconName: 'star' }), btn(t('Save Now'), async () => { await app.saveNow(); toast(t('Game saved'), 'good'); })),
     h('div.sec-title', t('Account')), h('p.note', Net.label()),
-    h('div.row', Net.online ? (Net.user ? btn(t('Sign Out'), async () => { await app.saveNow(); await Net.signOut(); toast(t('Signed out')); render(); }) : btn(t('Sign In / Register'), () => app.openAuth(() => render()))) : h('p.note', t('Cloud saves are disabled until Firebase is configured (see README). Progress is stored in this browser.'))),
+    h('div.row', Net.online ? (Net.user ? btn(t('Sign Out'), () => { modal.close(); app.signOut(); }) : btn(t('Sign In / Register'), () => app.openAuth(() => render()))) : h('p.note', t('Cloud saves are disabled until Firebase is configured (see README). Progress is stored in this browser.'))),
     h('div.sec-title', t('Campaign')), h('p.note', t('Stages liberated: {n} / 6 · Monsters slain: {k} · Party: {party}', { n: Object.keys(st.cleared).length, k: st.stats.kills, party: myHeroes().map((x) => `${x.name} Lv${x.level}`).join(', ') })),
     h('div.row', btn(t('Return to Title'), async () => { if (await confirmBox(t('Return to Title'), t('Your progress is saved automatically.'), t('Return'))) { modal.close(); app.toTitle(); } })));
 }

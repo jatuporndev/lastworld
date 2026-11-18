@@ -8,6 +8,10 @@ import { L, titleOf } from './lines.js';
 import { h, sleep } from '../core/util.js';
 import { t } from '../core/i18n.js';
 import { openModal, btn } from '../ui/components.js';
+import { audio } from '../core/audio.js';
+
+// The music under a scene: dread while a boss arrives (B), otherwise the story's own tune. The realm's music comes back after.
+const sceneMusic = (id) => (/^[0-9]+B$/.test(id) ? 'dread' : 'story');
 
 let playing = null;
 export const ORDER = Object.keys(SCENES);
@@ -32,11 +36,13 @@ export async function playStory(id, party, { canSkip = true, onSkip = null, onSh
   try {
     await Promise.race([document.fonts?.ready, sleep(1200)]); await sleep(30); el.classList.add('in'); await sleep(330); onShown?.(); // (the scene's own black is up: whatever was covering the board can go)
     if (world) world.hidden = true;
+    me.music = audio.trackName; audio.music(sceneMusic(id));
     mount(canvas);
     const tooLong = setTimeout(() => { console.warn('[story] scene ran too long and was ended', id); skip(); }, 180000);
     try { if (!me.skipped) await fn({ party }); } catch (e) { if (e !== 'skip') console.error('[story]', id, e); } finally { clearTimeout(tooLong); }
   } catch (e) { console.error('[story]', id, e); } finally {
     if (world) world.hidden = false;
+    if (me.music && audio.trackName === sceneMusic(id)) audio.music(me.music);
     window.removeEventListener('keydown', key, true);
     canvas.style.opacity = 0; await sleep(200); el.classList.remove('in'); await sleep(340);
     unmount(); el.remove(); if (playing === me) playing = null;

@@ -42,17 +42,22 @@ export class BattleScene {
     // co-op lockstep: every hero action is a numbered command applied in the same order on every client
     this.cmdN = 0; this.remote = new Map(); this.applying = false;
     this.coop = Coop.active;
+    this.gone = new Set(); // players who left during this battle: the host plays their heroes to its end, even if they come back
     if (this.coop) {
       for (const m of Coop.bbuf || []) if (m.seed === seed) this.remote.set(m.n, m); // commands that arrived before this scene
       Coop.bbuf = [];
       this._offs = [bus.on('coop:msg', (m) => { if (m.t === 'b' && m.seed === this.battle.seed) { this.remote.set(m.n, m); this.drain(); } }),
-        bus.on('coop:players', () => this.ownersChanged())];
+        bus.on('coop:players', () => { this.noteGone(); this.ownersChanged(); })];
+      this.noteGone();
     }
   }
 
   // ───────── co-op ─────────
   // Whether this client may act for a hero unit.
-  canControl(u) { return !this.coop || Coop.controls(u.hero?.owner); }
+  // A player who left mid-battle and joined again is not in this battle (it is played from the commands they missed),
+  // so their hero stays the host's until it ends; they rejoin the party after it.
+  canControl(u) { const o = u.hero?.owner; return !this.coop || o === Coop.me || (Coop.isHost && (this.gone.has(o) || !Coop.players[o])); }
+  noteGone() { for (const u of this.battle.units) { const o = u.hero?.owner; if (o && !Coop.players[o]) this.gone.add(o); } }
   ownerName(u) { return Coop.nameOf(u.hero?.owner); }
   consOf(u) { return u.hero?.owner ? (u.hero.cons ||= {}) : G.state.inv.cons; }
   ready(u = this.hero()) { return !!u && !!this.battle._endTurn && !this.battle.busy && !this.applying && !this.battle.result; }
