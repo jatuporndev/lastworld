@@ -148,6 +148,13 @@ function paint(ctx, look, view, anim, f) {
 function weapon(ctx, type, look, glow) {
   const metal = grad(ctx, -40, 0, '#f4f8ff', '#8a96a8');
   switch (type) {
+    case 'holysword': { // a knight's long blade, gold in the fuller and on the wide guard
+      ctx.save(); ctx.scale(1.18, 1.18);
+      ctx.beginPath(); ctx.moveTo(-3.6, -6); ctx.lineTo(-3.8, -47); ctx.lineTo(0, -55); ctx.lineTo(3.8, -47); ctx.lineTo(3.6, -6); ctx.closePath(); path(ctx, grad(ctx, -55, -6, '#ffffff', '#9aa6c0'));
+      ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(0, -45); path(ctx, null, look.crownColor || '#e0b040', 1.4);
+      ctx.beginPath(); ctx.moveTo(-11, -8); ctx.quadraticCurveTo(0, -3, 11, -8); ctx.lineTo(11, -4.5); ctx.quadraticCurveTo(0, 0.5, -11, -4.5); ctx.closePath(); path(ctx, grad(ctx, -8, 0, '#f0d070', '#8a6a20'));
+      rrect(ctx, -2, -2, 4, 10, 1, '#2a3a6a'); ellipse(ctx, 0, 9.5, 2.8, 2.8, '#e0b040', OUT, 1.2); ctx.restore(); break;
+    }
     case 'sword':
       rrect(ctx, -2.5, -34, 5, 30, 2, metal); rrect(ctx, -8, -6, 16, 4, 2, '#c9a040'); rrect(ctx, -2, -2, 4, 9, 1, '#5a3a20'); break;
     case 'greatsword':
@@ -182,12 +189,16 @@ function weapon(ctx, type, look, glow) {
     case 'claw':
       for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(i * 3, 0); ctx.quadraticCurveTo(i * 4 + 2, -8, i * 3 + 4, -13); path(ctx, null, '#e8e0c0', 2); } break;
     // ── the weapons of the advanced classes ──
-    case 'lance': // a long cone of steel with a guard and a pennant in the rider's colour
-      rrect(ctx, -1.8, -20, 3.6, 32, 1, '#6a4a2a');
-      ctx.beginPath(); ctx.moveTo(-6.5, -18); ctx.lineTo(0, -84); ctx.lineTo(6.5, -18); ctx.closePath(); path(ctx, metal);
-      ctx.beginPath(); ctx.moveTo(0, -24); ctx.lineTo(0, -76); path(ctx, null, 'rgba(255,255,255,0.7)', 1.2);
-      ellipse(ctx, 0, -17, 9.5, 3.6, grad(ctx, -21, -13, '#f0d070', '#8a6a20'));
-      ctx.beginPath(); ctx.moveTo(1, -64); ctx.lineTo(17, -59); ctx.lineTo(1, -52); ctx.closePath(); path(ctx, look.cloth || '#c03030', OUT, 1.6); break;
+    case 'lance': { // a jousting lance: a long fluted cone and a bell guard over the hand
+      rrect(ctx, -2.3, -14, 4.6, 54, 1.5, grad(ctx, -14, 40, '#7a5632', '#4a3220')); for (const y of [7, 12, 30]) rrect(ctx, -2.8, y, 5.6, 2, 0.5, '#c9a040', null); // a long grip that runs on past the hand
+      ellipse(ctx, 0, 41, 3.6, 3.6, grad(ctx, 37, 45, '#f0d070', '#8a6a20'), OUT, 1.2); // the butt cap
+      const steelL = grad(ctx, -104, -14, '#f4f8ff', '#7a86a0'); // (tip at -94)
+      ctx.beginPath(); ctx.moveTo(-7.5, -14); ctx.lineTo(0, -94); ctx.lineTo(7.5, -14); ctx.closePath(); path(ctx, steelL);
+      for (const k of [-3.2, 3.2]) { ctx.beginPath(); ctx.moveTo(k, -16); ctx.lineTo(0, -88); path(ctx, null, 'rgba(60,70,90,0.45)', 1); }
+      ctx.beginPath(); ctx.moveTo(-1.6, -18); ctx.lineTo(0, -86); path(ctx, null, 'rgba(255,255,255,0.75)', 1.2);
+      ctx.beginPath(); ctx.moveTo(-12, -5); ctx.quadraticCurveTo(0, -24, 12, -5); ctx.quadraticCurveTo(0, -11, -12, -5); ctx.closePath(); path(ctx, grad(ctx, -26, -12, '#f0d070', '#8a6a20')); // the bell guard
+      break;
+    }
     case 'greatbow': // taller than its archer, tipped with brass
       ctx.beginPath(); ctx.moveTo(0, -42); ctx.quadraticCurveTo(22, 0, 0, 42); path(ctx, null, OUT, 6.5);
       ctx.beginPath(); ctx.moveTo(0, -42); ctx.quadraticCurveTo(22, 0, 0, 42); path(ctx, null, '#5a3a22', 4.2);
@@ -196,7 +207,7 @@ function weapon(ctx, type, look, glow) {
     case 'scythe': { // a black pole and a long pale blade
       // the blade sweeps forward, away from the head, so it reads at any size
       rrect(ctx, -1.8, -54, 3.6, 66, 1.5, grad(ctx, -54, 12, '#4a3a40', '#16101a'));
-      ctx.beginPath(); ctx.moveTo(-1, -52); ctx.quadraticCurveTo(22, -66, 46, -42); ctx.quadraticCurveTo(24, -50, 1, -43); ctx.closePath(); path(ctx, grad(ctx, -64, -40, '#f4f6ff', '#7a8494'));
+      ctx.beginPath(); ctx.moveTo(-1, -52); ctx.quadraticCurveTo(19, -65, 39, -43); ctx.quadraticCurveTo(21, -50, 1, -43); ctx.closePath(); path(ctx, grad(ctx, -64, -40, '#f4f6ff', '#7a8494'));
       if (look.glowEyes) glowCircle(ctx, 24, -52, 12 + glow * 8, look.glowEyes, 0.35 + glow * 0.3);
       rrect(ctx, -3.5, -56, 7, 6, 1.5, '#c8c0b0', OUT, 1.6); break;
     }
@@ -208,19 +219,21 @@ function weapon(ctx, type, look, glow) {
       rrect(ctx, -4.5, -56, 9, 5, 1.5, '#e8c450', OUT, 1.6); break;
     }
     case 'fists': // a wrapped fist
+      if (look.bigFists) { ctx.save(); ctx.scale(1.45, 1.45); rrect(ctx, -5, 0, 10, 5, 2, look.bandColor || '#c8302a'); }
       ellipse(ctx, 0, -4, 6, 5.4, rgrad(ctx, -2, -6, 7, '#ffffff', look.bandColor || '#e8e0d0'));
       ctx.beginPath(); ctx.moveTo(-5, -6); ctx.lineTo(5, -2); ctx.moveTo(-5, -2); ctx.lineTo(5, 2); path(ctx, null, shade(look.bandColor || '#c8c0b0', -0.3), 1.2);
-      if (glow > 0) glowCircle(ctx, 0, -4, 10 + glow * 10, look.crownColor || '#fff0b0', 0.5 * glow); break;
+      if (glow > 0) glowCircle(ctx, 0, -4, 10 + glow * 10, look.crownColor || '#fff0b0', 0.5 * glow);
+      if (look.bigFists) ctx.restore(); break;
     case 'wrench':
       rrect(ctx, -2.2, -30, 4.4, 38, 2, grad(ctx, -30, 8, '#c8ccd4', '#6a7078'));
       ctx.beginPath(); ctx.moveTo(-9, -30); ctx.lineTo(-9, -40); ctx.lineTo(-3, -42); ctx.lineTo(-3, -34); ctx.lineTo(3, -34); ctx.lineTo(3, -42); ctx.lineTo(9, -40); ctx.lineTo(9, -30); ctx.lineTo(4, -26); ctx.lineTo(-4, -26); ctx.closePath(); path(ctx, grad(ctx, -42, -26, '#e8ecf4', '#7a808a'));
       rrect(ctx, -3, -6, 6, 12, 2, look.cloth || '#d8a040', OUT, 1.6); break;
     case 'bighammer': { // a head as big as its smith, glowing from inside the cracks
-      rrect(ctx, -2.6, -34, 5.2, 44, 2, '#4a3426');
-      rrect(ctx, -17, -54, 34, 22, 3, grad(ctx, -54, -32, '#5a5458', '#1e1a1e'));
+      rrect(ctx, -2.6, -42, 5.2, 52, 2, '#4a3426');
+      rrect(ctx, -17, -62, 34, 22, 3, grad(ctx, -62, -40, '#5a5458', '#1e1a1e'));
       const hot = look.seams || '#ff8a30';
-      ctx.beginPath(); ctx.moveTo(-12, -50); ctx.lineTo(-5, -43); ctx.lineTo(-9, -36); ctx.moveTo(6, -52); ctx.lineTo(2, -44); ctx.lineTo(9, -38); ctx.lineTo(13, -35); path(ctx, null, hot, 1.8);
-      glowCircle(ctx, 0, -43, 18 + glow * 10, hot, 0.45 + glow * 0.3); rrect(ctx, -17, -46, 34, 4, 1, '#8a8a90', null); break;
+      ctx.beginPath(); ctx.moveTo(-12, -58); ctx.lineTo(-5, -51); ctx.lineTo(-9, -44); ctx.moveTo(6, -60); ctx.lineTo(2, -52); ctx.lineTo(9, -46); ctx.lineTo(13, -43); path(ctx, null, hot, 1.8);
+      glowCircle(ctx, 0, -51, 18 + glow * 10, hot, 0.45 + glow * 0.3); rrect(ctx, -17, -54, 34, 4, 1, '#8a8a90', null); break;
     }
     default: break;
   }
@@ -241,6 +254,16 @@ function offhand(ctx, type, look) {
       const sun = look.cloth || '#e0b040';
       for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 5, Math.sin(a) * 5); ctx.lineTo(Math.cos(a) * 12, Math.sin(a) * 13); path(ctx, null, sun, 2.4); }
       ellipse(ctx, 0, 0, 5.4, 5.4, rgrad(ctx, -1, -1, 6, '#fff8d0', sun), OUT, 1.6); glowCircle(ctx, 0, 0, 16, look.crownColor || '#ffe080', 0.35); break;
+    }
+    case 'towershield': { // a tall shield like a church window: a gilded bronze frame, steel panels under three pointed arches, a rose at the top
+      ctx.scale(1.25, 1.25); const gold = look.crownColor || '#e0b040';
+      const face = (k) => { ctx.beginPath(); ctx.moveTo(-12 * k, -24 * k); ctx.quadraticCurveTo(0, -31 * k, 12 * k, -24 * k); ctx.lineTo(12.5 * k, 6 * k); ctx.quadraticCurveTo(10 * k, 22 * k, 0, 32 * k); ctx.quadraticCurveTo(-10 * k, 22 * k, -12.5 * k, 6 * k); ctx.closePath(); };
+      face(1); path(ctx, grad(ctx, -30, 32, '#f0d890', '#8a6424')); // the bronze frame
+      face(0.8); path(ctx, grad(ctx, -24, 26, '#dfe4ec', '#5a6478'), null); // the steel inside it
+      for (const x of [-6.2, 0, 6.2]) { ctx.beginPath(); ctx.moveTo(x - 2.4, 18 - Math.abs(x) * 0.9); ctx.lineTo(x - 2.4, -6); ctx.quadraticCurveTo(x, -11, x + 2.4, -6); ctx.lineTo(x + 2.4, 18 - Math.abs(x) * 0.9); path(ctx, null, gold, 1.3); } // three pointed arches
+      ctx.beginPath(); ctx.moveTo(-9.5, 1); ctx.lineTo(9.5, 1); ctx.moveTo(-9, 10); ctx.lineTo(9, 10); path(ctx, null, gold, 1.1);
+      ellipse(ctx, 0, -16, 4.6, 4.6, grad(ctx, -21, -11, '#fff4c8', gold), OUT, 1.2); for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; ctx.beginPath(); ctx.moveTo(0, -16); ctx.lineTo(Math.cos(a) * 4.2, -16 + Math.sin(a) * 4.2); path(ctx, null, '#8a6424', 0.8); } // the rose window
+      for (const [x, y] of [[-10, -20], [10, -20], [-10.5, 6], [10.5, 6], [0, 28]]) ellipse(ctx, x, y, 1.1, 1.1, '#fff4c8', null); break;
     }
     case 'chainbook': // a black book bound in chains, a violet light leaking out
       rrect(ctx, -9, -11, 18, 20, 2, '#2a1830'); rrect(ctx, -7, -9, 14, 16, 1, '#4a2a5a', null);
