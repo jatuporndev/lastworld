@@ -973,3 +973,50 @@ after('wind', (k) => {
       if (f > 0.1) p.diamond(Math.cos(a) * r, Math.sin(a) * r * FY + y * f, 2.5, Math.floor(t * 8 + i) % 2 ? L[3] : L[2]); } },
   };
 });
+
+// ───────── advanced classes ─────────
+// j_<job>: the class's sign flashes on the floor under the hero as any of its cards is played, so every card of a
+// class carries the same mark: a hexagon opens, the sign is struck inside it, and a few motes lift off. Painted as
+// seen from above and pressed flat (FY), like every seal on the floor.
+const SIGIL = { // (p, C, a): the sign itself, round 0, 0, about 22 px across, in floor coordinates (y is pressed flat)
+  lordknight(p, C, a, T) { for (let i = 0; i < 3; i++) { const x = -12 + i * 9; p.poly([T(x, -10), T(x + 9, 0), T(x, 10), T(x + 4, 0)], C[i === 2 ? 4 : 3], a); } },
+  paladin(p, C, a, T) { for (let i = 0; i < 8; i++) { const an = (i / 8) * TAU, r0 = 9, r1 = i % 2 ? 15 : 19; p.poly([T(Math.cos(an - 0.18) * r0, Math.sin(an - 0.18) * r0), T(Math.cos(an) * r1, Math.sin(an) * r1), T(Math.cos(an + 0.18) * r0, Math.sin(an + 0.18) * r0)], C[4], a); } p.disc(0, 0, 8, C[4], a, FY); p.disc(0, 0, 5, C[5], a, FY); },
+  sorcerer(p, C, a, T) { const I = RAMP.ice; p.arc(0, 0, 13, Math.PI * 0.5, Math.PI * 1.5, 5, C[3], a, { sy: FY }); p.arc(0, 0, 13, -Math.PI * 0.5, Math.PI * 0.5, 5, I[3], a, { sy: FY }); p.diamond(-4, 0, 3, C[5], a); p.diamond(4, 0, 3, I[5], a); },
+  warlock(p, C, a, T) { p.disc(0, 0, 14, C[3], a, FY); p.disc(3, -1, 12, C[0], a, FY); p.poly([T(-16, 0), T(0, -7), T(16, 0), T(0, 7)], C[4], a * 0.9); p.disc(0, 0, 4, C[0], a, FY); },
+  marksman(p, C, a, T) { p.ring(0, 0, 13, 2, C[4], a, { sy: FY }); p.ring(0, 0, 5, 1.5, C[5], a, { sy: FY }); for (const [x, y] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) p.line(...T(x * 9, y * 9), ...T(x * 19, y * 19), C[4], a, 2); },
+  ranger(p, C, a, T) { p.poly([T(-18, 6), T(-4, -10), T(16, -8), T(2, 8)], C[3], a); p.line(...T(-18, 6), ...T(16, -8), C[5], a, 1); for (let i = 0; i < 4; i++) p.line(...T(-10 + i * 7, 2 - i * 3.5), ...T(-6 + i * 7, -6 - i * 2), C[1], a, 1); },
+  reaper(p, C, a, T) { p.arc(2, 0, 15, -2.4, 1.2, 5, C[4], a, { sy: FY, lead: 0.5 }); p.line(...T(-14, 12), ...T(8, -12), C[2], a, 2); },
+  venomancer(p, C, a, T) { p.poly([T(0, -16), T(9, 2), T(0, 10), T(-9, 2)], C[3], a); p.disc(0, 3, 8, C[3], a, FY); p.diamond(-2, -1, 2, C[5], a); for (const s of [-1, 1]) p.poly([T(s * 13, -8), T(s * 16, 6), T(s * 10, -4)], C[5], a); },
+  bishop(p, C, a, T) { p.poly([T(-3, -18), T(3, -18), T(3, 18), T(-3, 18)], C[4], a); p.poly([T(-14, -6), T(14, -6), T(14, 0), T(-14, 0)], C[4], a); p.diamond(0, -3 * FY, 2.5, C[5], a); },
+  monk(p, C, a, T) { p.disc(0, 0, 15, C[4], a, FY); p.arc(0, 0, 15, Math.PI * 0.5, Math.PI * 1.5, 15, C[1], a, { sy: FY }); p.disc(0, -7 * FY, 7.5, C[1], a, FY); p.disc(0, 7 * FY, 7.5, C[4], a, FY); p.disc(0, -7 * FY, 2.5, C[4], a, FY); p.disc(0, 7 * FY, 2.5, C[1], a, FY); },
+  engineer(p, C, a, T) { for (let i = 0; i < 8; i++) { const an = (i / 8) * TAU; p.poly([T(Math.cos(an - 0.2) * 11, Math.sin(an - 0.2) * 11), T(Math.cos(an - 0.13) * 17, Math.sin(an - 0.13) * 17), T(Math.cos(an + 0.13) * 17, Math.sin(an + 0.13) * 17), T(Math.cos(an + 0.2) * 11, Math.sin(an + 0.2) * 11)], C[3], a); } p.ring(0, 0, 9, 4, C[3], a, { sy: FY }); p.ring(0, 0, 4, 1.5, C[5], a, { sy: FY }); },
+  forgemaster(p, C, a) { const Y = -3; p.poly([[-15, Y - 6], [15, Y - 6], [9, Y - 1], [5, Y - 1], [7, Y + 6], [-7, Y + 6], [-5, Y - 1], [-11, Y - 1]], C[2], a); p.line(-15, Y - 6, 15, Y - 6, C[5], a, 1); p.glow(0, Y, 16, C[3], 0.8 * a); }, // (an anvil stands up: it is not pressed flat)
+};
+const JOB_RAMP = { lordknight: 'blood', paladin: 'holy', sorcerer: 'fire', warlock: 'shadow', marksman: 'earth', ranger: 'leaf', reaper: 'steel', venomancer: 'poison', bishop: 'holy', monk: 'ice', engineer: 'earth', forgemaster: 'fire' };
+for (const [job, rk] of Object.entries(JOB_RAMP)) fx(`j_${job}`, { w: 120, h: 80, ox: 60, oy: 44, dur: 0.8, px: 0.034 }, (k) => {
+  const C = RAMP[rk], R = k.R; const T = (x, y) => [x, y * FY];
+  k.at(0.18, () => { for (let i = 0; i < 8; i++) k.ps.spawn({ kind: 'mote', ramp: C, tone: 4, x: R.range(-20, 20), y: R.range(-5, 5), vy: -R.range(30, 60), life: R.range(0.35, 0.6), delay: R.range(0, 0.2) }); });
+  return (p, t) => {
+    const o = out(seg(t, 0, 0.18)), f = 1 - seg(t, 0.5, 0.8);
+    p.glow(0, 0, 40, C[3], 0.7 * f * o, FY);
+    p.ink = false; p.ring(0, 0, 28 * o, 2, C[4], f, { sy: FY, sides: 6, rot: 0.52 }); p.ring(0, 0, 33 * o, 1, C[3], f * 0.8, { sy: FY, sides: 6, rot: 0.52 }); p.ink = true;
+    if (t > 0.08) { p.ink = false; SIGIL[job](p, C, f, T); p.ink = true; }
+    flash(p, 0, 0, 7, t, 0.1, C); k.ps.draw(p);
+  };
+});
+
+// u_eclipse: a black sun with a burning purple rim, a corona of flares turning round it (the Warlock's last card)
+fx('u_eclipse', { w: 200, h: 200, ox: 100, oy: 100, dur: 2.4, fps: 12, px: 0.05 }, () => (p, t) => {
+  const C = RAMP.shadow, o = out(seg(t, 0, 0.5)), f = 1 - seg(t, 1.9, 2.4), r = 34 * o;
+  if (r < 1) return;
+  p.glow(0, 0, r * 2.6, C[3], 1.1 * f);
+  for (let i = 0; i < 14; i++) { const a = (i / 14) * TAU + t * 0.8 * (i % 2 ? 1 : -1), l = r * (1.35 + 0.35 * Math.sin(t * 6 + i * 1.7)); p.ink = false; p.line(Math.cos(a) * r, Math.sin(a) * r, Math.cos(a) * l, Math.sin(a) * l, C[i % 3 ? 3 : 4], f, 3, 1); p.ink = true; }
+  p.disc(0, 0, r + 3, C[4], f); p.disc(0, 0, r, INK, f); p.ink = false; p.arc(0, 0, r - 2, -2.6, -1.2, 2, C[2], f); p.ink = true;
+});
+// u_reticle: a sight closing on the target, turning a last notch, and locking with a white flash (One Shot)
+fx('u_reticle', { w: 140, h: 140, ox: 70, oy: 70, dur: 1.0, px: 0.034 }, () => (p, t) => {
+  const C = RAMP.blood, k = out(seg(t, 0, 0.6)), r = lerp(60, 18, k), rot = (1 - k) * 1.2, f = 1 - seg(t, 0.85, 1.0), lock = t > 0.6;
+  p.ink = false; p.ring(0, 0, r, 2, lock ? WHITE : C[3], f, { sides: 0 });
+  for (let i = 0; i < 4; i++) { const a = rot + (i / 4) * TAU; p.line(Math.cos(a) * (r - 6), Math.sin(a) * (r - 6), Math.cos(a) * (r + 12), Math.sin(a) * (r + 12), lock ? WHITE : C[4], f, 2); }
+  if (lock) { p.ring(0, 0, 6, 1.5, C[4], f); p.px(0, 0, WHITE); } p.ink = true; flash(p, 0, 0, 9, t, 0.6, C);
+});

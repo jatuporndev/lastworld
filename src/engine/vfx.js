@@ -301,7 +301,7 @@ export function fxPlan(card, monster = false, hostile = card.cat === 'attack') {
     const kind = P.mode === 'bolt' || card.icon === 'bolt' ? 'volt' : el !== 'neutral' ? el : HEAVY.has(P.main) || P.main === 'slam' || P.main === 'meteor' ? 'earth' : null;
     if (heavy && kind && SCAR[kind]) P.scar = SCAR[kind];
   }
-  P.sheets = [P.charge, P.main, P.proj, P.impact, P.extra, P.self, P.scar, P.scar && P.scar + '_g', P.n ? 'hit_spark' : null, ...(!monster && SIGN_SHEETS[card.id] || [])].filter(Boolean);
+  P.sheets = [P.charge, P.main, P.proj, P.impact, P.extra, P.self, P.scar, P.scar && P.scar + '_g', P.n ? 'hit_spark' : null, !monster && card.job ? 'j_' + card.job : null, ...(!monster && SIGN_SHEETS[card.id] || [])].filter(Boolean);
   return P;
 }
 // Every sheet a card could play (a "special" may be friendly or hostile), for loading before the fight.
@@ -337,8 +337,30 @@ const SIGN_SHEETS = {
   m_chain: ['zap'], m_flamewave: ['hit_fire'],
   r_eruption: ['blast', 'hit_fire'], r_sporebloom: ['spores', 'hit_poison'], m_earthquake: ['slam', 'hit_earth'], p_radiance: ['hit_holy'],
   s_shuriken: ['spin', 'flurry'], k_earthsplit: ['smash', 'hit_earth'], b_meteorhammer: ['fireball', 'smash', 'blast'],
+  lk_leap: ['slam', 'smash', 'hit_blunt', 'af_earth', 'af_earth_g'], lk_charge1000: ['thrust', 'hit_crit'],
+  pa_crusader: ['slash', 'slash2', 'hit_holy', 'st_vuln'], pa_judgment: ['holypillar', 'hit_holy', 'af_holy', 'af_holy_g'],
+  so_frostfire: ['firebolt', 'icelance', 'hit_fire', 'hit_ice'], so_cataclysm: ['meteor', 'icelance', 'hit_ice', 'frostnova', 'hit_fire', 'af_fire', 'af_fire_g', 'af_ice', 'af_ice_g'],
+  wl_doom: ['x_eye_holy', 'curse', 'hit_shadow'], wl_eclipse: ['u_eclipse', 'darkblast', 'hit_shadow', 'af_shadow', 'af_shadow_g'],
+  mk_breaker: ['arrow', 'sunder', 'shatter'], mk_oneshot: ['u_reticle', 'arrow', 'hit_crit', 'thrust'],
+  rg_dive: ['orb_wind', 'claw', 'mark'], rg_greathunt: ['orb_wind', 'claw', 'mark', 'af_wind', 'af_wind_g'],
+  rp_danse: ['spin', 'reap', 'hit_shadow'], rp_reaping: ['reap', 'hit_crit', 'af_shadow', 'af_shadow_g'],
+  vm_necrotic: ['spores', 'hit_poison'], vm_plague: ['spores', 'hit_poison', 'st_poison', 'af_poison', 'af_poison_g'],
+  bi_holyfire: ['hit_holy', 'af_holy', 'af_holy_g'], bi_miracle: ['heal_area', 'heal', 'revive'],
+  mo_sevenstar: ['hit_blunt', 'smash'], mo_hundredfists: ['hit_blunt', 'smash', 'slam'],
+  en_rockets: ['firebolt', 'blast', 'hit_fire', 'af_fire', 'af_fire_g'], en_artillery: ['fireball', 'blast', 'slam', 'hit_fire', 'af_fire', 'af_fire_g', 'af_earth', 'af_earth_g'],
+  fm_magma: ['creep_fire', 'hit_fire', 'af_fire', 'af_fire_g'], fm_worldforge: ['smash', 'hit_fire', 'blast', 'af_fire', 'af_fire_g', 'af_earth', 'af_earth_g'],
 };
 const beat = (ms) => tween(ms, () => {});
+// each advanced class's own colour (data/jobs.js), for its cards that have no element
+const JOBC = { lordknight: 0xb8343c, paladin: 0xe8c25a, sorcerer: 0xd8503a, warlock: 0x8a4ad0, marksman: 0x8a6a3a, ranger: 0x4a8a3a, reaper: 0xd8d0bc, venomancer: 0x7ac03a, bishop: 0xf0d890, monk: 0x5aa8d8, engineer: 0xc8a050, forgemaster: 0xff7a2a };
+// The board dims to k of its light and comes back (a last card). Effects are not tone-mapped, so they stay as bright.
+let duskN = 0, duskBase = null;
+function dusk(w, k, inMs, hold, outMs) { // (the lights go down with the exposure: exposure alone is softened by the tone curve)
+  const r = w.renderer; if (duskN++ === 0) duskBase = { e: r.toneMappingExposure, h: w.hemi.intensity, s: w.sun.intensity }; const B = duskBase;
+  const set = (m) => { r.toneMappingExposure = B.e * m; w.hemi.intensity = B.h * m; w.sun.intensity = B.s * m; };
+  tween(inMs, (e) => set(1 - (1 - k) * e)).then(() => beat(hold)).then(() => tween(outMs, (e) => set(k + (1 - k) * e)))
+    .then(() => { if (--duskN === 0) set(1); });
+}
 const sideways = (a, b) => { const v = V(-(b.z - a.z), 0, b.x - a.x); return v.lengthSq() > 1e-6 ? v.normalize() : V(1, 0, 0); };
 // A crystal or a rock that thrusts up out of the ground, stands a moment, and breaks up from the top.
 function spike(w, at, { color, h = 1, wd = 0.4, tilt = 0, up = 110, hold = 400, out = 200, add = false, bits = null } = {}) {
@@ -725,6 +747,331 @@ const SIGN = {
     for (let i = 0; i < 12; i++) after(200 + i * 110, () => { const q = g.clone().add(V(R(1), 0.1, R(0.6)));
       bit(w, 'bubble', q, { color: i % 3 ? color : pale(color), size: 0.08 + Math.random() * 0.1, life: 620, vel: V(R(0.2), 0.7 + Math.random() * 0.6, R(0.2)), add: false, grow: 0.5 }); });
   },
+
+  // ───────── advanced classes: each class's last card, and one card it is known for ─────────
+  // The last cards (ult) darken the board for a moment: the light of the effect itself stays full (it is not
+  // tone-mapped), so the blow stands out against a dimmed field, as a finishing move should.
+
+  // LORD KNIGHT · Dragoon Leap: a shadow tightens on the target hex; a lance of light drops out of the sky onto
+  // it, and the ground round it is thrown up in slabs.
+  async lk_leap(w, x) {
+    const { target, cells, targets } = x; const g = x.floor(target), lite = pale(JOBC.lordknight);
+    decal(w, 'circle', g, { color: 0x000000, size: 2.2, to: 0.5, ms: 440, opacity: 0.45, ease: Ease.inQuad, spin: 3 });
+    audio.sfx('wind'); await beat(320);
+    stroke(w, g.clone().add(V(-0.6, 8, 0.2)), g.clone().add(V(0, 0.2, 0)), { color: lite, wd: 0.8, ms: 220, name: 'pillar' });
+    await beat(80);
+    x.land('slam', target, { s: 1.15 }); x.land('smash', target, { s: 1.25 }); audio.sfx('smash'); w.shake(0.62, 400); w.flashCells(cells, JOBC.lordknight, 460);
+    decal(w, 'shock', g, { color: lite, size: 0.6, to: 3.4, ms: 380, opacity: 0.85, add: true });
+    for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; spike(w, g.clone().add(V(Math.cos(a) * 0.95, 0, Math.sin(a) * 0.7)), { color: i % 2 ? 0xa88458 : 0x8a6a48, h: 0.5 + Math.random() * 0.3, wd: 0.42, tilt: Math.cos(a) * 0.9, up: 80, hold: 380, bits: 0xb09870 }); }
+    targets.forEach((t) => x.land('hit_blunt', t, { s: 1 }));
+    scar(w, 'af_earth', g, 0.9);
+  },
+  // LORD KNIGHT · Thousand-Lance Charge (last card): the knight has already run the line; behind him a thousand
+  // lances of light strike down the path he took, one hex after another, and everyone on it is run through.
+  async lk_charge1000(w, x) {
+    const { feet, cells, targets } = x; const c0 = JOBC.lordknight, lite = pale(c0);
+    const path = cells.slice(0, 12).sort((a, b) => x.floor(b).distanceToSquared(feet) - x.floor(a).distanceToSquared(feet)); if (!path.length) return;
+    dusk(w, 0.5, 200, 700, 450); audio.sfx('roar');
+    const struck = new Set(targets.map((t) => t.q + ',' + t.r));
+    for (let i = 0; i < path.length; i++) { const c = path[i], g = x.floor(c);
+      after(i * 55, () => {
+        for (let k = 0; k < 3; k++) stroke(w, g.clone().add(V(R(1.2) - 0.9, 3.4 + k, R(0.6))), g.clone().add(V(R(0.4), 0.3, R(0.3))), { color: k ? c0 : 0xffffff, wd: 0.6, ms: 200, name: 'pillar' });
+        x.land('thrust', c, { s: 0.9 }); decal(w, 'shock', g, { color: lite, size: 0.3, to: 1.4, ms: 260, opacity: 0.85, add: true });
+        decal(w, 'crack', g, { color: 0x2a1410, size: 0.8, to: 1.2, ms: 1800, hold: 0.75, opacity: 0.8 });
+        w.flashCells([c], c0, 260); w.shake(0.1 + i * 0.02, 90);
+        if (struck.has(c.q + ',' + c.r)) { x.land('thrust', c, { s: 1.2 }); x.land('hit_crit', c, { s: 0.8 }); audio.sfx('slash'); }
+      });
+    }
+    await beat(path.length * 55 + 120);
+    for (let i = 0; i < path.length - 1; i++) stroke(w, x.chest(path[i]), x.chest(path[i + 1]), { color: c0, wd: 0.9, ms: 260, name: 'pillar' });
+    w.flashCells(path, c0, 460); w.shake(0.55, 380); audio.sfx('smash');
+    for (let i = 0; i < 14; i++) after(80 + i * 60, () => bit(w, 'smoke', x.floor(path[Math.floor(Math.random() * path.length)]).add(V(R(0.6), 0.2, R(0.4))), { color: 0xb09870, size: 0.5, life: 900, vel: V(R(0.4), 0.5, R(0.4)), add: false, opacity: 0.45 }));
+  },
+
+  // PALADIN · Crusader Strike: the blade comes down and across, and the two cuts leave a burning cross on the foe.
+  async pa_crusader(w, x) {
+    const { u, aim, target, targets } = x; const lite = pale(JOBC.paladin), mid = x.chest(target);
+    await w.strike(u.uid, aim, { heavy: true });
+    x.land('slash', target, { s: 1.2, rot: Math.PI / 2 }); audio.sfx('slash');
+    await beat(90); x.land('slash2', target, { s: 1.2 }); audio.sfx('holy'); w.shake(0.34, 240);
+    spr(w, 'cross', mid, { color: lite, size: 0.6, to: 1.6, ms: 620, add: true, hold: 0.45 });
+    spr(w, 'cross', mid, { color: 0xffffff, size: 0.3, to: 0.9, ms: 380, add: true, hold: 0.3 });
+    x.land('hit_holy', target, { s: 0.8 }); targets.forEach((t) => x.land('st_vuln', t, { s: 1 }));
+    for (let i = 0; i < 10; i++) bit(w, 'spark', mid.clone().add(V(R(0.4), R(0.6), R(0.3))), { color: i % 2 ? lite : 0xffffff, size: 0.08, life: 520, vel: V(R(2), 0.8 + Math.random() * 1.6, R(2)), gravity: 3 });
+  },
+  // PALADIN · Judgment of Heaven (last card): the board darkens and a ring of the sun turns over the place; a
+  // pillar of light comes down on every hex of it, ring by ring inward, and the last and greatest on the middle.
+  async pa_judgment(w, x) {
+    const { target, cells, targets, color } = x; const g = x.floor(target), lite = pale(color);
+    dusk(w, 0.45, 260, 900, 500); audio.sfx('holy');
+    decal(w, 'circle', g, { color: lite, size: 0.8, to: 3.4, ms: 1400, opacity: 0.85, add: true, spin: 1.5, hold: 0.7 });
+    const order = cells.slice(0, 19).sort((a, b) => x.floor(b).distanceToSquared(g) - x.floor(a).distanceToSquared(g));
+    order.forEach((c, i) => after(200 + i * 45, () => { const q = x.floor(c);
+      spr(w, 'pillar', q.clone().add(V(0, 2.4, 0)), { color: lite, size: 0.18, to: 0.28, sy: 13, ms: 420, add: true, hold: 0.35, opacity: 0.85 });
+      decal(w, 'shock', q, { color: lite, size: 0.3, to: 1.1, ms: 260, opacity: 0.8, add: true }); }));
+    await beat(200 + order.length * 45 + 80);
+    x.land('holypillar', target, { s: 1.3 }); spr(w, 'pillar', g.clone().add(V(0, 3, 0)), { color: 0xffffff, size: 0.35, to: 0.6, sy: 12, ms: 700, add: true, hold: 0.4 });
+    audio.sfx('explosion'); w.shake(0.6, 420); w.flashCells(cells, 0xffffff, 520);
+    decal(w, 'shock', g, { color: 0xfff4c0, size: 0.8, to: 5.5, ms: 480, opacity: 0.9, add: true });
+    targets.forEach((t) => x.land('hit_holy', t, { s: 1 }));
+    scar(w, 'af_holy', g, 1.2);
+    for (let i = 0; i < 20; i++) after(100 + i * 60, () => bit(w, 'spark', x.floor(cells[Math.floor(Math.random() * cells.length)]).add(V(R(0.6), 0.2, R(0.4))), { color: i % 2 ? lite : 0xffffff, size: 0.07, life: 900, vel: V(R(0.2), 1 + Math.random(), R(0.2)), gravity: -0.3 }));
+  },
+
+  // SORCERER · Frostfire Bolt: a bolt of fire and a lance of ice wind round each other on the way, and burst
+  // together into steam.
+  async so_frostfire(w, x) {
+    const { from, aim, target } = x; const side = sideways(from, aim).multiplyScalar(0.35);
+    audio.sfx('fire');
+    const a = fly(w, 'firebolt', from.clone().add(side), aim, { arc: 0.9, trail: 0xff8a2a }); after(40, () => audio.sfx('ice'));
+    const b = fly(w, 'icelance', from.clone().sub(side), aim, { arc: 0.25, trail: 0x8fe0ff });
+    await Promise.all([a, b]);
+    x.land('hit_fire', target, { s: 1 }); x.land('hit_ice', target, { s: 1 }); w.shake(0.3, 220);
+    for (let i = 0; i < 10; i++) bit(w, 'smoke', aim.clone().add(V(R(0.4), R(0.3), R(0.3))), { color: 0xf4f0ff, size: 0.45, life: 900, vel: V(R(1), 0.8 + Math.random(), R(1)), add: false, opacity: 0.6, grow: 1 });
+  },
+  // SORCERER · Cataclysm (last card): two skies fall at once. A burning star comes down on the middle while ice
+  // lances rain on the ring round it; they meet in a blast of steam.
+  async so_cataclysm(w, x) {
+    const { target, cells, targets } = x; const g = x.floor(target);
+    dusk(w, 0.5, 260, 1100, 500); audio.sfx('fire');
+    x.land('meteor', target, { s: 1.35 });
+    const ring = cells.filter((c) => x.floor(c).distanceToSquared(g) > 0.1).slice(0, 12);
+    ring.forEach((c, i) => after(120 + i * 50, () => { const q = x.chest(c);
+      fly(w, 'icelance', q.clone().add(V(1.2, 6, -0.4)), q, { ms: 260, trail: 0x8fe0ff }).then(() => { x.land('hit_ice', c, { s: 0.8 }); if (i % 3 === 0) audio.sfx('ice'); }); }));
+    await beat(hitMs('meteor'));
+    x.land('frostnova', target, { s: 1.2 }); audio.sfx('explosion'); w.shake(0.7, 480); w.flashCells(cells, 0xffffff, 520);
+    targets.forEach((t) => { x.land('hit_fire', t, { s: 0.9 }); x.land('hit_ice', t, { s: 0.7 }); });
+    scar(w, 'af_fire', g, 1.1); if (ring[2]) scar(w, 'af_ice', x.floor(ring[2]), 0.7);
+    for (let i = 0; i < 16; i++) after(150 + i * 70, () => bit(w, 'smoke', x.floor(cells[Math.floor(Math.random() * cells.length)]).add(V(R(0.7), 0.3, R(0.5))), { color: 0xeef0ff, size: 0.6, life: 1200, vel: V(R(0.4), 0.7, R(0.4)), add: false, opacity: 0.5, grow: 1 }));
+  },
+
+  // WARLOCK · Doom: hands of shadow close round the foe out of the ground, a sign of doom opens over its head.
+  async wl_doom(w, x) {
+    const { target, targets, color } = x; const g = x.floor(target), mid = x.chest(target);
+    dusk(w, 0.7, 180, 400, 400); audio.sfx('shadow');
+    decal(w, 'circle', g, { color, size: 1.8, to: 0.9, ms: 700, opacity: 0.8, spin: -3, hold: 0.6 });
+    for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; after(i * 50, () => spike(w, g.clone().add(V(Math.cos(a) * 0.75, 0, Math.sin(a) * 0.5)), { color: 0x2a1640, h: 0.9 + Math.random() * 0.3, wd: 0.3, tilt: -Math.cos(a) * 0.8, up: 160, hold: 420, bits: color })); }
+    await beat(330);
+    play(w, 'x_eye_holy', mid.clone().add(V(0, 1.1, 0)), { s: 1.1 }); x.land('curse', target, { s: 1 });
+    targets.forEach((t) => x.land('hit_shadow', t, { s: 0.9 })); w.shake(0.3, 240);
+  },
+  // WARLOCK · Eclipse (last card): the board goes dark; a black sun rises over the warlock; it pours its dark down
+  // on every foe round him, and draws their life back up into him.
+  async wl_eclipse(w, x) {
+    const { u, from, feet, cells, targets, color } = x; const sun = from.clone().add(V(0, 2.2, 0)); const lite = pale(color);
+    dusk(w, 0.32, 320, 1300, 600); audio.sfx('shadow');
+    play(w, 'u_eclipse', sun, { s: 0.55, order: 34 });
+    await beat(560);
+    targets.forEach((t, i) => after(i * 70, () => { const p = w.unitPos(t.uid, 0.6);
+      stroke(w, sun, p, { color, wd: 0.6, ms: 300, name: 'pillar' }); x.land('darkblast', t, { s: 0.7 }); x.land('hit_shadow', t, { s: 1 });
+      for (let k = 0; k < 4; k++) after(260 + k * 60, () => shot(w, p.clone().add(V(R(0.4), R(0.4), 0)), from, lite, { name: 'spark', size: 0.25, arc: 0.6, ms: 420 })); }));
+    x.land('darkblast', u, { s: 1.2 }); audio.sfx('explosion'); w.shake(0.55, 420); w.flashCells(cells, color, 520);
+    scar(w, 'af_shadow', feet, 1.4);
+    await beat(Math.min(400, targets.length * 70) + 120);
+  },
+
+  // MARKSMAN · Armor Breaker: a heavy bolt; the guard on the foe bursts apart like a shell.
+  async mk_breaker(w, x) {
+    const { from, aim, target } = x;
+    audio.sfx('arrow'); await fly(w, 'arrow', from, aim, { s: 1.3, arc: 0.2, trail: 0xdcdad8, ms: 220 });
+    x.land('sunder', target, { s: 1.1 }); x.land('shatter', target, { s: 1 }); audio.sfx('smash'); w.shake(0.4, 260);
+    for (let i = 0; i < 12; i++) bit(w, 'shard', aim.clone(), { color: i % 2 ? 0xdcdad8 : 0x8a8490, size: 0.12 + Math.random() * 0.1, life: 640, vel: V(R(5), 1 + Math.random() * 3, R(3)), gravity: 10, spin: R(12), add: false });
+  },
+  // MARKSMAN · One Shot (last card): the board dims and time slows; a sight closes on the target and locks;
+  // then one shot, too fast to follow, a white line from the bow to the heart.
+  async mk_oneshot(w, x) {
+    const { from, aim, target, cells } = x;
+    dusk(w, 0.35, 200, 900, 400);
+    play(w, 'u_reticle', aim, { s: 1.2, order: 35 }); audio.sfx('dice');
+    await beat(640); audio.sfx('arrow');
+    stroke(w, from, aim, { color: 0xffffff, wd: 0.22, ms: 260, name: 'pillar' });
+    await fly(w, 'arrow', from, aim, { s: 1.2, ms: 110 });
+    x.land('hit_crit', target, { s: 1.4 }); x.land('thrust', target, { s: 1.2 }); w.hitStop(120);
+    audio.sfx('crit'); w.shake(0.6, 380); w.flashCells(cells, 0xffffff, 300);
+    spr(w, 'shock', aim, { color: 0xffffff, size: 0.4, to: 3, ms: 320, add: true });
+  },
+
+  // RANGER · Hawk Dive: the hawk falls on the foe out of the sun, all claws, and goes up again in a spray of feathers.
+  async rg_dive(w, x) {
+    const { aim, target, color } = x; const top = aim.clone().add(V(-2.2, 5.5, 0.6));
+    audio.sfx('wind'); await fly(w, 'orb_wind', top, aim, { s: 1.2, ms: 300, trail: color });
+    x.land('claw', target, { s: 1.2 }); x.land('mark', target, { s: 0.9 }); audio.sfx('slash'); w.shake(0.3, 220);
+    for (let i = 0; i < 10; i++) bit(w, 'shard', aim.clone(), { color: i % 2 ? 0xf4ecd8 : 0x8a6a48, size: 0.16, life: 900, vel: V(R(2.5), 1 + Math.random() * 2, R(2)), gravity: 2, spin: R(8), add: false });
+    fly(w, 'orb_wind', aim, aim.clone().add(V(2.4, 5, -0.4)), { s: 0.9, ms: 320 });
+  },
+  // RANGER · The Great Hunt (last card): the hunter whistles, and a spirit hawk goes out to every quarry at once;
+  // roots break out of the ground and hold each one where it was struck.
+  async rg_greathunt(w, x) {
+    const { from, feet, targets, cells, color } = x; const lite = pale(color);
+    dusk(w, 0.55, 220, 800, 450); audio.sfx('roar');
+    decal(w, 'circle', feet, { color: lite, size: 0.8, to: 4, ms: 600, opacity: 0.7, add: true, spin: 2 });
+    const hits = targets.map((t, i) => after(i * 60, () => { const p = w.unitPos(t.uid, 0.6);
+      return fly(w, 'orb_wind', from.clone().add(V(0, 1.4, 0)), p, { arc: 1.4, ms: 380, trail: color }).then(() => {
+        x.land('claw', t, { s: 1 }); x.land('mark', t, { s: 0.8 }); audio.sfx('slash');
+        const g = w.unitPos(t.uid, 0.02); for (let k = 0; k < 4; k++) { const a = (k / 4) * Math.PI * 2; spike(w, g.clone().add(V(Math.cos(a) * 0.45, 0, Math.sin(a) * 0.3)), { color: 0x4f9434, h: 0.6, wd: 0.22, tilt: -Math.cos(a) * 0.7, up: 120, hold: 600 }); } }); }));
+    await Promise.all(hits); w.shake(0.45, 320); w.flashCells(cells, color, 420);
+    scar(w, 'af_wind', feet, 1.4);
+  },
+
+  // REAPER · Danse Macabre: the reaper turns twice; each turn of the blade reaps every foe round it, and their
+  // blood runs back to him.
+  async rp_danse(w, x) {
+    const { u, from, targets } = x;
+    for (let k = 0; k < 2; k++) { x.land('spin', u, { s: x.sc * 1.1 }); audio.sfx('slash');
+      targets.forEach((t, i) => after(80 + i * 30, () => { x.land('reap', t, { s: 1, flipX: k === 1 }); x.land('hit_shadow', t, { s: 0.6 }); }));
+      await beat(260); }
+    w.shake(0.4, 280);
+    targets.forEach((t) => { const p = w.unitPos(t.uid, 0.6); for (let k = 0; k < 3; k++) after(k * 70, () => shot(w, p, from, 0xc02a2a, { name: 'spark', size: 0.22, arc: 0.5, ms: 380 })); });
+  },
+  // REAPER · The Reaping (last card): the board dims; a scythe of bone light sweeps one whole circle round the
+  // reaper, cutting every foe in turn, and their souls fly to him.
+  async rp_reaping(w, x) {
+    const { from, feet, cells, targets } = x; const bone = 0xf0e8d8;
+    dusk(w, 0.4, 240, 900, 500); audio.sfx('shadow');
+    spr(w, 'slash', from, { color: bone, size: 2.2, to: 3.4, ms: 560, spin: Math.PI * 2, add: true, hold: 0.5 });
+    decal(w, 'swirl', feet, { color: 0x5c2ea0, size: 1, to: 4.2, ms: 700, opacity: 0.8, spin: -6 });
+    const ang = (t) => { const g = w.unitPos(t.uid, 0); return Math.atan2(g.z - feet.z, g.x - feet.x); };
+    const order = [...targets].sort((a, b) => ang(a) - ang(b));
+    order.forEach((t, i) => after(80 + (i / Math.max(1, order.length)) * 460, () => { x.land('reap', t, { s: 1.2 }); x.land('hit_crit', t, { s: 0.7 }); audio.sfx('slash'); w.shake(0.14, 100);
+      const p = w.unitPos(t.uid, 0.7); after(240, () => shot(w, p, from.clone().add(V(0, 0.4, 0)), 0x9be0ff, { name: 'spark', size: 0.32, arc: 1.2, ms: 520 })); }));
+    await beat(580); w.shake(0.5, 360); w.flashCells(cells, bone, 420);
+    scar(w, 'af_shadow', feet, 1.4);
+  },
+
+  // VENOMANCER · Death Blossom: poison petals open out of the ground round the venomancer and snap shut on
+  // everyone near.
+  async vm_necrotic(w, x) {
+    const { u, feet, targets, color } = x; const lite = pale(color);
+    audio.sfx('poison');
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; spike(w, feet.clone().add(V(Math.cos(a) * 0.35, 0, Math.sin(a) * 0.25)), { color: i % 2 ? 0xd9488f : 0x7ac03a, h: 1, wd: 0.5, tilt: Math.cos(a) * 1.1, up: 180, hold: 260, out: 160 }); }
+    await beat(320);
+    x.land('spores', u, { s: 1 }); targets.forEach((t) => x.land('hit_poison', t, { s: 1 })); w.shake(0.32, 240); audio.sfx('poison');
+    for (let i = 0; i < 12; i++) after(i * 60, () => bit(w, 'bubble', feet.clone().add(V(R(1.6), 0.2, R(1))), { color: i % 2 ? color : lite, size: 0.1, life: 700, vel: V(0, 0.8, 0), add: false, grow: 0.5 }));
+  },
+  // VENOMANCER · Plague (last card): a green dark falls over the board; the cloud rolls out from the venomancer
+  // ring by ring, and every foe it reaches chokes in it.
+  async vm_plague(w, x) {
+    const { u, feet, cells, targets, color } = x; const lite = pale(color);
+    dusk(w, 0.5, 240, 1000, 500); audio.sfx('poison');
+    const order = cells.slice(0, 40).map((c) => ({ c, g: x.floor(c) })).sort((a, b) => a.g.distanceToSquared(feet) - b.g.distanceToSquared(feet));
+    order.forEach(({ g }, i) => after(i * 18, () => { spr(w, 'smoke', g.clone().add(V(0, 0.5, 0)), { color: i % 2 ? color : 0x4a7a1a, size: 0.5, to: 1.6, ms: 900, hold: 0.5, opacity: 0.75 });
+      if (i % 3 === 0) bit(w, 'bubble', g.clone().add(V(R(0.4), 0.2, R(0.3))), { color: lite, size: 0.1, life: 700, vel: V(0, 0.8, 0), add: false, grow: 0.5 }); }));
+    x.land('spores', u, { s: 1.3 });
+    await beat(Math.min(600, order.length * 18) + 100);
+    targets.forEach((t) => { x.land('hit_poison', t, { s: 1.1 }); x.land('st_poison', t, { s: 1 }); }); audio.sfx('poison'); w.shake(0.4, 300); w.flashCells(cells, color, 520);
+    scar(w, 'af_poison', feet, 1.4); targets.slice(0, 2).forEach((t) => scar(w, 'af_poison', w.unitPos(t.uid, 0.02), 0.7));
+  },
+
+  // BISHOP · Holy Fire: white fire falls on each hex like rain, and burns gold where it lands.
+  async bi_holyfire(w, x) {
+    const { target, cells, targets, color } = x; const lite = pale(color); const g = x.floor(target);
+    audio.sfx('holy');
+    cells.slice(0, 12).forEach((c, i) => after(i * 60, () => { const q = x.floor(c);
+      stroke(w, q.clone().add(V(-0.4, 5, 0)), q.clone().add(V(0, 0.2, 0)), { color: lite, wd: 0.4, ms: 180, name: 'pillar' });
+      after(120, () => { spr(w, 'flame', q.clone().add(V(0, 0.5, 0)), { color: 0xffe27a, size: 0.5, to: 1, sy: 1.6, ms: 520, add: true, rise: 0.5, hold: 0.4 }); w.flashCells([c], color, 260); }); }));
+    await beat(Math.min(12, cells.length) * 60 + 160);
+    targets.forEach((t) => x.land('hit_holy', t, { s: 0.9 })); audio.sfx('fire'); w.shake(0.3, 240);
+    scar(w, 'af_holy', g, 0.9);
+  },
+  // BISHOP · Miracle (last card): the light comes down on the whole party at once: a great ring opens under the
+  // bishop, every friend stands in a column of light, and feathers drift down after it.
+  async bi_miracle(w, x) {
+    const { u, feet, cells, targets, color } = x; const lite = pale(color);
+    dusk(w, 0.6, 200, 700, 500); audio.sfx('holy');
+    decal(w, 'circle', feet, { color: lite, size: 1, to: 5, ms: 1200, opacity: 0.9, add: true, spin: 1.2, hold: 0.6 });
+    x.land('heal_area', u, { s: 1.4 });
+    const friends = (targets.length ? targets : [u]).filter((t) => w.units.has(t.uid)); // (one still down has no figure yet)
+    friends.forEach((t, i) => after(150 + i * 80, () => { const g = w.unitPos(t.uid, 0.02);
+      spr(w, 'pillar', g.clone().add(V(0, 2.2, 0)), { color: lite, size: 0.6, to: 0.9, sy: 5, ms: 900, add: true, hold: 0.55, opacity: 0.85 });
+      play(w, t.alive === false ? 'revive' : 'heal', g, { s: 1 }); }));
+    await beat(150 + friends.length * 80 + 300); audio.sfx('heal'); w.flashCells(cells, lite, 520);
+    for (let i = 0; i < 22; i++) after(i * 70, () => bit(w, 'shard', feet.clone().add(V(R(4), 3 + Math.random() * 1.5, R(2.5))), { color: i % 3 ? 0xffffff : 0xffe27a, size: 0.14, life: 1600, vel: V(R(0.4), -1.2, R(0.3)), spin: R(4), add: false }));
+  },
+
+  // MONK · Seven-Star Strike: seven blows land in the shape of the seven stars, and the stars light up one by one
+  // and join into the figure.
+  async mo_sevenstar(w, x) {
+    const { u, aim, target } = x; const mid = x.chest(target), lite = pale(JOBC.monk);
+    const st = [[-0.7, 0.55], [-0.35, 0.45], [-0.05, 0.3], [0.25, 0.15], [0.3, -0.25], [0.75, -0.3], [0.75, 0.1]].map(([a, b]) => mid.clone().add(screenDir(w, 0, a * 1.4)).add(V(0, b * 1.4, 0)));
+    await w.strike(u.uid, aim, { heavy: false });
+    for (let i = 0; i < st.length; i++) { const p = st[i];
+      play(w, 'hit_blunt', p, { s: 0.7 }); spr(w, 'spark', p, { color: 0xffffff, size: 0.2, to: 0.7, ms: 900, add: true, hold: 0.7 });
+      if (i) stroke(w, st[i - 1], p, { color: lite, wd: 0.12, ms: 900, name: 'pillar' });
+      audio.sfx(i % 2 ? 'hit' : 'slash'); w.shake(0.1, 70); await beat(70); }
+    x.land('smash', target, { s: 1 }); w.shake(0.4, 280);
+  },
+  // MONK · Hundred Fists (last card): the board dims; fists of light rain on the foe faster than they can be
+  // counted, and the last one throws it back.
+  async mo_hundredfists(w, x) {
+    const { u, aim, target, cells } = x; const lite = pale(JOBC.monk);
+    dusk(w, 0.5, 160, 900, 400);
+    await w.strike(u.uid, aim, { heavy: false });
+    for (let i = 0; i < 18; i++) { const p = aim.clone().add(screenDir(w, 0, R(1.1))).add(V(0, R(1), 0));
+      play(w, 'hit_blunt', p, { s: 0.5 + Math.random() * 0.3, order: 35 });
+      bit(w, 'shard', p, { color: i % 2 ? lite : 0xffffff, size: 0.5, life: 140, rot: screenAngle(w, x.from, aim), opacity: 0.8 });
+      if (i % 3 === 0) audio.sfx('hit'); w.shake(0.08, 50); await beat(32); }
+    x.land('smash', target, { s: 1.3 }); x.land('slam', target, { s: 0.9 }); audio.sfx('smash'); w.shake(0.6, 380); w.flashCells(cells, lite, 360);
+    spr(w, 'shock', aim, { color: lite, size: 0.4, to: 3, ms: 320, add: true });
+  },
+
+  // ENGINEER · Rocket Barrage: a rack of rockets goes up in a fan and comes down on the area one after another.
+  async en_rockets(w, x) {
+    const { from, target, cells, targets } = x; const g = x.floor(target);
+    const order = cells.slice(0, 7);
+    audio.sfx('bolt');
+    const all = order.map((c, i) => after(i * 70, () => fly(w, 'firebolt', from.clone().add(V(0, 0.5, 0)), x.chest(c), { arc: 2.6 + (i % 3) * 0.4, ms: 420, trail: 0xaaaaaa }).then(() => {
+      x.land('blast', c, { s: 0.55 }); w.shake(0.16, 110); if (i % 2 === 0) audio.sfx('explosion'); })));
+    await Promise.all(all);
+    targets.forEach((t) => x.land('hit_fire', t, { s: 0.8 })); w.flashCells(cells, 0xff8a2a, 420);
+    scar(w, 'af_fire', g, 0.9);
+  },
+  // ENGINEER · Artillery Barrage (last card): red marks blink on every hex of the area; then the shells come down
+  // out of the sky on them, one after another, and the last on the middle is the biggest.
+  async en_artillery(w, x) {
+    const { target, cells, targets } = x; const g = x.floor(target);
+    dusk(w, 0.5, 220, 1300, 500); audio.sfx('dice');
+    const order = cells.slice(0, 19).sort(() => Math.random() - 0.5);
+    order.forEach((c) => decal(w, 'circle', x.floor(c), { color: 0xff3020, size: 0.9, to: 0.7, ms: 700, opacity: 0.8, add: true, hold: 0.8 }));
+    await beat(520);
+    for (let i = 0; i < order.length; i++) { const c = order[i], q = x.chest(c);
+      fly(w, 'fireball', q.clone().add(V(-1, 7, -0.5)), q, { ms: 220, s: 0.8 }).then(() => { x.land('blast', c, { s: 0.6 }); w.shake(0.2, 120); if (i % 2 === 0) audio.sfx('explosion'); });
+      await beat(45); }
+    await beat(230);
+    x.land('blast', target, { s: 1.4 }); x.land('slam', target, { s: 1 }); audio.sfx('explosion'); w.shake(0.75, 500); w.flashCells(cells, 0xffffff, 420);
+    targets.forEach((t) => x.land('hit_fire', t, { s: 1 }));
+    scar(w, 'af_fire', g, 1.2); if (order[3]) scar(w, 'af_earth', x.floor(order[3]), 0.7);
+  },
+
+  // FORGEMASTER · Magma Pool: the ground under the place splits and glows; molten rock wells up out of every
+  // hex of it and spits.
+  async fm_magma(w, x) {
+    const { target, cells, targets, color } = x; const g = x.floor(target);
+    audio.sfx('earth'); w.shake(0.2, 200);
+    decal(w, 'crack', g, { color: 0xff8a2a, size: 0.8, to: 2.6, ms: 600, hold: 0.85, opacity: 0.95, add: true });
+    await beat(260);
+    cells.slice(0, 7).forEach((c, i) => after(i * 40, () => { const q = x.floor(c);
+      x.land('creep_fire', c, { s: 0.9 });
+      for (let k = 0; k < 3; k++) bit(w, 'rock', q.clone().add(V(R(0.5), 0.2, R(0.4))), { color: k ? color : 0xffe9a0, size: 0.12, life: 700, vel: V(R(1.4), 2 + Math.random() * 2, R(1.4)), gravity: 9, add: false }); }));
+    audio.sfx('burn'); targets.forEach((t) => x.land('hit_fire', t, { s: 1 })); w.flashCells(cells, color, 480);
+    scar(w, 'af_fire', g, 0.9);
+  },
+  // FORGEMASTER · Worldforge Slam (last card): the forgemaster brings the hammer down and the world splits along
+  // the line: a fissure runs out from the blow, fire stands up out of it hex by hex, and ends in a great burst.
+  async fm_worldforge(w, x) {
+    const { u, feet, cells, targets, color } = x;
+    const path = cells.slice(0, 12).sort((a, b) => x.floor(a).distanceToSquared(feet) - x.floor(b).distanceToSquared(feet)); if (!path.length) return;
+    dusk(w, 0.5, 200, 1000, 500);
+    x.land('smash', u, { s: 1.3 }); audio.sfx('smash'); w.shake(0.5, 300);
+    const struck = new Set(targets.map((t) => t.q + ',' + t.r));
+    for (let i = 0; i < path.length; i++) { const c = path[i], g = x.floor(c);
+      decal(w, 'crack', g, { color: 0xff7a2a, size: 0.9, to: 1.3, ms: 1600, hold: 0.7, opacity: 0.95, add: true });
+      spr(w, 'pillar', g.clone().add(V(0, 1.2, 0)), { color, size: 0.5, to: 0.8, sy: 3, ms: 520, add: true, hold: 0.4 });
+      spike(w, g.clone().add(V(R(0.3), 0, R(0.2))), { color: 0x6a4426, h: 0.6, wd: 0.45, tilt: R(1), up: 80, hold: 360, bits: color });
+      if (struck.has(c.q + ',' + c.r)) { x.land('hit_fire', c, { s: 1 }); audio.sfx('burn'); }
+      w.shake(0.14, 90); await beat(60); }
+    const end = path[path.length - 1]; x.land('blast', end, { s: 1.2 }); audio.sfx('explosion'); w.shake(0.7, 480); w.flashCells(path, color, 520);
+    [0, Math.floor(path.length / 2), path.length - 1].forEach((i, k) => scar(w, k === 1 ? 'af_earth' : 'af_fire', x.floor(path[i]), 0.6));
+  },
 };
 
 export async function castVfx(w, d) {
@@ -753,6 +1100,8 @@ export async function castVfx(w, d) {
   } else if (P.mode === 'shot' && aim) { await w.gather(u.uid, 130, aim); w.release(u.uid, aim); } // an arrow or a thrown blade is drawn back first, too
 
   if (P.self) play(w, P.self, feet, { s: sc, order: 34 });
+  if (!d.monster && card.job) play(w, 'j_' + card.job, feet, { s: sc, order: 9 }); // the class's sign under the hero, on every card of it
+  if (!d.monster && SIGN[card.id] && (aim || card.tg === 'self') && P.mode === 'support') { await SIGN[card.id](w, { u, card, cells, targets, target: target || u, from, feet, aim, color, sc, chest, floor, land }); return; } // a helpful card with a staging of its own
   if (P.mode === 'support') { supportFx(w, d, P, sc); await tween(P.main === 'build' ? 1200 : 200, () => {}); return; } // (what is built stands there only when the frame round it comes down)
   if (!d.monster && SIGN[card.id] && (aim || card.tg === 'self')) { await SIGN[card.id](w, { u, card, cells, targets, target: target || u, from, feet, aim, color, sc, chest, floor, land }); return; } // a spell with a staging of its own
 

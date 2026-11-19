@@ -299,5 +299,19 @@ export const SHEETS = {
   "af_arcane_g": {"w":90,"h":90,"cols":7,"rows":7,"n":46,"fps":10,"ox":45,"oy":45,"px":0.042},
   "af_arcane": {"w":91,"h":57,"cols":5,"rows":10,"n":46,"fps":10,"ox":46,"oy":38,"px":0.042},
   "af_wind_g": {"w":104,"h":104,"cols":7,"rows":7,"n":46,"fps":10,"ox":52,"oy":52,"px":0.042},
-  "af_wind": {"w":96,"h":72,"cols":6,"rows":8,"n":46,"fps":10,"ox":48,"oy":51,"px":0.042}
+  "af_wind": {"w":96,"h":72,"cols":6,"rows":8,"n":46,"fps":10,"ox":48,"oy":51,"px":0.042},
+  "j_lordknight": {"w":58,"h":40,"cols":3,"rows":4,"n":12,"fps":15,"ox":29,"oy":24,"px":0.034},
+  "j_paladin": {"w":58,"h":43,"cols":3,"rows":4,"n":12,"fps":15,"ox":29,"oy":27,"px":0.034},
+  "j_sorcerer": {"w":58,"h":47,"cols":3,"rows":4,"n":12,"fps":15,"ox":29,"oy":31,"px":0.034},
+  "j_warlock": {"w":58,"h":43,"cols":3,"rows":4,"n":12,"fps":15,"ox":29,"oy":27,"px":0.034},
+  "j_marksman": {"w":58,"h":36,"cols":3,"rows":4,"n":12,"fps":15,"ox":29,"oy":20,"px":0.034},
+  "j_ranger": {"w":58,"h":37,"cols":3,"rows":4,"n":12,"fps":15,"ox":29,"oy":21,"px":0.034},
+  "j_reaper": {"w":58,"h":43,"cols":3,"rows":4,"n":12,"fps":15,"ox":29,"oy":27,"px":0.034},
+  "j_venomancer": {"w":58,"h":42,"cols":3,"rows":4,"n":12,"fps":15,"ox":29,"oy":26,"px":0.034},
+  "j_bishop": {"w":58,"h":38,"cols":3,"rows":4,"n":12,"fps":15,"ox":29,"oy":22,"px":0.034},
+  "j_monk": {"w":58,"h":45,"cols":3,"rows":4,"n":12,"fps":15,"ox":29,"oy":29,"px":0.034},
+  "j_engineer": {"w":58,"h":42,"cols":3,"rows":4,"n":12,"fps":15,"ox":29,"oy":26,"px":0.034},
+  "j_forgemaster": {"w":58,"h":46,"cols":3,"rows":4,"n":12,"fps":15,"ox":29,"oy":30,"px":0.034},
+  "u_eclipse": {"w":120,"h":120,"cols":5,"rows":6,"n":29,"fps":12,"ox":60,"oy":60,"px":0.05},
+  "u_reticle": {"w":136,"h":136,"cols":4,"rows":4,"n":15,"fps":15,"ox":68,"oy":68,"px":0.034}
 };
