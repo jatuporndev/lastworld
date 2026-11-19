@@ -687,6 +687,20 @@ export function cardArt(id) {
   url = cv.toDataURL('image/jpeg', 0.86); cache.set(id, url); return url;
 }
 
+// ───── a skill-tree token ─────
+// The round picture on a node of a hero's skill tree: one of the card painters, cropped close around its subject at
+// (300, 300) and given the same finish. Painted once per node, then reused.
+export function nodeArt(pic, pal, id) {
+  const key = 'node:' + id + ':' + pic + ':' + pal; let url = cache.get(key); if (url) return url;
+  const s = 112, k = s / 470;
+  const cv = document.createElement('canvas'); cv.width = s; cv.height = s; const c = cv.getContext('2d', { willReadFrequently: true });
+  const P = PAL[pal] || PAL.special; const R = seeded(hash(key));
+  c.save(); c.translate(s / 2, s / 2); c.scale(k, k); c.translate(-300, -300);
+  backdrop(c, P, R); (PIC[pic] || PIC.star)(c, P, R, { icon: pic, shape: 'single', el: pal });
+  c.restore(); finish(c, s, s);
+  url = cv.toDataURL('image/jpeg', 0.86); cache.set(key, url); return url;
+}
+
 // ───── a monster's move ─────
 // The small card on a monster's slip: the same painters and finish as a skill card, on a wide strip with the
 // subject at the left and dark ground to the right for the words. Chosen by the kind of move, coloured by the

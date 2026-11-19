@@ -3,42 +3,42 @@ import { JOBS, JOB_LEVEL } from './jobs.js';
 
 export const CLASSES = {
   knight: {
-    name: 'Knight', title: 'Bulwark of the Dawn', role: 'Tank / Melee', element: 'holy', move: 3,
+    name: 'Knight', title: 'Bulwark of the Dawn', role: 'Tank / Melee', branches: ['Bulwark', 'Valor', 'Oath'], element: 'holy', move: 3,
     base: { str: 8, agi: 4, vit: 9, int: 2, dex: 4 },
     color: '#6f8fc0', desc: 'An oath-bound defender who shields allies, controls the front line and turns Block into punishing counterattacks.',
     weaponTypes: ['sword', 'mace'], armorTypes: ['heavy'],
     look: { body: 'humanoid', armor: '#8fa3bf', armor2: '#5a6d8c', cloth: '#a8323a', skin: '#f1c9a5', hair: '#6b4a2b', helm: 'knight', weapon: 'sword', offhand: 'shield', cape: '#a8323a' },
   },
   mage: {
-    name: 'Mage', title: 'Scholar of Embers & Frost', role: 'Ranged Caster', element: 'fire', move: 3,
+    name: 'Mage', title: 'Scholar of Embers & Frost', role: 'Ranged Caster', branches: ['Flame', 'Frost', 'Arcana'], element: 'fire', move: 3,
     base: { str: 2, agi: 4, vit: 4, int: 10, dex: 5 },
     color: '#c0583a', desc: 'Wields fire and frost. Chill foes then Melt them with fire for devastating elemental combos.',
     weaponTypes: ['staff'], armorTypes: ['robe'],
     look: { body: 'humanoid', armor: '#3b3f8f', armor2: '#25285e', cloth: '#d9a94a', skin: '#f1c9a5', hair: '#e8e8f0', helm: 'wizard', weapon: 'staff', cape: '#2b2d6e', robe: true },
   },
   archer: {
-    name: 'Archer', title: 'Warden of the Wilds', role: 'Ranged DPS', element: 'wind', move: 4,
+    name: 'Archer', title: 'Warden of the Wilds', role: 'Ranged DPS', branches: ['Sharpshot', 'Venom', 'Hunt'], element: 'wind', move: 4,
     base: { str: 5, agi: 7, vit: 5, int: 3, dex: 9 },
     color: '#4f9a52', desc: 'A long-range hunter. Marks prey, rains arrows over areas and kites enemies with superior mobility.',
     weaponTypes: ['bow'], armorTypes: ['light'],
     look: { body: 'humanoid', armor: '#4f7a3a', armor2: '#34522a', cloth: '#8a6a3a', skin: '#f1c9a5', hair: '#c9873a', helm: 'hood', hoodColor: '#3e6a32', weapon: 'bow' },
   },
   assassin: {
-    name: 'Assassin', title: 'Blade of the Veil', role: 'Burst / Mobility', element: 'shadow', move: 4,
+    name: 'Assassin', title: 'Blade of the Veil', role: 'Burst / Mobility', branches: ['Bloodlust', 'Shadow', 'Swiftness'], element: 'shadow', move: 4,
     base: { str: 7, agi: 9, vit: 4, int: 2, dex: 7 },
     color: '#7a4fa8', desc: 'Strikes from the shadows. Teleports behind foes, stacks poison and executes weakened targets.',
     weaponTypes: ['dagger'], armorTypes: ['light'],
     look: { body: 'humanoid', armor: '#2d2838', armor2: '#1b1824', cloth: '#7a2a4a', skin: '#e8bfa0', hair: '#1a1a22', helm: 'mask', hoodColor: '#2a2436', weapon: 'dagger', offhand: 'dagger', scarf: '#9a2a4a' },
   },
   priest: {
-    name: 'Priest', title: 'Voice of the Last Light', role: 'Healer / Support', element: 'holy', move: 3,
+    name: 'Priest', title: 'Voice of the Last Light', role: 'Healer / Support', branches: ['Mercy', 'Light', 'Haven'], element: 'holy', move: 3,
     base: { str: 3, agi: 2, vit: 8, int: 8, dex: 4 },
     color: '#e0c060', desc: 'Heals, shields and blesses allies while smiting the undead with holy light. Can resurrect the fallen.',
     weaponTypes: ['staff', 'mace'], armorTypes: ['robe'],
     look: { body: 'humanoid', armor: '#f0ead8', armor2: '#c9bfa0', cloth: '#d9b04a', skin: '#f1c9a5', hair: '#e0b860', helm: 'circlet', weapon: 'mace', offhand: 'book', robe: true, cape: '#e8d8a8' },
   },
   blacksmith: {
-    name: 'Blacksmith', title: 'Forgemaster of Kharn', role: 'Bruiser / Engineer', element: 'earth', move: 3,
+    name: 'Blacksmith', title: 'Forgemaster of Kharn', role: 'Bruiser / Engineer', branches: ['Ironwork', 'Heat', 'Craft'], element: 'earth', move: 3,
     base: { str: 9, agi: 3, vit: 8, int: 3, dex: 5 },
     color: '#b8743a', desc: 'Builds turrets and barricades, tempers allies\' weapons and crushes foes with molten hammer blows.',
     weaponTypes: ['hammer', 'mace'], armorTypes: ['heavy'],

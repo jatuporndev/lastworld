@@ -169,7 +169,6 @@ html:lang(th) .logo-sub { font-size: 1.05em; }
 .tab:hover { background: rgba(233, 200, 119, 0.1); } .tab.on { background: linear-gradient(90deg, rgba(233, 200, 119, 0.25), transparent); border-left-color: var(--gold); color: var(--gold); }
 .menu-res { display: flex; flex-direction: column; gap: 0.4em; } .menu-body { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .menu-body > div { flex: 1; min-height: 0; display: flex; flex-direction: column; animation: rise 0.22s; }
-.hero-picker { display: flex; gap: 0.5em; margin-bottom: 0.8em; flex: none; } .hp-item { display: flex; align-items: center; gap: 0.4em; padding: 0.2em 0.9em 0.2em 0.3em; background: rgba(0, 0, 0, 0.35); border: 0.08em solid var(--line); border-radius: 0.4em; cursor: pointer; } .hp-item b, .hp-item small { display: block; } .hp-item.on { border-color: var(--gold); background: rgba(233, 200, 119, 0.16); box-shadow: 0 0 0.8em rgba(233, 200, 119, 0.3); }
 .hero-sheet { display: flex; gap: 1.2em; flex: 1; min-height: 0; overflow-y: auto; } .hero-col { flex: 1; min-width: 0; } .hero-col.portrait { flex: 0 0 15em; text-align: center; } .hero-col.wide { flex: 1.5; }
 .hero-stage { height: 14em; display: grid; place-items: end center; background: radial-gradient(ellipse at 50% 88%, rgba(233, 200, 119, 0.35), transparent 60%); } .hero-name { font-family: var(--f-head); font-weight: 700; font-size: 1.4em; color: var(--gold); } .hero-class { color: var(--dim); font-size: 0.88em; margin-bottom: 0.4em; } .lvl { font-weight: 600; }
 .attr { display: flex; align-items: center; gap: 0.6em; padding: 0.25em 0.5em; background: rgba(0, 0, 0, 0.28); margin-bottom: 0.25em; border-radius: 0.3em; } .attr-n { font-family: var(--f-head); font-weight: 700; color: var(--gold); width: 3em; } .attr b { flex: 1; font-size: 1.1em; }
@@ -664,7 +663,7 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .item { background: var(--paper2); border: 0; border-radius: 0.4em; padding: 0.45em 0.7em; box-shadow: inset 0.3em 0 0 var(--rar, var(--paper3)); } .item:hover { filter: none; transform: none; background: var(--paper3); } .item.empty { background: none; box-shadow: inset 0 0 0 0.1em var(--paper3); font-style: normal; color: var(--dim-d); }
 .item-icon { background: var(--paper3); border-radius: 0.35em; } .item-name { color: var(--ink-d); } .item-sub { color: var(--dim-d); } .item-tag { color: var(--accent); } .mat { background: var(--paper2); } .mat b { color: var(--accent); }
 .recipe-cost { color: #2f7d4a; } .recipe-cost .lack { color: var(--accent); } .maxed { color: var(--accent); } .tip-stat b { color: #2f7d4a; } .tip-unique { color: var(--accent); font-style: normal; } .tip-title { font-family: var(--f-head); font-weight: 600; } .tip-sub { color: var(--dim-d); }
-.attr, .derived, .quest, .skill, .hp-item { background: var(--paper2); border: 0; border-radius: 0.4em; } .derived span { color: var(--dim-d); }
+.attr, .derived, .quest, .skill { background: var(--paper2); border: 0; border-radius: 0.4em; } .derived span { color: var(--dim-d); }
 .attr-n, .q-type, .skill-tier, .skill-name { font-family: var(--f-head); } .attr-n { color: var(--dim-d); font-weight: 500; } .q-type, .skill-tier { color: var(--accent2); } .q-desc, .skill-desc { color: var(--dim-d); } .q-reward { color: var(--accent); }
 .quest.done { background: color-mix(in srgb, var(--coin) 35%, var(--paper2)); border: 0; } .skill.can { animation: none; box-shadow: inset 0 0 0 0.14em var(--accent); } .skill.can:hover { background: var(--paper3); } .skill.known { background: color-mix(in srgb, var(--accent2) 22%, var(--paper2)); border: 0; } .skill.known .skill-name { color: #17665f; }
 .hero-stage { background: radial-gradient(ellipse at 50% 92%, var(--paper3), transparent 62%); } .hero-name { color: var(--ink-d); } .hero-class { color: var(--dim-d); } .eq-label { color: var(--dim-d); }
@@ -674,7 +673,7 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .x-legend { padding: 0.55em 0.8em; box-shadow: 0 0.25em 0 rgba(0, 0, 0, 0.3); }
 
 /* selection = ink corner brackets */
-.ps-char.sel, .cs-card.picked, .ps-world.sel, .hp-item.on { border: 0; box-shadow: none;
+.ps-char.sel, .cs-card.picked, .ps-world.sel { border: 0; box-shadow: none;
   --b: linear-gradient(var(--accent), var(--accent)); background-image: var(--b), var(--b), var(--b), var(--b), var(--b), var(--b), var(--b), var(--b); background-repeat: no-repeat;
   background-size: 1em 0.22em, 0.22em 1em, 1em 0.22em, 0.22em 1em, 1em 0.22em, 0.22em 1em, 1em 0.22em, 0.22em 1em;
   background-position: 0 0, 0 0, 100% 0, 100% 0, 0 100%, 0 100%, 100% 100%, 100% 100%; background-color: var(--paper2); }
@@ -746,7 +745,7 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .menu { gap: 1.3em; } .menu-side { width: 12.5em; padding-right: 0.9em; } .menu-tabs { gap: 0.25em; }
 .tab { padding: 0.7em 0.9em; font-size: 1.05em; color: var(--ink-d); border-radius: 0.5em; } .tab:not(.on) .icon { filter: brightness(0.25); } .tab.on { box-shadow: 0 0.2em 0 rgba(0, 0, 0, 0.18); }
 .sec-title { font-size: 0.95em; letter-spacing: 0.04em; text-transform: none; color: var(--ink-d); font-weight: 600; border-bottom: 0; padding-bottom: 0.35em; margin-bottom: 0.55em; background: linear-gradient(var(--accent), var(--accent)) left bottom / 2.2em 0.2em no-repeat; }
-.attr, .derived, .quest, .skill, .hp-item, .item { background: #fffaf0; box-shadow: 0 0.12em 0 var(--paper3); } .item { box-shadow: inset 0.35em 0 0 var(--rar, var(--paper3)), 0 0.12em 0 var(--paper3); }
+.attr, .derived, .quest, .skill, .item { background: #fffaf0; box-shadow: 0 0.12em 0 var(--paper3); } .item { box-shadow: inset 0.35em 0 0 var(--rar, var(--paper3)), 0 0.12em 0 var(--paper3); }
 .attr { padding: 0.45em 0.7em; margin-bottom: 0.35em; } .attr-n { color: var(--accent2); font-weight: 600; } .attr b { font-family: var(--f-head); font-weight: 600; font-size: 1.2em; }
 .derived { padding: 0.35em 0.7em; } .derived span { color: var(--dim-d); } .derived b { font-family: var(--f-head); font-weight: 600; }
 .plus { width: 2em; height: 2em; font-size: 1.05em; } .plus:disabled { opacity: 1; background: var(--paper2); color: var(--paper3); filter: none; }
@@ -1063,6 +1062,29 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .branch-name { font-family: var(--f-head); font-size: 0.78em; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim-d); text-align: center; }
 .cap-note { font-size: 0.82em; color: var(--dim-d); margin: 0.3em 0 0.6em; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 0.45em; }
 .cap-note .btn { font-size: 1.15em; }
+/* skill tree: each branch a column of painted round tokens joined by ink ticks; a gold ring marks what can be
+   learned now, a teal ring what is learned, a faded grey token what is still locked */
+.tree { gap: 0.4em; } .branch { align-items: center; gap: 0.55em; }
+.branch-name { margin-bottom: 0.1em; }
+.node { position: relative; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 0.5em; padding: 0.4em 0.2em 0.3em; border-radius: var(--radius); cursor: pointer; }
+.node:hover, .node.picked { background: var(--paper2); }
+.node + .node::before { content: ''; position: absolute; left: 50%; top: -0.6em; width: 0.2em; height: 0.85em; margin-left: -0.1em; border-radius: 0.1em; background: var(--paper3); }
+.node.known + .node::before { background: var(--accent2); }
+.node-coin { position: relative; width: 3.4em; height: 3.4em; border-radius: 50%; background: #1a1410; box-shadow: 0 0.22em 0 rgba(0, 0, 0, 0.28); }
+.node-coin img { display: block; width: 100%; height: 100%; border-radius: 50%; }
+.node-tier { position: absolute; right: -0.45em; bottom: -0.2em; min-width: 1.7em; padding: 0.05em 0.3em; border-radius: 1em; background: var(--paper); color: var(--ink-d); font-family: var(--f-head); font-size: 0.62em; font-weight: 600; text-align: center; box-shadow: 0 0.12em 0 rgba(0, 0, 0, 0.25); }
+.node-name { font-family: var(--f-head); font-weight: 600; font-size: 0.78em; line-height: 1.15; text-align: center; color: var(--ink-d); }
+.node-cost { display: flex; gap: 0.22em; } .node-cost i { width: 0.42em; height: 0.42em; border-radius: 50%; background: var(--coin); }
+.node.can .node-coin { box-shadow: 0 0 0 0.2em var(--coin), 0 0.32em 0 rgba(0, 0, 0, 0.28); }
+.node.known .node-coin { box-shadow: 0 0 0 0.2em var(--accent2), 0 0.32em 0 rgba(0, 0, 0, 0.28); } .node.known .node-name { color: #17665f; } .node.known .node-cost i { background: var(--accent2); }
+.node.locked .node-coin img { filter: grayscale(1) brightness(0.8); opacity: 0.5; } .node.locked .node-name { color: #9a8870; } .node.locked .node-cost i { background: var(--paper3); }
+/* the slip above the tree: the tapped token's words, its cost, and the Learn tag (or why it cannot be learned yet) */
+.node-slip { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0.15em 0.8em; min-height: 4.2em; margin: 0.2em 0 0.5em; padding: 0.5em 0.8em; border-radius: var(--radius); background: #fffaf0; box-shadow: 0 0.12em 0 var(--paper3); }
+.slip-head { display: flex; align-items: baseline; gap: 0.6em; flex-wrap: wrap; } .slip-head b { font-family: var(--f-head); font-size: 1.05em; color: var(--ink-d); }
+.slip-tier { font-size: 0.78em; color: var(--dim-d); } .slip-cost { font-family: var(--f-head); font-size: 0.78em; color: #a5780f; }
+.slip-desc { grid-column: 1; font-size: 0.86em; color: var(--dim-d); }
+.node-slip > .btn, .slip-why { grid-column: 2; grid-row: 1 / span 2; } .slip-why { max-width: 9em; font-size: 0.8em; text-align: right; color: var(--dim-d); }
+.node-slip.known .slip-why { color: #17665f; font-family: var(--f-head); }
 
 /* ── phones ──
    The game is a wide tabletop, so phones play it in landscape. A short screen gets a larger base

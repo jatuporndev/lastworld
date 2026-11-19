@@ -12,10 +12,42 @@ import { CONSUMABLES, MATERIALS, RECIPES, BASES, ITEM_RARITY, makeEquipment } fr
 import { QUESTS } from '../data/events.js';
 import { Net } from '../net/firebase.js';
 import { Coop } from '../net/coop.js';
+import { nodeArt } from './cardArt.js';
 import { itemPic, openModal, cardEl, itemTip, heroSprite, bar, btn, icon, toast, toggleFullscreen, confirmBox, dragPiece, volumeRow } from './components.js';
 
 const TABS = [['hero', 'Heroes', 'crown'], ['equip', 'Bag', 'bag'], ['deck', 'Deck', 'book'], ['forge', 'Forge', 'anvil'], ['system', 'System', 'star']];
 let sel = 0; // selected hero index
+let pickNode = null; // the skill-tree token last tapped, described on the slip above the tree
+
+// The picture on a skill-tree token, read from what the node does: [card painter, palette].
+const EL_PIC = { fire: 'flame', ice: 'snow', wind: 'wind', earth: 'quake', holy: 'sun', shadow: 'orb', poison: 'smoke' };
+const STATUS_PIC = { burn: ['flame', 'fire'], chill: ['snow', 'ice'], poison: ['smoke', 'poison'], bleed: ['dagger', 'attack'], regen: ['heart', 'holy'], stealth: ['blink', 'shadow'],
+  haste: ['wind', 'movement'], strength: ['roar', 'attack'], curse: ['skull', 'shadow'], root: ['leaf', 'earth'], mark: ['eye', 'attack'] };
+const WEAPON_PIC = { knight: 'sword', mage: 'orb', archer: 'arrow', assassin: 'dagger', priest: 'mace', blacksmith: 'hammer' };
+const KEY_PIC = { energy: ['star', 'buff'], draw: ['banner', 'buff'], crit: ['eye', 'attack'], critDmg: ['star', 'attack'], matk: ['orb', 'special'], mp: ['orb', 'special'], mpRegen: ['orb', 'special'],
+  def: ['shield', 'defense'], startBlock: ['banner', 'defense'], teamBlock: ['shield', 'defense'], hp: ['heart', 'defense'], regenFlat: ['heart', 'holy'], healPct: ['cross', 'holy'], move: ['boot', 'movement'],
+  eva: ['blink', 'shadow'], rangeBonus: ['arrow', 'wind'], lifesteal: ['heart', 'attack'], thorns: ['mace', 'earth'], dmgPct: ['meteor', 'attack'], bossDmg: ['skull', 'attack'], comboPct: ['whirl', 'special'],
+  turretBonus: ['turret', 'earth'], cannonRange: ['turret', 'fire'], buildHp: ['anvil', 'earth'], pylonBlock: ['shield', 'earth'], startStrength: ['roar', 'attack'],
+  hawkHp: ['phoenix', 'wind'], hawkMark: ['eye', 'wind'], immunePoison: ['cross', 'poison'] };
+// what a card change does, checked in this order (the first that the change has wins)
+const MOD_PIC = [['heal', ['heart', 'holy']], ['revive', ['phoenix', 'holy']], ['block', ['shield', 'defense']], ['drain', ['heart', 'attack']], ['execute', ['skull', 'attack']], ['onKill', ['skull', 'attack']],
+  ['keepMark', ['eye', 'attack']], ['draw', ['banner', 'buff']], ['push', ['boot', 'attack']], ['hidden', ['blink', 'shadow']], ['range', ['arrow', 'wind']], ['far', ['arrow', 'wind']], ['mp', ['orb', 'special']],
+  ['cd', ['wrench', 'buff']], ['hits', ['arrows', 'attack']], ['stacks', ['whirl', 'special']], ['perStatus', ['whirl', 'special']], ['perPlayed', ['bolt', 'buff']]];
+function nodeLook(n, cls, el) {
+  const p = n.p || {}; const first = (o) => o && Object.keys(o)[0]; const m = p.cardMod;
+  const e = first(p.elemPct); if (e) return [EL_PIC[e] || 'star', e];
+  const st = first(p.statusBonus) || first(p.startStatus); if (st) return STATUS_PIC[st] || ['star', 'buff'];
+  if (m) {
+    if (m.el) return [EL_PIC[m.el] || 'star', m.el];
+    if (m.st && STATUS_PIC[m.st]) return STATUS_PIC[m.st];
+    if (m.cat === 'defense') return ['shield', 'defense'];
+    const hit = MOD_PIC.find(([k]) => m[k]); if (hit) return hit[1];
+    if (m.shape === 'area') return ['arrows', 'attack'];
+    return [WEAPON_PIC[cls] || 'sword', 'attack']; // more dice or damage on the hero's own attacks
+  }
+  if (p.atk) return [WEAPON_PIC[cls] || 'sword', 'attack'];
+  const k = Object.keys(p).find((x) => KEY_PIC[x]); return k ? KEY_PIC[k] : ['star', el || 'special'];
+}
 
 export function openMenu(app, tab = 'hero') {
   const st = G.state; if (!st) return;
@@ -50,12 +82,6 @@ export function openQuests(app) {
   return openModal(body, { cls: 'wide quest-modal', title: t('Quests') });
 }
 
-function heroPicker(render) {
-  return h('div.hero-picker', ...myHeroes().map((hero, i) => h('div.hp-item' + (i === sel ? '.on' : ''), { onclick: () => { sel = i; audio.sfx('click'); render(); } },
-    heroSprite(hero, { size: 60, zoom: 1.4, oy: 0.26 }), h('div', h('b', hero.name), h('small', `Lv ${hero.level} ${className(hero)}`)),
-    hero.statPoints + hero.skillPoints > 0 ? h('i.pip', '!') : null)));
-}
-
 // ───── Heroes: status, stat points, skill tree ─────
 function heroTab(render) {
   const hero = myHeroes()[sel]; const s = computeStats(hero); const a = attributes(hero); const C = CLASSES[hero.cls];
@@ -63,12 +89,27 @@ function heroTab(render) {
     h('button.plus', { disabled: hero.statPoints <= 0, onclick: () => { hero.alloc[k]++; hero.statPoints--; clampVitals(hero); touch(); audio.sfx('buff'); render(); } }, '+'));
   const d = (label, v, tip) => h('div.derived', { 'data-tip': tip }, h('span', label), h('b', v));
   const tree = treeOf(hero); const J = JOBS[hero.job];
-  const branch = (b, job = null) => h('div.branch', job ? h('div.branch-name', J.branches[b]) : null, ...tree.filter((n) => n.branch === b && (n.job || null) === job).map((n) => {
-    const known = hero.skills.includes(n.id); const can = canLearn(hero, n);
-    return h('div.skill' + (known ? '.known' : can ? '.can' : '.locked'), { 'data-tip': `${n.desc}${known ? '' : t(' — Cost: {n} SP', { n: n.cost || 1 })}`, onclick: () => { if (learnSkill(hero, n)) { clampVitals(hero); touch(); audio.sfx('levelup'); render(); } else if (!known) audio.sfx('error'); } },
-      h('div.skill-tier', ['I', 'II', 'III', 'IV'][n.tier - 1] || n.tier), h('div.skill-name', n.name), h('div.skill-desc', n.desc));
-  }));
-  return h('div.tab-hero', heroPicker(render),
+  // Each branch is a column of round tokens joined by an ink line, tier I at the top. Tapping a token describes it on
+  // the slip above the tree, where it is learned; hovering shows the same words as a tooltip.
+  const roman = (n) => ['I', 'II', 'III', 'IV'][n.tier - 1] || n.tier;
+  const state = (n) => (hero.skills.includes(n.id) ? 'known' : canLearn(hero, n) ? 'can' : 'locked');
+  if (!tree.some((n) => n.id === pickNode)) pickNode = (tree.find((n) => state(n) === 'can') || tree[0])?.id;
+  const branch = (b, job = null) => h('div.branch', h('div.branch-name', (job ? J.branches : C.branches)?.[b] || ''),
+    ...tree.filter((n) => n.branch === b && (n.job || null) === job).sort((x, y) => x.tier - y.tier).map((n) => {
+      const [pic, pal] = nodeLook(n, hero.cls, (n.job ? J : C).element);
+      return h(`div.node.${state(n)}${n.id === pickNode ? '.picked' : ''}`, { 'data-tip': n.desc, onclick: () => { pickNode = n.id; audio.sfx('click'); render(); } },
+        h('div.node-coin', h('img', { src: nodeArt(pic, pal, n.id), alt: '' }), h('span.node-tier', roman(n))),
+        h('div.node-name', n.name), h('div.node-cost', ...Array.from({ length: n.cost || 1 }, () => h('i'))));
+    }));
+  const picked = tree.find((n) => n.id === pickNode);
+  const slip = picked && (() => {
+    const st = state(picked); const req = picked.req && tree.find((n) => n.id === picked.req);
+    const why = st === 'known' ? t('Learned') : req && !hero.skills.includes(req.id) ? t('Learn {name} first', { name: req.name }) : hero.skillPoints < (picked.cost || 1) ? t('Not enough SP') : '';
+    return h('div.node-slip.' + st, h('div.slip-head', h('b', picked.name), h('span.slip-tier', t('Tier {n}', { n: roman(picked) })), h('span.slip-cost', t('{n} SP', { n: picked.cost || 1 }))),
+      h('div.slip-desc', picked.desc),
+      st === 'can' ? btn(t('Learn'), () => { if (learnSkill(hero, picked)) { clampVitals(hero); touch(); audio.sfx('levelup'); render(); } }, { cls: 'small primary' }) : h('div.slip-why', why));
+  })();
+  return h('div.tab-hero',
     h('div.hero-sheet',
       h('div.hero-col.portrait', h('div.hero-stage', heroSprite(hero, { size: 220, zoom: 1.1 })), h('div.hero-name', hero.name), h('div.hero-class', `${(J || C).name} · ${(J || C).title}`),
         h('div.lvl', t('Level {n}', { n: hero.level })), hero.level >= levelCap(hero) ? h('div.cap-note', t(hero.job ? 'As strong as a hero can grow' : 'Read the page with your name to grow past Level {n}', { n: JOB_LEVEL }), jobReady(hero) && G.state.inv.cons.job_page ? btn(t('Read the page'), () => openJobChoice(hero, render), { cls: 'small primary' }) : null) : bar('exp', hero.exp, expToNext(hero.level)), bar('hp', hero.hp, s.hp), bar('mp', hero.mp, s.mp)),
@@ -76,7 +117,7 @@ function heroTab(render) {
         h('div.sec-title', t('Combat Stats')),
         h('div.derived-grid', d('ATK', s.atk, t('Physical attack power')), d('MATK', s.matk, t('Magic attack power')), d('DEF', s.def, t('Reduces damage taken')), d(t('Speed'), s.spd, t('Determines turn order')), d(t('Crit'), s.crit + '%', t('Critical hit chance')), d(t('Evasion'), s.eva + '%', t('Chance to dodge')), d(t('Move'), s.move + (s.passives.move || 0), t('Hexes per turn')), d(t('Action Slots'), s.energy, t('How many slots of cards you can play each turn')))),
       h('div.hero-col.wide', h('div.sec-title', t('Skill Tree'), h('span.points' + (hero.skillPoints ? '.has' : ''), `${hero.skillPoints} SP`)),
-        J ? h('div.tree-title', J.name) : null, J ? h('div.tree.job', branch(0, hero.job), branch(1, hero.job), branch(2, hero.job)) : null,
+        slip, J ? h('div.tree-title', J.name) : null, J ? h('div.tree.job', branch(0, hero.job), branch(1, hero.job), branch(2, hero.job)) : null,
         J ? h('div.tree-title', C.name) : null, h('div.tree', branch(0), branch(1), branch(2)))));
 }
 
@@ -135,7 +176,7 @@ function equipTab(render) {
     else if (picked.k === 'mat' && st.inv.mats[picked.id]) { const c = MATERIALS[picked.id];
       detail = h('div.bag-detail', h('div.bag-tip', h('div.tip-title', `${c.name} ×${st.inv.mats[picked.id]}`), h('div.tip-sub', t('A material. The Forge turns materials into equipment.')))); }
   }
-  return h('div.tab-equip', heroPicker(render),
+  return h('div.tab-equip',
     h('div.equip-cols',
       h('div.eq-col', h('div.sec-title', t("{name}'s Equipment", { name: hero.name })),
         h('div.bag-doll', h('div.hero-stage', heroSprite(hero, { size: 150, zoom: 1.1 })), h('div.bag-slots', slot('weapon'), slot('armor'), slot('accessory'))),
@@ -165,7 +206,7 @@ function deckTab(render) {
     return h('div.pool-item', el); };
   // the collection shows one card per free copy; a card whose copies are all in decks stays as one greyed card
   const poolCards = pool.flatMap((id) => Array.from({ length: Math.max(1, st.cards[id].n - usedCopies(id)) }, () => poolCard(id)));
-  return h('div.tab-deck', heroPicker(render),
+  return h('div.tab-deck',
     h('div.deck-cols',
       h('div.deck-col', h('div.sec-title', t("{name}'s Deck", { name: hero.name }), h('span.points' + (hero.deck.length < DECK_MIN ? '.has' : ''), t('{n} / {max} cards (min {min})', { n: hero.deck.length, max: DECK_MAX, min: DECK_MIN }))), h('div.card-grid.scroll', { 'data-drop': 'deck' }, ...deckIds.map(deckCard))),
       h('div.deck-col', h('div.sec-title', t('Collection'), h('span.points', t('Drag or click a card to move it'))), h('div.card-grid.scroll', { 'data-drop': 'pool' }, ...poolCards))));

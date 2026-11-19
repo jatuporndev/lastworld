@@ -18,6 +18,7 @@ const attackNames = Object.values(MONSTERS).flatMap((m) => [...(m.intents || [])
   CONSUMABLES, MATERIALS, TERRAIN, MONSTERS, STAGES, EVENTS, QUESTS, NODE_INFO].forEach((tbl) => localize(tbl));
 // a job keeps its English name, like a class; its title, words, branches and tree are translated
 const jobNames = Object.values(JOBS).map((J) => [J, J.name]);
+Object.values(CLASSES).forEach((C) => localizeValues(C.branches));
 localize(JOBS); localize(JOB_TREES); Object.values(JOBS).forEach((J) => localizeValues(J.branches));
 jobNames.forEach(([J, name]) => { J.name = name; });
 localizeValues(STAT_LABEL);
