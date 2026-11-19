@@ -174,7 +174,7 @@ add([
   { id: 'm_detonate', cls: 'mage', name: 'Detonate', cat: 'attack', icon: 'flame', rarity: 'rare', range: 4, cd: 2, el: 'fire', fx: [{ t: 'dmg', v: 0, s: 'matk', perStatus: { st: 'burn', v: 2, consume: true } }] },
   { id: 'm_shatter', cls: 'mage', name: 'Shatter', cat: 'attack', icon: 'snow', rarity: 'rare', range: 4, cd: 2, el: 'ice', proj: 'ice', fx: [{ t: 'dmg', v: 1, s: 'matk', ifStatus: { sts: ['chill', 'frozen'], v: 4 } }] },
   { id: 'm_wildfire', cls: 'mage', name: 'Wildfire', cat: 'special', icon: 'flame', range: 4, cd: 2, el: 'fire', fx: [{ t: 'status', st: 'burn', n: 1 }, { t: 'spread', sts: ['burn'] }] },
-  { id: 'm_overload', cls: 'mage', name: 'Arcane Overload', cat: 'attack', icon: 'orb', rarity: 'epic', range: 5, cost: 2, cd: 3, proj: 'arcane', fx: [{ t: 'dmg', v: 0, s: 'matk', spendMp: 4 }] },
+  { id: 'm_overload', cls: 'mage', name: 'Arcane Overload', cat: 'attack', icon: 'orb', rarity: 'epic', range: 5, cost: 2, cd: 3, proj: 'arcane', fx: [{ t: 'dmg', v: 0, s: 'matk', spendMp: 2 }] },
   { id: 'm_stonespike', cls: 'mage', name: 'Stone Spike', cat: 'attack', icon: 'quake', range: 4, cd: 1, el: 'earth', proj: 'earth', fx: [{ t: 'dmg', v: 2, s: 'matk' }, { t: 'push', v: 1 }] },
   { id: 'm_voidbolt', cls: 'mage', name: 'Void Bolt', cat: 'attack', icon: 'orb', range: 5, cd: 1, mp: 2, el: 'shadow', proj: 'shadow', fx: [{ t: 'dmg', v: 2, s: 'matk' }, { t: 'status', st: 'weak', n: 1 }] },
   { id: 'm_flamewave', cls: 'mage', name: 'Flame Wave', cat: 'attack', icon: 'flame', shape: 'line', size: 3, tg: 'any', cost: 2, mp: 3, cd: 2, el: 'fire', fx: [{ t: 'dmg', v: 1, s: 'matk' }, { t: 'status', st: 'burn', n: 2 }] },

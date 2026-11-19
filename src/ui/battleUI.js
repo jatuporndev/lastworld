@@ -9,7 +9,7 @@ import { audio } from '../core/audio.js';
 import { elColor } from '../engine/renderer.js';
 import { bossIntro } from './bossIntro.js';
 import { ruleLine, ruleEvent, ruleSync, ruleTip, ruleIntentText, ruleIntentNote, ruleDispose } from './bossRuleUI.js';
-import { castVfx, dashFx, blinkFx, critFx, poofFx, fxDecal, fxSheetsFor, ALWAYS_SHEETS } from '../engine/vfx.js';
+import { castVfx, dashFx, blinkFx, critFx, poofFx, fxDecal, fxSheetsFor, ALWAYS_SHEETS, statusFx } from '../engine/vfx.js';
 import { preloadSheets, releaseSheets } from '../engine/pixfx.js';
 import { Battle, DICE } from '../game/combat.js';
 import { ACTION_SLOTS } from '../game/cardEngine.js';
@@ -789,7 +789,7 @@ export class BattleScene {
       case 'status': {
         const info = STATUS_INFO[d.st];
         w.floatText(pos(d.unit, 1.9), `${info.icon} ${info.name}`, 'status' + (info.debuff ? ' debuff' : ' buffed'));
-        w.rise(pos(d.unit, 0.3), { color: new THREE.Color(info.color).getHex(), count: 7, speed: 1.2 });
+        w.rise(pos(d.unit, 0.3), { color: new THREE.Color(info.color).getHex(), count: 7, speed: 1.2 }); statusFx(w, d.unit, d.st);
         if (!info.debuff) audio.sfx('buff'); else if (d.st === 'frozen' || d.st === 'chill') audio.sfx('ice');
         if (d.st === 'mech') this.mechLook(d.unit);
         this.syncLabel(d.unit); this.renderParty(); await sleep(150); break;

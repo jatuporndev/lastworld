@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { tween, Ease, sleep, clamp } from '../core/util.js';
 import { audio } from '../core/audio.js';
 import { elColor } from './renderer.js';
-import { play, hitMs } from './pixfx.js';
+import { play, playFloor, hitMs } from './pixfx.js';
 import { MONSTERS } from '../data/monsters.js';
 
 const EL_SFX = { fire: 'fire', ice: 'ice', wind: 'wind', earth: 'earth', holy: 'holy', shadow: 'shadow', poison: 'poison', neutral: 'slash', arcane: 'magic' };
@@ -166,6 +166,17 @@ const SUPPORT = { heal: 'heal', block: 'shield', smoke: 'smoke', summon: 'portal
 const CHEST = new Set(['shatter', 'overload', 'shieldslam', 'sunder', 'ambush', 'mark', 'hit_fire', 'hit_ice', 'hit_shadow', 'hit_arcane', 'hit_spark', 'hit_crit', 'hit_blunt', 'zap', 'slash', 'slash2', 'flurry', 'claw', 'thrust', 'reap', 'poof']);
 const SINGLE = { sunder: 1.2, blast: 0.5, hit_wind: 0.8, hit_earth: 0.75, hit_holy: 0.75, hit_arcane: 0.7 }; // size on one target
 const HEAVY = new Set(['smash', 'reap', 'shieldslam']);
+// what a heavy blow leaves on the ground (see fxPlan), and how many may lie on the board at once
+const SCAR = { fire: 'af_fire', earth: 'af_earth', ice: 'af_ice', poison: 'af_poison', holy: 'af_holy', shadow: 'af_shadow', arcane: 'af_arcane', wind: 'af_wind', volt: 'af_volt' };
+let scars = 0;
+// The mark lies flat on every tile it reaches, each at its own height; what moves above it stands on the hit tile.
+// Both are drawn under the fighters (they are at 10), hidden by whatever stands in front, and fade out by themselves.
+function scar(w, name, pos, s = 1) {
+  if (!name || scars >= 6) return; scars++;
+  const tiles = [...w.tiles.values()].map((t) => w.cellPos(t.q, t.r));
+  const toCam = w.camera.position.clone().sub(pos).normalize().multiplyScalar(0.6); // (nudged toward the camera so its own tile does not cut its foot off)
+  Promise.all([playFloor(w, name + '_g', pos, tiles, { s, yaw: w.cam.yaw || 0 }), play(w, name, pos.clone().add(toCam), { s, order: 9, fadeOut: 0, depth: true })]).then(() => { scars--; });
+}
 // Cards with a look of their own. main / impact / extra replace what the element and icon would have picked;
 // self plays on the caster as the card goes off; n fires that many projectiles.
 const OWN = {
@@ -175,14 +186,65 @@ const OWN = {
   s_ambush: { main: 'ambush' }, k_laststand: { self: 'rage' },
   a_mark: { main: 'mark' }, s_expose: { main: 'mark' }, s_deathmark: { main: 'mark' },
   b_retool: { main: 'clock' }, n_catchbreath: { main: 'clock' }, r_overclock: { main: 'clock', self: 'surge' }, p_vigil: { main: 'recall' }, b_salvage: { main: 'recall' },
-  b_temper: { main: 'rage' }, k_rally: { main: 'rage' }, b_whetstone: { main: 'rage' }, a_focus: { main: 'rage' }, n_battlecry: { main: 'rage' }, b_masterwork: { main: 'rage' },
-  a_windstep: { main: 'haste' }, p_swift: { main: 'haste' }, a_disengage: { main: 'haste' },
-  k_ironwill: { main: 'regen' }, p_renew: { main: 'regen' }, p_lifebloom: { main: 'regen' }, n_breath: { main: 'regen' },
   m_surge: { main: 'surge' }, s_adrenaline: { main: 'surge' }, b_overcharge: { main: 'surge' },
   n_insight: { main: 'cards' }, p_prayer: { main: 'cards' }, a_camo: { main: 'smoke' },
   b_molten: { main: 'smash' },
+  // every guarding card raises its own cover
+  k_shieldwall: { main: 'w_wall_steel' }, k_holdline: { main: 'w_wall_earth' }, lk_line: { main: 'w_tower_steel' }, k_bulwark: { main: 'w_tower_earth' },
+  lk_brace: { main: 'w_hex_steel' }, k_vow: { main: 'w_dome_steel' }, k_taunt: { main: 'w_hex_blood' }, m_barrier: { main: 'w_runes_arcane' },
+  so_ward: { main: 'w_runes_ice' }, pa_ground: { main: 'w_runes_earth' }, bi_sanctify: { main: 'w_runes_holy' }, p_ward: { main: 'w_hex_holy' },
+  p_shield: { main: 'w_dome_holy' }, pa_bond: { main: 'w_plates_holy' }, pa_faith: { main: 'w_wings_holy' }, bi_intervene: { main: 'w_wings_arcane' },
+  pa_divine: { main: 'w_bubble_holy' }, bi_absolve: { main: 'w_bubble_ice' }, vm_mithridate: { main: 'w_bubble_poison' }, a_roll: { main: 'w_leaves_wind' },
+  bi_ward: { main: 'w_leaves_leaf' }, b_forge: { main: 'w_plates_fire' }, en_plate: { main: 'w_plates_steel' }, fm_guard: { main: 'w_plates_earth' },
+  en_mech: { main: 'w_plates_arcane' }, mo_ironbody: { main: 'w_iron_steel' }, mo_center: { main: 'w_iron_arcane' }, fm_quench: { main: 'w_iron_ice' },
+  // every other helpful card has a sign of its own
+  k_charge: { main: 'b_streaks_steel' }, k_advance: { main: 'b_streaks_holy' }, a_windstep: { main: 'b_spiral_wind' }, s_rush: { main: 'b_streaks_shadow' }, b_rush: { main: 'b_streaks_earth' },
+  n_sprint: { main: 'b_streaks_wind' }, a_disengage: { main: 'b_petals_wind' }, p_swift: { main: 'b_rise_wind' }, lk_spur: { main: 'b_streaks_fire' }, rg_fleet: { main: 'b_petals_leaf' },
+  rp_gravestep: { main: 'b_sigil_shadow' }, vm_stalk: { main: 'b_motes_shadow' }, mo_flow: { main: 'b_spiral_ice' }, p_bless: { main: 'b_rise_holy' }, r_rift: { main: 'b_sigil_arcane' },
+  k_stomp: { main: 'b_ring_earth' }, lk_banner: { main: 'b_rise_steel' }, pa_oath: { main: 'b_pillar_holy' }, pa_aura: { main: 'b_ring_holy' }, rg_pack: { main: 'b_motes_leaf' },
+  vm_blood: { main: 'b_heart_blood' }, bi_bene: { main: 'b_cross_holy' }, fm_tempered: { main: 'b_flame_fire' }, m_blink: { main: 'b_burst_arcane' }, lk_momentum: { main: 'b_streaks_arcane' },
+  so_attune: { main: 'b_spiral_arcane' }, wl_pact: { main: 'b_sigil_blood' }, wl_ritual: { main: 'b_sigil_poison' }, mk_reposition: { main: 'b_streaks_ice' }, mk_deadeye: { main: 'b_burst_blood' },
+  mo_innerfire: { main: 'b_flame_holy' }, en_calibrate: { main: 'b_ring_arcane' }, fm_heat: { main: 'b_flame_earth' }, p_heal: { main: 'b_heart_holy' }, p_purify: { main: 'b_pillar_ice' },
+  p_step: { main: 'b_petals_holy' }, b_repair: { main: 'b_cross_steel' }, n_secondwind: { main: 'b_spiral_leaf' }, n_firstaid: { main: 'b_cross_blood' }, pa_hands: { main: 'b_motes_holy' },
+  bi_heal: { main: 'b_pillar_leaf' }, en_patch: { main: 'b_cross_arcane' }, k_rally: { main: 'b_rise_blood' }, a_focus: { main: 'b_ring_steel' }, b_temper: { main: 'b_burst_fire' },
+  b_masterwork: { main: 'b_burst_steel' }, n_battlecry: { main: 'b_ring_fire' }, b_whetstone: { main: 'b_motes_fire' }, k_ironwill: { main: 'b_heart_steel' }, p_renew: { main: 'b_heart_leaf' },
+  p_lifebloom: { main: 'b_rise_leaf' }, n_breath: { main: 'b_spiral_steel' },
   a_double: { n: 2 }, a_quiver: { n: 3 }, a_headshot: { impact: 'hit_crit' }, a_concuss: { impact: 'hit_blunt' }, a_longshot: { impact: 'hit_wind' },
 };
+
+// Cards that would otherwise look like another: each gets a mark of its own where it bites (x_), or a sign of its own
+// round the caster (b_). Written by a script that never gives two cards the same one.
+const MARKED = {
+  a_blank: { extra: 'x_fang_steel' }, k_riposte: { extra: 'x_crack_blood' }, mo_flurry: { extra: 'x_bubbles_smoke' }, mo_pressure: { extra: 'x_crescent_steel' },
+  mo_sevenstar: { extra: 'x_star_blood' }, s_fan: { extra: 'x_pierce_steel' }, rp_wail: { extra: 'x_nova_arcane' }, rp_danse: { extra: 'x_cross_shadow' },
+  vm_necrotic: { extra: 'x_ring_leaf' }, k_radiant: { extra: 'x_eye_holy' }, pa_blade: { extra: 'x_shards_fire' }, pa_crusader: { extra: 'x_fang_holy' },
+  mo_palm: { extra: 'x_crack_fire' }, mo_dragon: { extra: 'x_bubbles_holy' }, mo_hundredfists: { extra: 'x_crescent_fire' }, b_oil: { extra: 'x_splat_fire' },
+  so_lash: { extra: 'x_spiral_blood' }, so_frostfire: { extra: 'x_pierce_fire' }, fm_slag: { extra: 'x_nova_blood' }, s_adrenaline: { self: 'b_pillar_steel' },
+  b_overcharge: { self: 'b_motes_blood' }, so_steam: { extra: 'x_eye_fire' }, en_cannon: { extra: 'x_shards_blood' }, so_zero: { extra: 'x_ring_ice' },
+  lk_leap: { extra: 'x_crack_steel' }, so_cataclysm: { extra: 'x_bubbles_blood' }, en_rockets: { extra: 'x_cross_fire' }, fm_magma: { extra: 'x_ring_blood' },
+  a_aimed: { extra: 'x_nova_steel' }, mk_steady: { extra: 'x_cross_blood' }, mk_ricochet: { extra: 'x_ring_smoke' }, mk_cripple: { extra: 'x_claw_steel' },
+  mk_kill: { extra: 'x_bloom_blood' }, mk_breaker: { extra: 'x_rune_smoke' }, mk_oneshot: { extra: 'x_eye_steel' }, rg_barbed: { extra: 'x_splat_blood' },
+  mk_suppress: { extra: 'x_shards_steel' }, mk_barrage: { extra: 'x_fang_blood' }, mk_pierce: { extra: 'x_spiral_wind' }, s_expose: { extra: 'x_rune_steel' },
+  s_deathmark: { extra: 'x_eye_arcane' }, rg_beartrap: { extra: 'x_star_steel' }, s_backstab: { extra: 'x_spiral_steel' }, s_dance: { extra: 'x_pierce_blood' },
+  s_hamstring: { extra: 'x_nova_smoke' }, s_rupture: { extra: 'x_cross_steel' }, s_fester: { extra: 'x_bubbles_poison' }, s_twinfangs: { extra: 'x_crescent_leaf' },
+  vm_dart: { extra: 'x_star_poison' }, vm_corrode: { extra: 'x_splat_leaf' }, vm_blight: { extra: 'x_spiral_poison' }, vm_paralytic: { extra: 'x_pierce_leaf' },
+  s_vanish: { self: 'b_petals_shadow' }, a_camo: { self: 'b_motes_steel' }, rp_shroud: { self: 'b_motes_arcane' }, vm_cloud: { self: 'b_flame_poison' },
+  en_rivet: { extra: 'x_bubbles_steel' }, rp_reap: { extra: 'x_eye_shadow' }, rp_rites: { extra: 'x_shards_arcane' }, b_hammer: { extra: 'x_splat_steel' },
+  n_insight: { self: 'b_sigil_steel' }, r_verdant: { self: 'b_pillar_earth' }, bi_mending: { self: 'b_petals_fire' }, pa_judgment: { extra: 'x_ring_holy' },
+  bi_holyfire: { extra: 'x_claw_fire' }, bi_massres: { self: 'b_spiral_holy' }, bi_miracle: { self: 'b_sigil_fire' }, fm_molten: { extra: 'x_nova_fire' },
+  lk_thrust: { extra: 'x_ring_steel' }, lk_impale: { extra: 'x_claw_blood' }, mk_spot: { extra: 'x_crack_smoke' }, en_pylon: { self: 'b_flame_steel' },
+  fm_seismic: { extra: 'x_rune_earth' }, fm_worldforge: { extra: 'x_eye_leaf' }, b_anvildrop: { extra: 'x_star_earth' }, m_deepfreeze: { extra: 'x_claw_ice' },
+  wl_leech: { extra: 'x_bubbles_shadow' }, wl_eclipse: { extra: 'x_crescent_arcane' }, rp_reaping: { extra: 'x_star_shadow' }, so_glacier: { extra: 'x_cross_ice' },
+  lk_skewer: { extra: 'x_bloom_steel' }, rp_harvest: { extra: 'x_rune_blood' }, rg_spikes: { extra: 'x_eye_poison' }, rg_snarefield: { extra: 'x_shards_leaf' },
+  vm_fester: { extra: 'x_fang_poison' }, rg_wildhunt: { extra: 'x_splat_wind' }, vm_plague: { extra: 'x_bloom_poison' }, pa_consecrate: { extra: 'x_crescent_holy' },
+  mo_chi: { extra: 'x_star_fire' }, p_banish: { extra: 'x_splat_holy' }, bi_word: { extra: 'x_spiral_fire' }, bi_censure: { extra: 'x_bloom_holy' },
+  b_salvage: { self: 'b_petals_steel' }, pa_dawn: { extra: 'x_nova_holy' }, n_catchbreath: { self: 'b_streaks_blood' }, so_inferno: { extra: 'x_bloom_fire' },
+  lk_charge1000: { extra: 'x_crescent_blood' }, so_firestorm: { extra: 'x_ring_fire' }, en_grenade: { extra: 'x_eye_blood' }, en_artillery: { extra: 'x_bubbles_fire' },
+  wl_wither: { extra: 'x_claw_shadow' }, wl_grasp: { extra: 'x_bloom_arcane' }, wl_agony: { extra: 'x_rune_shadow' }, wl_spread: { extra: 'x_cross_arcane' },
+  wl_doom: { extra: 'x_shards_shadow' }, rp_omen: { extra: 'x_fang_arcane' }, rp_gravecall: { extra: 'x_crack_shadow' }, rg_dive: { extra: 'x_bubbles_wind' },
+  en_smoke: { extra: 'x_cross_smoke' }, vm_pandemic: { extra: 'x_claw_poison' }, fm_shatter: { extra: 'x_pierce_earth' },
+};
+for (const o of Object.values(MARKED)) for (const n of Object.values(o)) if (n.startsWith('x_')) CHEST.add(n);
 
 // What a card looks like, decided from the card alone: its element, icon, how it travels and what it does.
 // `hostile` says whether a "special" card is aimed at an enemy. Returns the mode and every sheet it needs.
@@ -224,20 +286,27 @@ export function fxPlan(card, monster = false, hostile = card.cat === 'attack') {
   } else if (card.proj) {
     P.mode = 'shot'; P.proj = card.proj === 'knife' ? null : plain ? 'arrow' : PROJ[card.proj] || PROJ[el];
     P.impact = plain ? IMPACT[el] : IMPACT[card.proj] || IMPACT[el];
+    if (card.icon === 'bolt') { P.mode = 'bolt'; P.proj = null; P.impact = 'zap'; } // lightning does not fly over like a ball: it strikes
   } else if ((card.range || 1) > 1 && !has('dash')) { // worked on the target from afar: a snare, a curse, a brand
-    P.mode = 'remote'; P.main = card.icon === 'trap' ? 'snare' : status('frozen') ? 'freeze' : el === 'neutral' ? 'curse' : IMPACT[el];
+    P.mode = 'remote'; P.main = card.icon === 'trap' ? 'snare' : card.icon === 'bolt' ? 'zap' : status('frozen') ? 'freeze' : el === 'neutral' ? 'curse' : IMPACT[el];
   } else {
     P.main = monster ? (el === 'neutral' ? 'claw' : 'slash2') : card.icon === 'bolt' ? 'zap' : MELEE[card.icon] || 'slash';
     if (!card.mp) { P.magic = false; P.charge = null; } // a blow is wound up by the body, not by a spell
     if (el !== 'neutral') P.extra = IMPACT[el];
   }
-  const own = OWN[card.id]; if (own) Object.assign(P, own);
-  P.sheets = [P.charge, P.main, P.proj, P.impact, P.extra, P.self, P.n ? 'hit_spark' : null, ...(!monster && SIGN_SHEETS[card.id] || [])].filter(Boolean);
+  const own = OWN[card.id]; if (own) Object.assign(P, own); if (!monster && MARKED[card.id]) Object.assign(P, MARKED[card.id]);
+  // a heavy blow leaves the ground marked for a few seconds: wide areas, epic and legendary cards, crushing blows
+  if (hostile && !plain && P.mode !== 'support' && (monster || !SIGN[card.id])) {
+    const heavy = (card.size || 1) >= 2 || card.big || card.icon === 'meteor' || card.rarity === 'epic' || card.rarity === 'legendary';
+    const kind = P.mode === 'bolt' || card.icon === 'bolt' ? 'volt' : el !== 'neutral' ? el : HEAVY.has(P.main) || P.main === 'slam' || P.main === 'meteor' ? 'earth' : null;
+    if (heavy && kind && SCAR[kind]) P.scar = SCAR[kind];
+  }
+  P.sheets = [P.charge, P.main, P.proj, P.impact, P.extra, P.self, P.scar, P.scar && P.scar + '_g', P.n ? 'hit_spark' : null, ...(!monster && SIGN_SHEETS[card.id] || [])].filter(Boolean);
   return P;
 }
 // Every sheet a card could play (a "special" may be friendly or hostile), for loading before the fight.
 export const fxSheetsFor = (card, monster = false) => [...fxPlan(card, monster, true).sheets, ...fxPlan(card, monster, false).sheets];
-export const ALWAYS_SHEETS = ['hit_crit', 'poof'];
+export const ALWAYS_SHEETS = ['hit_crit', 'poof', 'st_burn', 'st_poison', 'st_bleed', 'st_chill', 'st_stun', 'st_weak', 'st_vuln', 'st_fortify', 'st_thorns', 'freeze', 'snare', 'mark', 'rage', 'regen', 'haste', 'smoke', 'curse'];
 
 // ───────── a card resolves ─────────
 const flightMs = (from, to) => clamp(from.distanceTo(to) * 75, 240, 600);
@@ -662,6 +731,7 @@ export async function castVfx(w, d) {
   const { unit: u, card, cells, targets, target } = d;
   const hostile = card.cat === 'attack' || targets.some((t) => t.side !== u.side);
   const P = fxPlan(card, !!d.monster, hostile); const el = P.el;
+  lastCast = { sheets: new Set(P.sheets), until: performance.now() + 2500 };
   const color = P.plain ? 0xfff0c8 : elColor(el);
   const sc = Math.max(1, Math.min(1.8, (u.scale || 1) * 0.8));
   const from = w.unitPos(u.uid, 0.95); const feet = w.unitPos(u.uid, 0.04);
@@ -721,6 +791,8 @@ export async function castVfx(w, d) {
       play(w, P.main, centred ? from : feet, { s: P.main === 'spin' ? sc : centred ? S * 2 : (card.size || 1) >= 3 ? 1.15 : (card.size || 1) >= 2 ? 0.85 : 0.7 });
       await wait(P.main);
     }
+    if (P.scar) { if (card.shape === 'area') scar(w, P.scar, floor(target), S * 0.9); else if (P.mode === 'burst') scar(w, P.scar, feet, S * 0.9); else order.slice(0, 3).forEach((c, i) => after(i * 60, () => scar(w, P.scar, floor(c), 0.6))); }
+    if (P.extra) order.slice(0, 6).forEach((c, i) => after(i * 50, () => land(P.extra, c, { s: 0.85 }))); // the card's own mark, on the cells nearest first
     audio.sfx(el === 'fire' ? 'explosion' : EL_SFX[el] || 'earth');
     w.flashCells(cells, color, 520);
     w.shake(big ? 0.45 : 0.25, 320);
@@ -729,11 +801,16 @@ export async function castVfx(w, d) {
     audio.sfx(P.plain ? 'arrow' : el === 'fire' ? 'bolt' : EL_SFX[el] || 'magic');
     for (let i = 1; i < (P.n || 1); i++) after(i * 110, () => fly(w, P.proj, from, aim, { arc: 0.5 + i * 0.25, trail: color }).then(() => land('hit_spark', target, { s: 0.7 }))); // a volley from one bow
     if (P.proj) await fly(w, P.proj, from, aim, { arc: P.plain ? 0.5 : 0.38, trail: color }); else await shot(w, from, aim, color, SHOT.knife); // nothing flies dead straight
-    land(P.impact, target, { s: SINGLE[P.impact] || 1 }); if (P.impact === 'hit_fire') audio.sfx('burn');
+    land(P.impact, target, { s: SINGLE[P.impact] || 1 }); if (P.extra) land(P.extra, target, { s: 0.9 }); scar(w, P.scar, floor(target), 0.75); if (P.impact === 'hit_fire') audio.sfx('burn');
+    await wait(P.impact);
+  } else if (P.mode === 'bolt') { // a crack of lightning from the hand to the target, twice, and it sparks where it bites
+    audio.sfx('zap');
+    if (aim) { stroke(w, from, aim, { color, wd: 0.45 }); after(90, () => stroke(w, from, aim, { color, wd: 0.3, ms: 120 })); }
+    await beat(60); land(P.impact, target, { s: 1 }); if (P.extra) land(P.extra, target, { s: 0.9 }); scar(w, P.scar, floor(target), 0.75);
     await wait(P.impact);
   } else if (P.mode === 'remote') {
     audio.sfx(EL_SFX[el] || 'magic');
-    land(P.main, target, { s: SINGLE[P.main] || 1 });
+    land(P.main, target, { s: SINGLE[P.main] || 1 }); if (P.extra) land(P.extra, target, { s: 0.9 }); after(hitMs(P.main), () => scar(w, P.scar, floor(target), 0.75));
     await wait(P.main);
   } else { // melee: pull back, snap in, and the cut opens on the target
     const heavy = HEAVY.has(P.main);
@@ -742,6 +819,7 @@ export async function castVfx(w, d) {
     const left = aim ? w.project(aim).x < w.project(from).x : false;
     land(P.main, target || u, { s: sc * (P.main === 'slash' ? 1.15 : 1), flipX: left, speed: 1.15 });
     if (heavy) w.shake(0.32, 240);
+    after(hitMs(P.main, 1.15), () => scar(w, P.scar, floor(target || u), 0.7));
     if (P.extra) land(P.extra, target || u, { s: (SINGLE[P.extra] || 0.8) * 0.85 });
     await wait(P.main, 1.15);
   }
@@ -764,6 +842,16 @@ export function dashFx(w, from, to) {
 }
 // Teleport: a rune circle where the unit leaves and where it arrives.
 export function blinkFx(w, pos, color) { const g = pos.clone(); decal(w, 'circle', g, { color, size: 0.7, to: 2.2, ms: 420, spin: 5 }); spr(w, 'pillar', V(g.x, g.y + 1.4, g.z), { add: true, color, size: 0.5, to: 0.9, sy: 3.4, ms: 320, hold: 0.3, opacity: 0.7 }); }
+// A status taking hold: its own small sign on whoever gets it. A card that already played that very picture on the
+// way in (a freeze, a mark, a haste) is not answered with it a second time.
+export const STATUS_FX = { burn: 'st_burn', poison: 'st_poison', bleed: 'st_bleed', chill: 'st_chill', frozen: 'freeze', stun: 'st_stun', root: 'snare', weak: 'st_weak', vulnerable: 'st_vuln', mark: 'mark', strength: 'rage', regen: 'regen', haste: 'haste', stealth: 'smoke', fortify: 'st_fortify', thorns: 'st_thorns', curse: 'curse' };
+let lastCast = { sheets: new Set(), until: 0 };
+export function statusFx(w, unit, st) {
+  const name = STATUS_FX[st]; if (!name || !w.units.has(unit.uid)) return;
+  if (lastCast.sheets.has(name) && performance.now() < lastCast.until) return;
+  const s = Math.max(1, Math.min(1.8, (unit.scale || 1) * 0.8));
+  play(w, name, CHEST.has(name) ? w.unitPos(unit.uid, 0.9) : w.unitPos(unit.uid, 0.04), { s, order: 35 });
+}
 // A critical hit and a monster's last breath, for the battle screen.
 export const critFx = (w, pos) => play(w, 'hit_crit', pos, { order: 35 });
 export const poofFx = (w, pos, s = 1) => play(w, 'poof', pos, { s, order: 35 });

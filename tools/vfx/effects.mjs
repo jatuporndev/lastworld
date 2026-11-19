@@ -718,3 +718,258 @@ fx('cards', { w: 120, h: 150, ox: 60, oy: 130, dur: 1.1, px: 0.04, floor: true }
   const s = seg(t, 0.4, 0.9); if (s > 0 && s < 1) p.star(0, -112, Math.round(8 * bump(s)), WHITE, C[4]);
   p.ring(0, 0, 22 * out(seg(t, 0, 0.25)), 2, C[3], 1 - end, { sy: FY, sides: 6, rot: t * 2 });
 });
+
+// ───────── a status taking hold: one small sign on whoever gets it, so a card's effects read on the board ─────────
+fx('st_stun', { w: 80, h: 80, ox: 40, oy: 70, dur: 1.3, px: 0.04, floor: true }, () => (p, t) => { // stars circling the head
+  const C = RAMP.holy, a = out(seg(t, 0, 0.2)), end = seg(t, 1.0, 1.3), y = -48;
+  if (end < 1) p.ring(0, y, 16 * a, 1, C[3], 0.7 * (1 - end), { sy: 0.35 });
+  if (end < 0.6) for (let i = 0; i < 3; i++) { const an = t * 7 + (i * TAU) / 3, front = Math.sin(an) > 0; p.star(Math.cos(an) * 16 * a, y + Math.sin(an) * 5.6 * a, front ? 5 : 3, front ? WHITE : C[4], C[3]); }
+  flash(p, 0, y, 6, t, 0, C);
+});
+fx('st_bleed', { w: 80, h: 90, ox: 40, oy: 76, dur: 1.2, px: 0.04, floor: true }, (k) => { // a cut opens, drops fall, a pool spreads
+  const C = RAMP.blood;
+  k.at(0.06, () => { for (let i = 0; i < 10; i++) k.ps.spawn({ kind: 'chip', ramp: C, tone: k.R.pick([2, 3]), x: k.R.range(-6, 6), y: -20 - k.R.range(0, 8), vx: k.R.range(-30, 30), vy: -k.R.range(10, 60), g: 420, s: k.R.range(2, 3.5), life: k.R.range(0.5, 0.9) }); });
+  return (p, t) => {
+    const s = seg(t, 0, 0.12), f = 1 - seg(t, 0.35, 0.65), end = seg(t, 0.8, 1.2);
+    p.disc(0, 0, 14 * out(seg(t, 0.2, 0.7)), C[1], 0.8 * (1 - end), FY);
+    if (f > 0) { p.line(-10, -32, -10 + 20 * s, -32 + 18 * s, C[2], f, 3, 1); p.ink = false; p.line(-9, -32, -9 + 18 * s, -32 + 16 * s, C[4], f, 1); p.ink = true; }
+    k.ps.draw(p);
+  };
+});
+fx('st_burn', { w: 80, h: 100, ox: 40, oy: 86, dur: 1.2, px: 0.04, floor: true }, () => (p, t) => { // tongues of flame licking up the body
+  const C = RAMP.fire, g = out(seg(t, 0, 0.2)), end = seg(t, 0.85, 1.2); p.glow(0, -22, 30, C[3], 0.6 * bump(seg(t, 0, 1.2)));
+  for (let i = 0; i < 6; i++) { const x = (i - 2.5) * 6 + (hash(i, 1) - 0.5) * 4, y = -4 - (i % 3) * 9, fl = Math.sin(t * 24 + i * 2.1), h = (12 + hash(i, 2) * 12) * g * (1 - end) * (0.85 + 0.15 * fl);
+    if (h < 2) continue; const lean = Math.sin(t * 9 + i) * 3;
+    for (const [k, tone] of [[1, 2], [0.7, 3], [0.4, 5]]) p.poly([[x - 5 * k, y], [x - 5 * k + lean * 0.2, y - h * k * 0.35], [x - 1 + lean * 0.6, y - h * k * 0.7], [x + lean, y - h * k], [x + 3 * k + lean * 0.3, y - h * k * 0.45], [x + 5 * k, y]], C[tone]); }
+  p.ink = false; for (let i = 0; i < 5; i++) { const ph = (t * 1.6 + hash(i, 3)) % 1; p.px((hash(i, 4) - 0.5) * 30, -20 - ph * 50, ph < 0.4 ? C[5] : C[3]); } p.ink = true;
+});
+fx('st_chill', { w: 90, h: 90, ox: 45, oy: 72, dur: 1.2, px: 0.04, floor: true }, () => (p, t) => { // frost creeps over the floor, flakes drift down
+  const C = RAMP.ice, g = out(seg(t, 0, 0.3)), end = seg(t, 0.85, 1.2);
+  p.plate(0, 0, 22 * g, C[3], 0.35 * (1 - end), { sy: FY, sides: 6 }); p.ring(0, 0, 22 * g, 1.5, C[4], 1 - end, { sy: FY, sides: 6 });
+  if (end < 0.6) for (let i = 0; i < 6; i++) { const an = (i / 6) * TAU; spike(p, Math.cos(an) * 18 * g, Math.sin(an) * 18 * g * FY, -Math.PI / 2 + Math.cos(an) * 0.4, 10 * g * (0.6 + hash(i, 2) * 0.6), 3, C); }
+  p.ink = false; for (let i = 0; i < 8; i++) { const ph = (t * 0.8 + hash(i, 4)) % 1; p.diamond((hash(i, 5) - 0.5) * 44 + Math.sin(ph * 6 + i) * 3, -60 + ph * 60, 1.5, ph < 0.5 ? WHITE : C[4]); } p.ink = true;
+});
+fx('st_poison', { w: 80, h: 100, ox: 40, oy: 86, dur: 1.3, px: 0.04, floor: true }, () => (p, t) => { // sick bubbles rise off them and pop
+  const C = RAMP.poison; p.glow(0, -20, 30, C[2], 0.5 * bump(seg(t, 0, 1.3)));
+  for (let i = 0; i < 9; i++) { const st = hash(i, 1) * 0.6, d = seg(t, st, st + 0.6); if (d <= 0 || d >= 1) continue; const x = (hash(i, 2) - 0.5) * 30 + Math.sin(d * 8 + i) * 3, y = -8 - d * 55, r = 2 + hash(i, 3) * 3;
+    if (d > 0.85) p.ring(x, y, r + 2, 1, C[4], 1); else { p.disc(x, y, r, C[2]); p.ink = false; p.px(x - r * 0.4, y - r * 0.4, C[5]); p.ink = true; } }
+});
+fx('st_weak', { w: 70, h: 110, ox: 35, oy: 96, dur: 1.1, px: 0.04, floor: true }, () => (p, t) => { // dark arrowheads sinking: weaker
+  const C = RAMP.shadow;
+  for (let i = 0; i < 3; i++) { const d = seg(t, i * 0.12, i * 0.12 + 0.7); if (d <= 0 || d >= 1) continue; const y = -80 + out(d) * 60, s = 11 - i * 2, a = d > 0.7 ? (1 - d) / 0.3 : 1;
+    p.path([[-s, y - s * 0.8], [0, y], [s, y - s * 0.8]], C[2], a, 5); p.ink = false; p.path([[-s + 1, y - s * 0.8], [0, y - 1], [s - 1, y - s * 0.8]], C[4], a, 2); p.ink = true; }
+  p.ring(0, 0, 18 * out(seg(t, 0.3, 0.8)), 1.5, C[3], 1 - seg(t, 0.8, 1.1), { sy: FY, sides: 6 });
+});
+fx('st_vuln', { w: 90, h: 90, ox: 45, oy: 72, dur: 1.0, px: 0.04, floor: true }, (k) => { // a plate of guard in front of them cracks and breaks
+  const C = RAMP.steel, cy = -22;
+  k.at(0.4, () => { for (let i = 0; i < 10; i++) { const a = k.R.range(0, TAU), v = k.R.range(40, 110); k.ps.spawn({ kind: 'shard', ramp: C, tone: k.R.pick([3, 4]), x: Math.cos(a) * 8, y: cy + Math.sin(a) * 8, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 30, g: 300, s: k.R.range(2, 4), life: k.R.range(0.4, 0.6) }); } });
+  return (p, t) => {
+    const a = out(seg(t, 0, 0.15));
+    if (t < 0.4) { p.plate(0, cy, 16 * a, C[3], 0.6, { sides: 6, rot: Math.PI / 6 }); p.ring(0, cy, 16 * a, 2, C[4], 1, { sides: 6, rot: Math.PI / 6 });
+      const c = seg(t, 0.15, 0.38); if (c > 0) { p.ink = false; p.path([[-2, -16], [2, -6], [-3, 2], [3, 14]].map(([x, y]) => [x, cy + y * c]), RAMP.blood[2], 1, 1); p.ink = true; } }
+    flash(p, 0, cy, 7, t, 0.4, RAMP.blood); k.ps.draw(p);
+  };
+});
+fx('st_thorns', { w: 100, h: 80, ox: 50, oy: 62, dur: 1.2, px: 0.04, floor: true }, () => (p, t) => { // a ring of thorns grows round their feet
+  const C = RAMP.leaf, g = out(seg(t, 0, 0.25)), end = seg(t, 0.85, 1.2);
+  for (const back of [true, false]) for (let i = 0; i < 10; i++) { const an = (i / 10) * TAU, s = Math.sin(an); if ((s < 0) !== back) continue; spike(p, Math.cos(an) * 24, s * 24 * FY, -Math.PI / 2 + Math.cos(an) * 0.5, (12 + hash(i, 3) * 8) * g * (1 - end), 3, C); }
+});
+fx('st_fortify', { w: 90, h: 90, ox: 45, oy: 72, dur: 1.2, px: 0.04, floor: true }, () => (p, t) => { // slabs of stone stand up round them
+  const C = RAMP.earth, end = seg(t, 0.85, 1.2);
+  for (const back of [true, false]) for (let i = 0; i < 6; i++) { const an = (i / 6) * TAU + 0.3, s = Math.sin(an); if ((s < 0) !== back) continue; const d = out(seg(t, i * 0.05, i * 0.05 + 0.3)), x = Math.cos(an) * 22, y = s * 22 * FY, h = 22 * d * (1 - end * 0.7);
+    if (h < 1) continue; p.poly([[x - 5, y], [x - 4, y - h], [x + 4, y - h - 2], [x + 5, y]], C[back ? 1 : 2]); p.ink = false; p.line(x - 3, y - h, x + 3, y - h - 2, C[4], 1, 1); p.ink = true; }
+  p.ring(0, 0, 24, 1.5, C[3], 1 - end, { sy: FY, sides: 6 });
+});
+
+// ───────── wards: each guarding card raises its own kind of cover, in its own colours ─────────
+// ward(kind, ramp) makes 'w_<kind>_<ramp>'. Every kind snaps up in front of the fighter, holds, and clears.
+const WARD = {
+  hex(p, t, C, a, f) { const cy = -24, r = 26 * a; p.glow(0, cy, 40, C[3], 0.7 * f); if (r < 3) return; p.plate(0, cy, r, C[3], 0.4 * f, { sides: 6, rot: Math.PI / 6 }); p.ring(0, cy, r, 3, C[4], f, { sides: 6, rot: Math.PI / 6 }); p.ring(0, cy, r * 0.62, 1.5, C[5], f, { sides: 6, rot: Math.PI / 6 + t }); },
+  dome(p, t, C, a, f) { const r = 32 * a; if (r < 3) return; p.each(-r, -r, r, 0, (px, py, ix, iy) => { const d = Math.hypot(px, py); if (d <= r) p.put(ix, iy, d > r - 2 ? C[4] : C[3], d > r - 2 ? f : 0.28 * f, d <= r - 2); }); p.ring(0, 0, r, 2, C[4], f, { sy: FY }); const s = (t * 1.6) % 1; p.ink = false; p.arc(0, 0, r - 4, -Math.PI + s * Math.PI - 0.3, -Math.PI + s * Math.PI, 2, C[5], f); p.ink = true; },
+  wall(p, t, C, a, f) { for (let i = 0; i < 3; i++) { const d = out(seg(t, i * 0.06, i * 0.06 + 0.22)), x = (i - 1) * 15, h = (24 + (i % 2) * 6) * d * (0.4 + 0.6 * f); if (h < 1) continue; p.poly([[x - 7, 8], [x - 7, 8 - h], [x + 7, 6 - h], [x + 7, 6]], C[1 + (i % 2)]); p.ink = false; p.line(x - 6, 8 - h, x + 6, 6 - h, C[4], 1, 1); p.ink = true; } },
+  tower(p, t, C, a, f) { const d = seg(t, 0, 0.18), y = d < 1 ? -80 * (1 - d * d) : -6 * bump(seg(t, 0.18, 0.3)); if (f <= 0) return; const sh = [[-14, y - 40], [14, y - 40], [14, y - 12], [0, y + 4], [-14, y - 12]]; p.poly(sh, C[2], f); p.ink = false; p.poly(sh.map(([x, yy]) => [x * 0.72, (yy - (y - 18)) * 0.72 + (y - 18)]), C[3], f); p.line(0, y - 36, 0, y - 2, C[5], f, 2); p.ink = true; shock(p, 0, 4, t, 0.18, 0.35, 6, 34, C); },
+  plates(p, t, C, a, f) { const d = out(seg(t, 0, 0.3)); for (let i = 0; i < 5; i++) { const an = (i / 5) * TAU + 0.4, r = lerp(46, 9, d), x = Math.cos(an) * r, y = -22 + Math.sin(an) * r * 0.8; p.plate(x, y, 6, C[3], f, { sides: 4, rot: an }); p.ring(x, y, 6, 1, C[4], f, { sides: 4, rot: an }); } if (d >= 1) flash(p, 0, -22, 6, t, 0.3, C); },
+  leaves(p, t, C, a, f) { for (let i = 0; i < 12; i++) { const k = clamp(t * 1.4 - i * 0.04), an = k * 9 + i * 0.52, r = 20 - k * 4, x = Math.cos(an) * r, y = -k * 46 - (i % 3) * 3, back = Math.sin(an) < 0; if (k <= 0) continue; const ca = Math.cos(an + 1), sa = Math.sin(an + 1); p.poly([[x - ca * 5, y - sa * 2], [x, y - 3], [x + ca * 5, y + sa * 2], [x, y + 3]], C[back ? 1 : 3], f); } },
+  runes(p, t, C, a, f) { p.ring(0, 0, 26 * a, 2, C[3], f, { sy: FY, sides: 6, rot: t * 2 }); p.ring(0, 0, 18 * a, 1, C[4], f, { sy: FY, sides: 6, rot: -t * 3 }); for (let i = 0; i < 3; i++) { const an = t * 4 + (i * TAU) / 3, x = Math.cos(an) * 20 * a, y = -10 - 16 * out(seg(t, 0, 0.4)) + Math.sin(an) * 7; p.plate(x, y, 4.5, C[2], f, { sides: 4, rot: Math.PI / 4 }); p.ink = false; p.line(x - 2, y, x + 2, y, C[5], f, 1); p.line(x, y - 2, x, y + 2, C[5], f, 1); p.ink = true; } },
+  bubble(p, t, C, a, f) { const cy = -22, r = 27 * a, w = 1 + 0.08 * Math.sin(t * 14); if (r < 3) return; p.each(-r * w, cy - r, r * w, cy + r, (px, py, ix, iy) => { const d = Math.hypot(px / w, py - cy); if (d <= r) p.put(ix, iy, d > r - 2 ? C[4] : C[3], d > r - 2 ? f : 0.22 * f, d <= r - 2); }); p.ink = false; p.arc(0, cy, r - 5, -2.6, -1.7, 2, WHITE, f); p.ink = true; },
+  wings(p, t, C, a, f) { const close = out(seg(t, 0, 0.35)); for (const sd of [-1, 1]) for (let i = 0; i < 5; i++) { const an = -Math.PI / 2 + sd * (1.9 - close * 1.1 - i * 0.18), len = 34 - i * 4, x0 = sd * 5, y0 = -30; p.line(x0, y0, x0 + Math.cos(an) * len, y0 + Math.sin(an) * len * -1 * -1, C[i % 2 ? 3 : 4], f, 4, 1); } },
+  iron(p, t, C, a, f) { const x = lerp(-18, 18, seg(t, 0.1, 0.5)); p.glow(0, -20, 34, C[3], 0.5 * f); if (t > 0.1 && t < 0.55) { p.ink = false; p.each(x - 4, -44, x + 4, 0, (px, py, ix, iy) => { if (Math.abs(px - x + py * 0.3) < 2.5) p.raw(ix, iy, C[5], 0.9); }); p.ink = true; } p.ring(0, 0, 22 * a, 2, C[3], f, { sy: FY, sides: 6 }); const s = seg(t, 0.5, 0.9); if (s > 0 && s < 1) for (const [sx, sy] of [[-10, -36], [9, -18]]) p.star(sx, sy, Math.round(5 * bump(s)), WHITE, C[4]); },
+};
+const ward = (kind, ramp) => fx(`w_${kind}_${ramp}`, { w: 110, h: 120, ox: 55, oy: 96, dur: 1.2, px: 0.044, floor: true }, () => (p, t) => {
+  const C = RAMP[ramp], a = out(seg(t, 0, 0.16)) * (1 + 0.15 * bump(seg(t, 0.16, 0.32))), f = 1 - seg(t, 0.85, 1.2); WARD[kind](p, t, C, a, f);
+});
+for (const [kind, ramp] of [['wall', 'steel'], ['wall', 'earth'], ['tower', 'steel'], ['tower', 'earth'], ['hex', 'steel'], ['dome', 'steel'], ['hex', 'blood'], ['runes', 'arcane'], ['runes', 'ice'], ['runes', 'earth'], ['runes', 'holy'], ['hex', 'holy'], ['dome', 'holy'], ['plates', 'holy'], ['wings', 'holy'], ['wings', 'arcane'], ['bubble', 'holy'], ['bubble', 'ice'], ['bubble', 'poison'], ['leaves', 'wind'], ['leaves', 'leaf'], ['plates', 'fire'], ['plates', 'steel'], ['plates', 'earth'], ['plates', 'arcane'], ['iron', 'steel'], ['iron', 'arcane'], ['iron', 'ice']]) ward(kind, ramp);
+
+// ───────── boons: every helpful card that is not a guard has its own sign, in its own colours ─────────
+// boon(kind, ramp) makes 'b_<kind>_<ramp>'. A fighter is 40 px tall, its chest at -19.
+const heartPts = (x, y, s) => { const pts = []; for (let i = 0; i <= 16; i++) { const a = (i / 16) * TAU; pts.push([x + s * 16 * Math.sin(a) ** 3 / 16, y - s * (13 * Math.cos(a) - 5 * Math.cos(2 * a) - 2 * Math.cos(3 * a) - Math.cos(4 * a)) / 16]); } return pts; };
+const BOON = {
+  rise(p, t, C, f) { for (let i = 0; i < 3; i++) { const d = seg(t, i * 0.13, i * 0.13 + 0.7); if (d <= 0 || d >= 1) continue; const y = -14 - out(d) * 80, s = 13 - i * 2, a = d > 0.7 ? (1 - d) / 0.3 : 1; p.path([[-s, y + s * 0.8], [0, y], [s, y + s * 0.8]], C[2], a, 5); p.ink = false; p.path([[-s + 1, y + s * 0.8], [0, y + 1], [s - 1, y + s * 0.8]], C[4], a, 2); p.ink = true; } },
+  spiral(p, t, C, f) { p.ink = false; for (let s = 0; s < 2; s++) for (let i = 0; i < 14; i++) { const k = clamp(t * 1.3 - i * 0.03), an = k * 10 + s * Math.PI, y = -k * 70; if (k <= 0 || k >= 1) continue; const x = Math.cos(an) * 18, back = Math.sin(an) < 0; p.diamond(x, y, back ? 1.5 : 2.5, back ? C[2] : i < 3 ? WHITE : C[4], f); } p.ink = true; },
+  pillar(p, t, C, f) { const g = out(seg(t, 0, 0.2)), w = 12 * g * f; if (w < 1) return; p.glow(0, -50, 40, C[3], 0.7 * f); p.each(-w, -110, w, 0, (px, py, ix, iy) => { const d = Math.abs(px) / w; p.put(ix, iy, d < 0.35 ? C[5] : d < 0.7 ? C[4] : C[3], (1 - d) * f, true); }); p.ring(0, 0, 20 * g, 2, C[4], f, { sy: FY }); },
+  ring(p, t, C, f) { for (let i = 0; i < 3; i++) { const d = seg(t, i * 0.15, i * 0.15 + 0.6); if (d <= 0 || d >= 1) continue; p.ring(0, -out(d) * 50, 12 + d * 14, 2, i ? C[3] : C[4], 1 - d, { sy: FY, sides: 6, rot: d * 2 }); } },
+  burst(p, t, C, f) { const cy = -22, d = out(seg(t, 0.05, 0.4)); flash(p, 0, cy, 8, t, 0.05, C); if (d > 0 && f > 0) for (let i = 0; i < 8; i++) { const an = (i / 8) * TAU + 0.2, r0 = 8 + d * 10, r1 = 14 + d * 22; p.line(Math.cos(an) * r0, cy + Math.sin(an) * r0, Math.cos(an) * r1, cy + Math.sin(an) * r1, i % 2 ? C[3] : C[4], f, 3, 1); } p.glow(0, cy, 30, C[3], 0.6 * f); },
+  motes(p, t, C, f) { const cy = -24; p.ink = false; for (let i = 0; i < 8; i++) for (let j = 0; j < 4; j++) { const an = t * 6 - j * 0.12 + (i * TAU) / 8, r = 20 * out(seg(t, 0, 0.25)); p.diamond(Math.cos(an) * r, cy + Math.sin(an) * r * 0.4 - Math.sin(t * 3 + i) * 4, j ? 1 : 2.2, j ? C[3] : WHITE, f * (1 - j * 0.25)); } p.ink = true; },
+  streaks(p, t, C, f) { for (let i = 0; i < 9; i++) { const ph = (t * 2.2 + hash(i, 1)) % 1, y = -4 - hash(i, 2) * 40, x = 40 - ph * 90, l = 12 + hash(i, 3) * 18; p.line(x, y, x + l, y, i % 3 ? C[3] : C[4], ph > 0.7 ? (1 - ph) / 0.3 * f : f, 3, 1); } p.ring(0, 0, 16, 1.5, C[3], f * 0.8, { sy: FY }); },
+  flame(p, t, C, f) { const g = out(seg(t, 0, 0.25)); for (const back of [true, false]) for (let i = 0; i < 10; i++) { const an = (i / 10) * TAU, s = Math.sin(an); if ((s < 0) !== back) continue; const x = Math.cos(an) * 16, y = s * 6, h = (14 + 8 * Math.sin(t * 20 + i * 1.7)) * g * f; if (h < 2) continue; p.poly([[x - 4, y], [x + Math.sin(t * 9 + i) * 2, y - h], [x + 4, y]], C[back ? 2 : 3]); p.ink = false; p.poly([[x - 2, y], [x, y - h * 0.6], [x + 2, y]], C[5]); p.ink = true; } },
+  petals(p, t, C, f) { for (let i = 0; i < 12; i++) { const ph = (t * 0.9 + hash(i, 1)) % 1, x = (hash(i, 2) - 0.5) * 50 + Math.sin(ph * 8 + i) * 8, y = -90 + ph * 90, an = ph * 9 + i; const ca = Math.cos(an), sa = Math.sin(an); p.poly([[x - ca * 4, y - sa * 1.5], [x, y - 2.5], [x + ca * 4, y + sa * 1.5], [x, y + 2.5]], C[i % 2 ? 3 : 4], f); } },
+  sigil(p, t, C, f) { const g = out(seg(t, 0, 0.25)), r = 24 * g; p.ring(0, 0, r, 2, C[3], f, { sy: FY }); for (let k = 0; k < 2; k++) { const pts = []; for (let i = 0; i <= 3; i++) { const an = (i / 3) * TAU + k * Math.PI + t * 1.5; pts.push([Math.cos(an) * r * 0.85, Math.sin(an) * r * 0.85 * FY]); } p.path(pts, C[4], f, 1); } p.glow(0, -20, 30, C[3], 0.5 * f * bump(seg(t, 0.2, 1.2))); const s = seg(t, 0.3, 0.9); if (s > 0 && s < 1) p.star(0, -30 - s * 30, Math.round(6 * bump(s)), WHITE, C[4]); },
+  heart(p, t, C, f) { for (let i = 0; i < 3; i++) { const d = seg(t, i * 0.18, i * 0.18 + 0.75); if (d <= 0 || d >= 1) continue; const x = (i - 1) * 14 + Math.sin(d * 7 + i) * 3, y = -16 - out(d) * 70, s = 0.55 + (i === 1 ? 0.25 : 0); p.poly(heartPts(x, y, s * 9), C[3], d > 0.7 ? (1 - d) / 0.3 : 1); p.ink = false; p.px(x - 2, y - 3, C[5]); p.ink = true; } },
+  cross(p, t, C, f) { p.glow(0, -24, 34, C[3], 0.6 * f); for (let i = 0; i < 3; i++) { const d = seg(t, i * 0.16, i * 0.16 + 0.7); if (d <= 0 || d >= 1) continue; const x = (i - 1) * 15, y = -14 - out(d) * 70, s = i === 1 ? 6 : 4, a = d > 0.7 ? (1 - d) / 0.3 : 1; p.poly([[x - s / 3, y - s], [x + s / 3, y - s], [x + s / 3, y - s / 3], [x + s, y - s / 3], [x + s, y + s / 3], [x + s / 3, y + s / 3], [x + s / 3, y + s], [x - s / 3, y + s], [x - s / 3, y + s / 3], [x - s, y + s / 3], [x - s, y - s / 3], [x - s / 3, y - s / 3]], C[3], a); } },
+};
+const boon = (kind, ramp) => fx(`b_${kind}_${ramp}`, { w: 110, h: 150, ox: 55, oy: 126, dur: 1.2, px: 0.04, floor: true }, () => (p, t) => BOON[kind](p, t, RAMP[ramp], 1 - seg(t, 0.85, 1.2)));
+for (const id of ['streaks_steel', 'streaks_holy', 'spiral_wind', 'streaks_shadow', 'streaks_earth', 'streaks_wind', 'petals_wind', 'rise_wind', 'streaks_fire', 'petals_leaf', 'sigil_shadow', 'motes_shadow', 'spiral_ice', 'rise_holy', 'sigil_arcane', 'ring_earth', 'rise_steel', 'pillar_holy', 'ring_holy', 'motes_leaf', 'heart_blood', 'cross_holy', 'flame_fire', 'burst_arcane', 'streaks_arcane', 'spiral_arcane', 'sigil_blood', 'sigil_poison', 'streaks_ice', 'burst_blood', 'flame_holy', 'ring_arcane', 'flame_earth', 'heart_holy', 'pillar_ice', 'petals_holy', 'cross_steel', 'spiral_leaf', 'cross_blood', 'motes_holy', 'pillar_leaf', 'cross_arcane', 'rise_blood', 'ring_steel', 'burst_fire', 'burst_steel', 'ring_fire', 'motes_fire', 'heart_steel', 'heart_leaf', 'rise_leaf', 'spiral_steel']) boon(...id.split('_'));
+
+// ───────── marks: where an attack bites, each card leaves a shape of its own, in its own colours ─────────
+// mark(kind, ramp) makes 'x_<kind>_<ramp>', drawn round the target's chest. It plays with the card's own blow.
+const MARK = {
+  cross(p, t, C, f) { for (let i = 0; i < 2; i++) { const d = seg(t, 0.03 + i * 0.12, 0.2 + i * 0.12); if (d <= 0) continue; const s = i ? 1 : -1, l = 34 * out(d), w = 5 * (1 - seg(t, 0.25 + i * 0.12, 0.7)); if (w < 0.5) continue; p.line(-l * s, -l, l * s, l, C[3], f, 1, w + 1); p.ink = false; p.line(-l * s * 0.8, -l * 0.8, l * s * 0.8, l * 0.8, C[5], f, 1, w * 0.5); p.ink = true; } flash(p, 0, 0, 9, t, 0.03, C); },
+  star(p, t, C, f) { const d = out(seg(t, 0.03, 0.3)), r = 40 * d * (1 - seg(t, 0.35, 0.7) * 0.6); if (r > 2) { const pts = []; for (let i = 0; i < 8; i++) { const a = (i / 8) * TAU + t * 3, q = i % 2 ? r * 0.28 : r; pts.push([Math.cos(a) * q, Math.sin(a) * q]); } p.poly(pts, C[3], f); p.ink = false; p.poly(pts.map(([x, y]) => [x * 0.5, y * 0.5]), C[5], f); p.ink = true; } p.glow(0, 0, 40, C[3], f * (1 - seg(t, 0, 0.5))); },
+  shards(p, t, C, f) { const d = out(seg(t, 0.03, 0.55)); for (let i = 0; i < 9; i++) { const a = (i / 9) * TAU + hash(i, 4), r = 6 + d * (34 + hash(i, 5) * 14); spike(p, Math.cos(a) * r, Math.sin(a) * r, a, 14 * (1 - d * 0.6), 4 * f, C, true); } flash(p, 0, 0, 10, t, 0.03, C); },
+  ring(p, t, C, f) { shock(p, 0, 0, t, 0.03, 0.4, 6, 44, C, { sy: 1, th: 5 }); shock(p, 0, 0, t, 0.14, 0.4, 4, 32, C, { sy: 1, th: 3, rot: 0.52 }); shock(p, 0, 0, t, 0.25, 0.4, 2, 20, C, { sy: 1, th: 2 }); flash(p, 0, 0, 12, t, 0.03, C); },
+  splat(p, t, C, f) { const d = out(seg(t, 0.03, 0.25)); if (d > 0) { const pts = []; for (let i = 0; i < 14; i++) { const a = (i / 14) * TAU, r = (12 + hash(i, 7) * 10) * d * (i % 2 ? 0.7 : 1); pts.push([Math.cos(a) * r, Math.sin(a) * r]); } p.poly(pts, C[2], f); p.ink = false; p.disc(-3, -3, 6 * d, C[4], f); p.ink = true; } for (let i = 0; i < 8; i++) { const k = seg(t, 0.05, 0.7), a = (i / 8) * TAU + 0.3, v = 60 + hash(i, 8) * 40; const x = Math.cos(a) * v * k * 0.6, y = Math.sin(a) * v * k * 0.6 + 70 * k * k; if (k > 0 && k < 1) p.disc(x, y, 3.5 * (1 - k * 0.5), C[3], f); } },
+  fang(p, t, C, f) { const d = seg(t, 0.03, 0.2), o = 30 * (1 - out(d)) + 9, sh = 1 - seg(t, 0.35, 0.7) * 0.5; for (const s of [-1, 1]) { const y = s * o, dx = s > 0 ? 6 : 0; p.arc(dx, y + s * 30, 34, s < 0 ? 1.0 : -2.14, s < 0 ? 2.14 : -1.0, 4, C[1], f); for (let i = -2; i <= 2; i++) { const x = i * 12 + dx, h = (17 - Math.abs(i) * 3) * sh, by = y + s * Math.abs(i) * 2; p.poly([[x - 5, by], [x, by - s * h], [x + 5, by]], C[5], f); p.ink = false; p.line(x - 2, by - s * 2, x, by - s * h * 0.7, C[3], f, 1); p.ink = true; } } if (d >= 1) shock(p, 0, 0, t, 0.2, 0.35, 10, 44, C, { sy: 0.6, th: 3 }); flash(p, 0, 0, 10, t, 0.2, C); },
+  claw(p, t, C, f) { for (let i = 0; i < 3; i++) { const d = seg(t, 0.03 + i * 0.05, 0.18 + i * 0.05); if (d <= 0) continue; const x = (i - 1) * 13, l = 40 * out(d), w = 4 * (1 - seg(t, 0.3, 0.7)); if (w < 0.5) continue; p.line(x + 14, -20, x + 14 - l * 0.7, -20 + l, C[2], f, w + 1.5, 0.5); p.ink = false; p.line(x + 14, -20, x + 14 - l * 0.6, -20 + l * 0.85, C[5], f, w * 0.6, 0.3); p.ink = true; } },
+  spiral(p, t, C, f) { const d = seg(t, 0, 0.55); p.ink = false; for (let s = 0; s < 3; s++) for (let i = 0; i < 16; i++) { const r = (1 - d) * 44 * (i / 16) + 2, a = (s * TAU) / 3 + (i / 16) * 4 + t * 8; p.diamond(Math.cos(a) * r, Math.sin(a) * r, i > 12 ? 1 : 2, i < 4 ? C[5] : C[3], f); } p.ink = true; p.glow(0, 0, 30, C[3], f * bump(d)); flash(p, 0, 0, 12, t, 0.5, C); },
+  crack(p, t, C, f) { const d = out(seg(t, 0.03, 0.2)); for (let i = 0; i < 6; i++) { const a = (i / 6) * TAU + hash(i, 9) * 0.6; let x = 0, y = 0; const pts = [[0, 0]]; for (let j = 1; j <= 4; j++) { const l = 11 * d; x += Math.cos(a + (hash(i, j) - 0.5) * 1.4) * l; y += Math.sin(a + (hash(i, j) - 0.5) * 1.4) * l; pts.push([x, y]); } p.path(pts, C[1], f, 3); p.ink = false; p.path(pts, C[4], f, 1); p.ink = true; } p.glow(0, 0, 36, C[3], f * (1 - seg(t, 0, 0.5))); flash(p, 0, 0, 10, t, 0.03, C); },
+  bloom(p, t, C, f) { const d = out(seg(t, 0.03, 0.4)); for (let i = 0; i < 6; i++) { const a = (i / 6) * TAU + d * 0.8, r = 26 * d; const cx = Math.cos(a) * r * 0.55, cy = Math.sin(a) * r * 0.55, ca = Math.cos(a), sa = Math.sin(a); p.poly([[0, 0], [cx - sa * r * 0.3, cy + ca * r * 0.3], [ca * r, sa * r], [cx + sa * r * 0.3, cy - ca * r * 0.3]], i % 2 ? C[3] : C[2], f); } if (d > 0) p.disc(0, 0, 6 * d, C[5], f); },
+  pierce(p, t, C, f) { const d = out(seg(t, 0.02, 0.15)), w = 4 * (1 - seg(t, 0.25, 0.6)); if (w > 0.5) { p.line(-50 + 20 * d, 0, -50 + 95 * d, 0, C[3], f, 0.5, w + 1.5); p.ink = false; p.line(-40 + 25 * d, 0, -50 + 95 * d, 0, C[5], f, 0.3, w * 0.5); p.ink = true; } const k = seg(t, 0.15, 0.5); if (k > 0 && k < 1) for (let i = 0; i < 6; i++) { const a = (i - 2.5) * 0.35, l = 24 * out(k); p.line(36 + Math.cos(a) * 6, Math.sin(a) * 6, 36 + Math.cos(a) * l, Math.sin(a) * l, C[4], 1 - k, 2, 1); } flash(p, 36, 0, 8, t, 0.15, C); },
+  bubbles(p, t, C, f) { for (let i = 0; i < 10; i++) { const k = seg(t, hash(i, 2) * 0.25, 0.4 + hash(i, 2) * 0.3), a = (i / 10) * TAU, r = 10 + 26 * out(k), s = 3 + hash(i, 3) * 5; if (k <= 0) continue; const x = Math.cos(a) * r, y = Math.sin(a) * r - k * 14; if (k < 0.85) { p.ring(x, y, s, 1.5, C[3], f); p.ink = false; p.px(x - s * 0.4, y - s * 0.4, C[5]); p.ink = true; } else p.star(x, y, Math.round(s), C[5], C[3]); } p.glow(0, 0, 26, C[2], f * 0.6); },
+  rune(p, t, C, f) { const d = out(seg(t, 0.02, 0.25)), r = 30 * d, rot = t * 2.5; if (r < 2) return; p.ring(0, 0, r, 2, C[3], f, { sides: 4, rot }); p.ring(0, 0, r * 0.7, 1.5, C[4], f, { sides: 4, rot: rot + Math.PI / 4 }); p.ink = false; for (let i = 0; i < 4; i++) { const a = rot + (i * TAU) / 4 + Math.PI / 4; p.diamond(Math.cos(a) * r, Math.sin(a) * r, 3, C[5], f); } p.ink = true; p.glow(0, 0, r, C[3], f * 0.7); flash(p, 0, 0, 10, t, 0.3, C); },
+  nova(p, t, C, f) { const d = out(seg(t, 0.03, 0.25)), sh = 1 - seg(t, 0.3, 0.7); for (let i = 0; i < 12; i++) { const a = (i / 12) * TAU, l = (i % 2 ? 22 : 40) * d * sh; spike(p, Math.cos(a) * 5, Math.sin(a) * 5, a, l, 3.5, C, i % 2 === 0); } flash(p, 0, 0, 12, t, 0.03, C); },
+  crescent(p, t, C, f) { const d = seg(t, 0.02, 0.25), w = 9 * (1 - seg(t, 0.25, 0.65)); if (d > 0 && w > 0.5) { p.arc(0, 0, 34, -2.4, -2.4 + 3.4 * out(d), w, C[3], f, { lead: 0.3 }); p.ink = false; p.arc(0, 0, 34, -2.4, -2.4 + 3.4 * out(d), w * 0.4, C[5], f); p.ink = true; } p.glow(0, 0, 30, C[3], f * 0.5 * bump(d)); },
+  eye(p, t, C, f) { const o = bump(seg(t, 0.02, 0.6)), w = 34, h = 16 * Math.min(1, o * 1.6); if (h < 1) return; const pts = []; for (let i = 0; i <= 20; i++) { const x = -w + (i / 20) * 2 * w; pts.push([x, -h * (1 - (x / w) ** 2)]); } for (let i = 20; i >= 0; i--) { const x = -w + (i / 20) * 2 * w; pts.push([x, h * (1 - (x / w) ** 2)]); } p.poly(pts, C[1], f); p.disc(0, 0, Math.min(h, 11), C[3], f); p.ink = false; p.disc(0, 0, Math.min(h, 11) * 0.45, C[0], f); p.px(-3, -4, C[5]); p.ink = true; p.glow(0, 0, 44, C[3], 0.5 * f * o); },
+};
+const mark = (kind, ramp) => fx(`x_${kind}_${ramp}`, { w: 120, h: 120, ox: 60, oy: 60, dur: 0.75, px: 0.034 }, () => (p, t) => MARK[kind](p, t, RAMP[ramp], 1 - seg(t, 0.5, 0.75)));
+export const MARKS = Object.keys(MARK), BOONS = Object.keys(BOON);
+for (const id of ['fang_steel', 'crack_blood', 'bubbles_smoke', 'crescent_steel', 'star_blood', 'pierce_steel', 'nova_arcane', 'cross_shadow', 'ring_leaf', 'eye_holy', 'shards_fire', 'fang_holy', 'crack_fire', 'bubbles_holy', 'crescent_fire', 'splat_fire', 'spiral_blood', 'pierce_fire', 'nova_blood', 'eye_fire', 'shards_blood', 'ring_ice', 'crack_steel', 'bubbles_blood', 'cross_fire', 'ring_blood', 'nova_steel', 'cross_blood', 'ring_smoke', 'claw_steel', 'bloom_blood', 'rune_smoke', 'eye_steel', 'splat_blood', 'shards_steel', 'fang_blood', 'spiral_wind', 'rune_steel', 'eye_arcane', 'star_steel', 'spiral_steel', 'pierce_blood', 'nova_smoke', 'cross_steel', 'bubbles_poison', 'crescent_leaf', 'star_poison', 'splat_leaf', 'spiral_poison', 'pierce_leaf', 'bubbles_steel', 'eye_shadow', 'shards_arcane', 'splat_steel', 'ring_holy', 'claw_fire', 'nova_fire', 'ring_steel', 'claw_blood', 'crack_smoke', 'rune_earth', 'eye_leaf', 'star_earth', 'claw_ice', 'bubbles_shadow', 'crescent_arcane', 'star_shadow', 'cross_ice', 'bloom_steel', 'rune_blood', 'eye_poison', 'shards_leaf', 'fang_poison', 'splat_wind', 'bloom_poison', 'crescent_holy', 'star_fire', 'splat_holy', 'spiral_fire', 'bloom_holy', 'nova_holy', 'bloom_fire', 'crescent_blood', 'ring_fire', 'eye_blood', 'bubbles_fire', 'claw_shadow', 'bloom_arcane', 'rune_shadow', 'cross_arcane', 'shards_shadow', 'fang_arcane', 'crack_shadow', 'bubbles_wind', 'cross_smoke', 'claw_poison', 'pierce_earth']) mark(...id.split('_'));
+for (const id of ['pillar_steel', 'motes_blood', 'petals_shadow', 'motes_steel', 'motes_arcane', 'flame_poison', 'sigil_steel', 'pillar_earth', 'petals_fire', 'spiral_holy', 'sigil_fire', 'flame_steel', 'petals_steel', 'streaks_blood']) boon(...id.split('_'));
+
+// ───────── what a heavy blow leaves on the ground for a few seconds ─────────
+// Two sheets each. af_<kind>_g is the mark itself, painted as seen from straight above: the game lays it flat on
+// every hex it covers, each at that hex's own height, so it follows the ground and trees in front hide it.
+// af_<kind> is what still moves above it (embers, smoke, crystals, bubbles), standing up like any other effect.
+// Both come up under the blast, hold, then thin away in dithered steps.
+function blot(p, x, y, r, c, a, seed, sy = 1) { // an uneven splash
+  p.each(x - r * 1.3, y - r * 1.3 * sy, x + r * 1.3, y + r * 1.3 * sy, (px, py, ix, iy) => {
+    const dx = px - x, dy = (py - y) / sy, an = Math.atan2(dy, dx);
+    const rr = r * (0.82 + 0.16 * Math.sin(an * 3 + seed) + 0.1 * Math.sin(an * 5 + seed * 2.3) + 0.06 * Math.sin(an * 9 + seed * 4.1));
+    if (dx * dx + dy * dy <= rr * rr) p.put(ix, iy, c, a, a < 1);
+  });
+}
+const AF_DUR = 4.6;
+const life = (t) => seg(t, 0, 0.12) * (1 - seg(t, AF_DUR * 0.6, AF_DUR)); // up fast, hold, thin away
+// setup(k) returns { g(p, t, f), a(p, t, f) }: the ground and what stands on it
+function after(kind, setup) {
+  fx(`af_${kind}_g`, { w: 140, h: 140, ox: 70, oy: 70, dur: AF_DUR, fps: 10, px: 0.042 }, (k) => { const L = setup(k); return (p, t) => L.g(p, t, life(t)); });
+  fx(`af_${kind}`, { w: 200, h: 150, ox: 100, oy: 110, dur: AF_DUR, fps: 10, px: 0.042, floor: true }, (k) => { const L = setup(k); return (p, t) => { L.a?.(p, t, life(t)); k.ps.draw(p, true); k.ps.draw(p); }; });
+}
+const later = (R, d) => R.range(0, d); // when a moving bit starts, spread over the hold
+// fire: a scorched patch, cracks that glow and slowly cool, embers and smoke going up
+after('fire', (k) => {
+  const C = RAMP.fire, R = k.R;
+  for (let i = 0; i < 30; i++) k.ps.spawn({ kind: 'ember', ramp: C, x: R.range(-40, 40), y: R.range(-6, 6) * FY, vy: -R.range(14, 40), life: R.range(0.7, 1.4), delay: later(R, 3.0), s: 2 });
+  for (let i = 0; i < 12; i++) k.ps.spawn({ kind: 'puff', ramp: smokeR, tone: R.pick([1, 2]), x: R.range(-30, 30), y: -R.range(0, 6), vx: R.range(-6, 6), vy: -R.range(14, 26), drag: 0.6, g: -6, s: R.range(2, 4), life: R.range(1.2, 1.8), delay: later(R, 2.6), back: true });
+  return { g(p, t, f) {
+    const hot = 1 - seg(t, 0.2, 3.4);
+    p.ink = false; blot(p, 0, 0, 52, INK, f, 1.3); blot(p, 0, 0, 34, C[0], f, 2.1);
+    for (let i = 0; i < 9; i++) { const a = (i / 9) * TAU + hash(i, 4) * 0.5, l = 30 + hash(i, 5) * 26, mx = Math.cos(a + 0.2) * l * 0.5, my = Math.sin(a + 0.2) * l * 0.5;
+      const c = hot > 0.6 ? C[4] : hot > 0.3 ? C[3] : hot > 0.08 ? C[2] : C[1]; p.path([[0, 0], [mx, my], [Math.cos(a) * l, Math.sin(a) * l]], c, f, 1);
+      if (hot > 0.2 && (Math.floor(t * 10) + i) % 4 === 0) p.px(Math.cos(a) * l * 0.7, Math.sin(a) * l * 0.7, C[5]); }
+    p.ink = true; p.glow(0, 0, 46, C[2], 0.55 * hot * f * (0.85 + 0.15 * Math.sin(t * 9)));
+  } };
+});
+// earth: a crater with a raised rim, cracks running out, dust hanging and pebbles settling
+after('earth', (k) => {
+  const C = RAMP.earth, R = k.R;
+  for (let i = 0; i < 10; i++) k.ps.spawn({ kind: 'puff', ramp: C, tone: R.pick([2, 3]), x: R.range(-46, 46), y: -R.range(0, 6), vx: R.range(-10, 10), vy: -R.range(4, 12), drag: 1, g: -3, s: R.range(3, 5), life: R.range(1.4, 2.2), delay: later(R, 2.2), back: i % 2 === 0 });
+  for (let i = 0; i < 8; i++) k.ps.spawn({ kind: 'chip', ramp: C, tone: R.pick([1, 2, 3]), x: R.range(-40, 40), y: -R.range(20, 40), vy: R.range(0, 30), g: 400, s: R.range(2, 3.5), life: R.range(1.2, 2), delay: later(R, 0.9) });
+  return { g(p, t, f) {
+    p.ink = false; blot(p, 0, 0, 50, C[1], f, 3.7); p.ink = true; blot(p, 0, -1, 36, C[0], f, 0.4); blot(p, 0, 2, 22, INK, f, 2.2);
+    p.ink = false; p.ring(0, 0, 37, 3, C[3], f, { keep: (a) => a < 0 }); p.ring(0, 0, 37, 2, C[2], f, { keep: (a) => a >= 0 });
+    for (let i = 0; i < 7; i++) { const a = (i / 7) * TAU + hash(i, 11) * 0.8, l = 62 * (0.6 + hash(i, 14) * 0.4); p.path([[Math.cos(a) * 30, Math.sin(a) * 30], [Math.cos(a + 0.12) * l * 0.75, Math.sin(a + 0.12) * l * 0.75], [Math.cos(a) * l, Math.sin(a) * l]], C[0], f, 1); }
+    p.ink = true;
+  } };
+});
+// ice: a patch of frost with crystals standing in it, glints, cold mist low on the floor
+after('ice', (k) => {
+  const C = RAMP.ice, R = k.R;
+  for (let i = 0; i < 10; i++) k.ps.spawn({ kind: 'puff', ramp: C, tone: R.pick([3, 4]), x: R.range(-50, 50), y: -R.range(0, 4), vx: R.range(-14, 14), vy: -R.range(1, 5), drag: 0.8, g: 0, s: R.range(3, 5), life: R.range(1.4, 2.2), delay: later(R, 2.2), back: true });
+  const xs = [[-30, -4, 16], [-12, 6, 22], [14, -6, 18], [32, 4, 13], [2, 10, 11], [-40, 8, 9], [42, -3, 10]];
+  return {
+    g(p, t, f) { p.ink = false; blot(p, 0, 0, 56, C[3], 0.6 * f, 5.1); blot(p, 0, 0, 40, C[4], 0.55 * f, 1.9); p.ink = true; },
+    a(p, t, f) {
+      for (const [x, y, h] of xs) { const H = h * (0.6 + 0.4 * f); if (f < 0.2) continue; const Y = y * FY; spike(p, x - 3, Y, -Math.PI / 2 - 0.25, H * 0.7, 3, C); spike(p, x, Y, -Math.PI / 2, H, 4, C); spike(p, x + 3, Y, -Math.PI / 2 + 0.3, H * 0.6, 3, C); }
+      for (let i = 0; i < xs.length; i++) { const ph = (t * 1.3 + hash(i, 6)) % 1; if (ph < 0.12 && f > 0.3) { const [x, y, h] = xs[i]; p.star(x, y * FY - h * 0.8, 4, WHITE, C[4]); } }
+    },
+  };
+});
+// poison: a spreading puddle, bubbles that rise and pop, fumes
+after('poison', (k) => {
+  const C = RAMP.poison, R = k.R;
+  for (let i = 0; i < 10; i++) k.ps.spawn({ kind: 'puff', ramp: C, tone: R.pick([1, 2]), x: R.range(-34, 34), y: -R.range(2, 8), vx: R.range(-5, 5), vy: -R.range(10, 22), drag: 0.6, g: -4, s: R.range(2, 4), life: R.range(1.1, 1.7), delay: later(R, 2.7), back: true });
+  const bb = Array.from({ length: 16 }, () => [R.range(-40, 40), R.range(-24, 24), R.range(0, 3.4), R.range(2, 4.5)]);
+  return {
+    g(p, t, f) { const g = out(seg(t, 0, 0.6)); p.ink = false; blot(p, 0, 0, 54 * (0.7 + 0.3 * g), C[1], f, 0.8); blot(p, 0, 0, 38 * (0.7 + 0.3 * g), C[2], f, 2.6); blot(p, -10, -6, 12, C[3], 0.7 * f, 4.4); p.ink = true; },
+    a(p, t, f) {
+      for (const [x, y, t0, s] of bb) { const d = seg(t, t0, t0 + 0.6); if (d <= 0 || d >= 1 || f < 0.2) continue; const Y = y * FY;
+        if (d < 0.8) { p.disc(x, Y - s * d, s * d, C[3]); p.ink = false; p.px(x - s * d * 0.4, Y - s * d * 1.4, C[5]); p.ink = true; }
+        else { p.ink = false; p.ring(x, Y - s * 0.8, s * 1.3, 1, C[4], 1, { sides: 6 }); p.ink = true; } }
+    },
+  };
+});
+// lightning: black burn lines branching out, and the charge left in them still jumps across now and then
+const ARMS = (() => { const R = rng(41); return Array.from({ length: 7 }, (_, i) => { const a = (i / 7) * TAU + R.range(-0.3, 0.3); const pts = [[0, 0]];
+  for (let j = 1; j <= 3; j++) { const l = 15 * j + R.range(-4, 6), aa = a + R.range(-0.45, 0.45); pts.push([Math.cos(aa) * l, Math.sin(aa) * l]); } return pts; }); })();
+after('volt', (k) => {
+  const C = VOLT, R = k.R;
+  [0.3, 0.75, 1.2, 1.6, 2.1, 2.6, 3.1].forEach((tt) => k.at(tt, () => { const pt = R.pick(ARMS)[R.pick([1, 2, 3])]; sparks(k, pt[0], pt[1] * FY - 2, 5, 120, C, { g: 300 }); }));
+  return { g(p, t, f) {
+    p.ink = false; blot(p, 0, 0, 22, INK, f, 6.2); for (const a of ARMS) p.path(a, INK, f, 2);
+    const j = Math.floor(t * 10);
+    for (let i = 0; i < ARMS.length; i++) if ((j * 3 + i * 5) % 7 < 2 && t < 3.4) { const pts = ARMS[i].map(([x, y], n) => [x + (n ? (hash(j, i * 9 + n) - 0.5) * 6 : 0), y + (n ? (hash(j, i * 7 + n) - 0.5) * 6 : 0)]); p.path(pts, C[3], 1, 2); p.path(pts, WHITE, 1, 1); p.glow(pts[2][0], pts[2][1], 12, C[3], 0.7); }
+    p.ink = true; p.glow(0, 0, 30, C[2], 0.4 * f * (1 - seg(t, 0.3, 3.4)));
+  } };
+});
+// holy: a hexagon seal burnt into the floor, slowly turning and dimming, motes of light going up
+after('holy', (k) => {
+  const C = RAMP.holy, R = k.R;
+  for (let i = 0; i < 30; i++) k.ps.spawn({ kind: 'mote', ramp: C, tone: 4, x: R.range(-40, 40), y: R.range(-6, 6), vy: -R.range(18, 40), life: R.range(0.8, 1.5), delay: later(R, 3.0) });
+  return { g(p, t, f) {
+    const rot = t * 0.4; p.glow(0, 0, 60, C[3], 0.7 * f);
+    p.ink = false; p.ring(0, 0, 46, 3, C[4], f, { sides: 6, rot }); p.ring(0, 0, 36, 2, C[3], f, { sides: 6, rot: -rot + 0.5 });
+    for (let i = 0; i < 6; i++) { const a = rot + (i / 6) * TAU; p.diamond(Math.cos(a) * 41, Math.sin(a) * 41, 3, C[5], f); }
+    p.ring(0, 0, 18, 2, C[4], f * 0.8, { sides: 6, rot: rot * 2 }); p.ink = true;
+  } };
+});
+// shadow: a pool of dark that does not lie still, wisps curling up out of it
+after('shadow', (k) => {
+  const C = RAMP.shadow, R = k.R;
+  for (let i = 0; i < 12; i++) k.ps.spawn({ kind: 'puff', ramp: C, tone: R.pick([1, 2]), x: R.range(-34, 34), y: -R.range(0, 6), vx: R.range(-8, 8), vy: -R.range(12, 24), drag: 0.5, g: -6, s: R.range(2, 4), life: R.range(1.0, 1.6), delay: later(R, 2.8), back: i % 2 === 0 });
+  for (let i = 0; i < 14; i++) k.ps.spawn({ kind: 'mote', ramp: C, tone: 4, x: R.range(-40, 40), y: R.range(-6, 6), vy: -R.range(10, 26), life: R.range(0.8, 1.4), delay: later(R, 3.0) });
+  return { g(p, t, f) {
+    p.ink = false; blot(p, 0, 0, 52, C[1], f, 1 + t * 1.6); blot(p, 0, 0, 36, C[0], f, 3 - t * 1.2);
+    for (let i = 0; i < 6; i++) { const a = (i / 6) * TAU + t * 0.7, r = 40 + Math.sin(t * 3 + i) * 6; p.arc(0, 0, r, a, a + 0.5, 2, C[2], f); } p.ink = true;
+  } };
+});
+// arcane: the rune circle stays drawn on the floor; its glyphs lift off and fade
+after('arcane', (k) => {
+  const C = RAMP.arcane, R = k.R;
+  for (let i = 0; i < 20; i++) k.ps.spawn({ kind: 'mote', ramp: C, tone: 4, x: R.range(-44, 44), y: R.range(-6, 6), vy: -R.range(14, 30), life: R.range(0.8, 1.4), delay: later(R, 3.0) });
+  return {
+    g(p, t, f) { const rot = -t * 0.6; p.glow(0, 0, 54, C[2], 0.6 * f);
+      p.ink = false; p.ring(0, 0, 44, 2, C[3], f, { rot }); p.ring(0, 0, 38, 2, C[4], f, { sides: 4, rot }); p.ring(0, 0, 38, 2, C[4], f, { sides: 4, rot: rot + Math.PI / 4 }); p.ink = true; },
+    a(p, t, f) { const rot = -t * 0.6; for (let i = 0; i < 8; i++) { const a = rot + (i / 8) * TAU, ph = (t * 0.7 + hash(i, 8)) % 1; p.diamond(Math.cos(a) * 44, Math.sin(a) * 44 * FY - ph * 26, 2.5 * (1 - ph), C[4], f * (1 - ph)); } },
+  };
+});
+// wind: the dust swept into a ring, and a few leaves still turning in the last of the gust
+after('wind', (k) => {
+  const C = RAMP.wind, L = RAMP.leaf, R = k.R;
+  for (let i = 0; i < 8; i++) k.ps.spawn({ kind: 'puff', ramp: smokeR, tone: 3, x: R.range(-50, 50), y: -R.range(0, 4), vx: R.range(-20, 20), vy: -R.range(2, 8), drag: 1, g: 0, s: R.range(2, 4), life: R.range(1.0, 1.6), delay: later(R, 2.4), back: true });
+  return {
+    g(p, t, f) { p.ink = false; p.ring(0, 0, 46, 3, RAMP.earth[2], f); p.ring(0, 0, 51, 2, RAMP.earth[3], f);
+      for (let i = 0; i < 3; i++) { const a = t * 3 + (i / 3) * TAU; p.arc(0, 0, 30 + i * 6, a, a + 1.1, 2, C[4], f * 0.8); } p.ink = true; },
+    a(p, t, f) { for (let i = 0; i < 6; i++) { const a = t * (2 + hash(i, 3)) + i, r = 22 + hash(i, 2) * 26, y = -6 - ((t * 10 + i * 7) % 26);
+      if (f > 0.1) p.diamond(Math.cos(a) * r, Math.sin(a) * r * FY + y * f, 2.5, Math.floor(t * 8 + i) % 2 ? L[3] : L[2]); } },
+  };
+});
