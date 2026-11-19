@@ -1260,7 +1260,6 @@ export const TH = {
   'Call a Hawk. Each round it strikes the nearest enemy within 4 hexes.': 'เรียกเหยี่ยว ทุกรอบมันจะจู่โจมศัตรูที่ใกล้ที่สุดในระยะ 4 ช่อง',
   'Build a Cannon that fires down a line of 5 hexes each round.': 'สร้างปืนใหญ่ที่ยิงเป็นแนวยาว 5 ช่องทุกรอบ', 'Build a Shield Pylon that gives allies next to it 2 Block each round.': 'สร้างเสาโล่ที่ให้ Block 2 แก่เพื่อนข้าง ๆ ทุกรอบ',
   // skill trees, item perks, enhancing, boss follow-up
-  'Next: {gain}': 'ขั้นต่อไป: {gain}',
   'Long Casting': 'ร่ายไกล', 'Spellfire': 'เพลิงเวท', 'Strong Draw': 'น้าวแรง', 'Killing Edge': 'คมสังหาร',
   'Unbreakable': 'ไม่มีวันแตก', 'Your Defense cards give 2 more Block.': 'การ์ดป้องกันของคุณให้บล็อกเพิ่ม 2',
   'Warmaster': 'จ้าวสงคราม', 'Your Knight attacks roll 1 more die.': 'การ์ดโจมตีของอัศวินทอยลูกเต๋าเพิ่ม 1 ลูก',
@@ -1292,8 +1291,6 @@ export const TH = {
   'Critical hits deal +{n}% damage.': 'คริติคอลแรงขึ้น +{n}%', '+{n}% damage to bosses.': 'ความเสียหายต่อบอส +{n}%',
   'Start every battle with {n} Block.': 'เริ่มทุกการต่อสู้ด้วยบล็อก {n}', 'Enemies that hit you up close take {n} damage.': 'ศัตรูที่ตีคุณระยะประชิดโดนความเสียหาย {n}',
   'Regenerate {n} HP each round.': 'ฟื้นเลือด {n} ทุกรอบ', 'Start every battle with Haste {n}.': 'เริ่มทุกการต่อสู้ด้วยเร่งความเร็ว {n}',
-  'Start every battle with Strength {n}.': 'เริ่มทุกการต่อสู้ด้วยพลัง {n}', 'Enhance': 'เสริมพลัง',
-  'Up to +{n}, never fails': 'สูงสุด +{n} ไม่มีวันล้มเหลว', 'Worn by {name}': 'สวมโดย {name}',
-  'Fully enhanced': 'เสริมพลังเต็มแล้ว', '{name} is now +{n}': '{name} ตอนนี้ +{n}',
+  'Start every battle with Strength {n}.': 'เริ่มทุกการต่อสู้ด้วยพลัง {n}',
   'Follow-up!': 'ตีซ้ำ!', 'Follow-up': 'ตีซ้ำ',
 };

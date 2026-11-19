@@ -8,7 +8,7 @@ import { openJobChoice } from './jobUI.js';
 import { CLASSES, STAT_INFO, expToNext, className, canUseCard, levelCap } from '../data/classes.js';
 import { JOBS, JOB_LEVEL } from '../data/jobs.js';
 import { CARDS, RARITY, MAX_CARD_LEVEL, upgradeCost, DECK_MIN, DECK_MAX } from '../data/cards.js';
-import { CONSUMABLES, MATERIALS, RECIPES, BASES, ITEM_RARITY, STAT_LABEL, makeEquipment, enhance, enhanceCost, enhanceGain, itemName, MAX_PLUS } from '../data/items.js';
+import { CONSUMABLES, MATERIALS, RECIPES, BASES, ITEM_RARITY, makeEquipment } from '../data/items.js';
 import { QUESTS } from '../data/events.js';
 import { Net } from '../net/firebase.js';
 import { Coop } from '../net/coop.js';
@@ -181,28 +181,8 @@ function forgeTab(render) {
         return h('div.item.recipe' + (ok ? '' : '.dim'), { style: { '--rar': ITEM_RARITY[r.rarity].color } }, h('div.item-icon', itemPic(B.icon, ITEM_RARITY[r.rarity].color, 32, r)),
           h('div.item-info', h('div.item-name', `${B.names[r.tier - 1]}`), h('div.item-sub', `${ITEM_RARITY[r.rarity].name} · ${t('Tier {n}', { n: r.tier })} ${t(B.type)}`),
             h('div.recipe-cost', ...Object.entries(r.mats).map(([m, n]) => h('span' + ((st.inv.mats[m] || 0) >= n ? '' : '.lack'), `${MATERIALS[m].name} ${st.inv.mats[m] || 0}/${n}`)), h('span' + (st.gold >= r.gold ? '' : '.lack'), t('{n} gold', { n: r.gold })))),
-          h('button.mini.up', { disabled: !ok, onclick: () => { Object.entries(r.mats).forEach(([m, n]) => { st.inv.mats[m] -= n; if (st.inv.mats[m] <= 0) delete st.inv.mats[m]; }); st.gold -= r.gold; const it = makeEquipment(r.base, r.tier, r.rarity); addItem(it); progress('craft', 1); audio.sfx('place'); audio.sfx('levelup'); toast(t('Forged {name}!', { name: it.name }), 'good'); render(); } }, t('Forge'))); }),
-        ...enhanceRows(render))));
+          h('button.mini.up', { disabled: !ok, onclick: () => { Object.entries(r.mats).forEach(([m, n]) => { st.inv.mats[m] -= n; if (st.inv.mats[m] <= 0) delete st.inv.mats[m]; }); st.gold -= r.gold; const it = makeEquipment(r.base, r.tier, r.rarity); addItem(it); progress('craft', 1); audio.sfx('place'); audio.sfx('levelup'); toast(t('Forged {name}!', { name: it.name }), 'good'); render(); } }, t('Forge'))); }))));
   root.appendChild(upgradeCol(render)); return root;
-}
-
-// Enhancing: worn gear first (whose wearer is named), then the bag; best tier first.
-function enhanceRows(render) {
-  const st = G.state;
-  const worn = myHeroes().flatMap((x) => ['weapon', 'armor', 'accessory'].map((s) => x.equip[s] && { it: x.equip[s], who: x.name, hero: x })).filter(Boolean);
-  const bag = st.inv.equip.slice().sort((a, b) => b.tier - a.tier || (b.plus || 0) - (a.plus || 0)).map((it) => ({ it }));
-  const row = ({ it, who, hero }) => {
-    const r = ITEM_RARITY[it.rarity]; const max = (it.plus || 0) >= MAX_PLUS; const cost = enhanceCost(it);
-    const ok = !max && st.gold >= cost.gold && st.shards >= cost.shards;
-    const pct = (k) => k === 'crit' || k === 'eva';
-    const gain = max ? '' : Object.entries(enhanceGain(it)).map(([k, v]) => `${t(STAT_LABEL[k] || k).replace(' %', '')} +${v}${pct(k) ? '%' : ''}`).join(' · ');
-    return h('div.item.recipe' + (ok || max ? '' : '.dim'), { style: { '--rar': r.color } }, h('div.item-icon', itemPic(it.icon, r.color, 32, it)),
-      h('div.item-info', h('div.item-name', itemName(it)), h('div.item-sub', who ? t('Worn by {name}', { name: who }) : `${r.name} · ${t('Tier {n}', { n: it.tier })}`),
-        max ? h('div.recipe-cost', h('span', t('Fully enhanced'))) : h('div.enh-gain', t('Next: {gain}', { gain })), max ? null : h('div.recipe-cost', h('span' + (st.gold >= cost.gold ? '' : '.lack'), t('{n} gold', { n: cost.gold })), h('span' + (st.shards >= cost.shards ? '' : '.lack'), `${cost.shards}◆`))),
-      max ? null : h('button.mini.up', { disabled: !ok, onclick: () => { if (!ok || !enhance(it)) return; st.gold -= cost.gold; st.shards -= cost.shards; if (hero) clampVitals(hero); touch(); audio.sfx('levelup'); toast(t('{name} is now +{n}', { name: it.name, n: it.plus }), 'good'); render(); } }, t('Enhance')));
-  };
-  const rows = [...worn, ...bag].map(row);
-  return rows.length ? [h('div.sec-title.enh-title', t('Enhance'), h('span.points', t('Up to +{n}, never fails', { n: MAX_PLUS }))), ...rows] : [];
 }
 
 // Card upgrades: a second copy of the same card is melted into the first. Each row reads left to right:

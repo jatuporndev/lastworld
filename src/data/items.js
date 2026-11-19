@@ -104,30 +104,8 @@ function mergePassives(list) {
 }
 export const perkText = (k) => (PERKS[k.id] ? t(PERKS[k.id].text, { n: k.n }) : '');
 
-// ───── enhancing at the Forge: +1 to +5, never fails ─────
-// Each step adds about 12% to the item's own larger stats (HP, MP, crit, evasion, speed: at least +1), and step +4
-// adds +1 to its ATK / MATK / DEF (they are small on purpose: dice carry the hits).
-export const MAX_PLUS = 5;
+// Gear enhanced while the Forge still offered it (it was taken out: power comes from what drops) keeps its "+n".
 export const itemName = (item) => item.name + (item.plus ? ' +' + item.plus : '');
-export const enhanceCost = (item) => { const n = (item.plus || 0) + 1; return { gold: 30 * Math.max(1, item.tier) * n, shards: 4 * n }; };
-export function enhanceGain(item) {
-  const next = (item.plus || 0) + 1; const own = Object.keys(BASES[item.base]?.stats || {}).filter((k) => BASES[item.base].stats[k] > 0 && item.stats[k]);
-  const keys = own.length ? own : Object.keys(item.stats).slice(0, 1);
-  const gain = {};
-  for (const k of keys) {
-    if (SMALL.includes(k)) { if (next === 4) gain[k] = 1; }
-    else gain[k] = Math.max(1, Math.round((item.stats[k] - (item.plusGain?.[k] || 0)) * 0.12));
-  }
-  return gain;
-}
-export function enhance(item) {
-  if ((item.plus || 0) >= MAX_PLUS) return false;
-  const gain = enhanceGain(item);
-  item.plusGain ||= {};
-  for (const [k, v] of Object.entries(gain)) { item.stats[k] = (item.stats[k] || 0) + v; item.plusGain[k] = (item.plusGain[k] || 0) + v; }
-  item.plus = (item.plus || 0) + 1; item.value = Math.round(item.value * 1.15);
-  return true;
-}
 
 // Unique stage reward equipment (granted by MVP bosses)
 export const UNIQUES = {

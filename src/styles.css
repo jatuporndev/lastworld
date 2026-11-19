@@ -1149,5 +1149,3 @@ html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent
   .rc-p { width: 7.4em; padding: 0.4em 0.3em; } .rc-face { width: 3.2em; height: 3.2em; } .rc-party { gap: 0.6em; margin-top: 0.5em; } .bsum { gap: 0.2em 0.6em; padding: 0.4em 0.6em; } #rc-slip .btn { min-height: 2.6em; }
 }
 
-/* Forge: what the next enhancing step adds */
-.enh-gain { color: #2f7d4a; font-size: 0.85em; } .enh-title { margin-top: 0.8em; }
