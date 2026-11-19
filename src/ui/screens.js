@@ -9,10 +9,10 @@ import { JOBS, JOB_LEVEL, jobsOf } from '../data/jobs.js';
 import { STARTER_DECKS, ELEMENTS } from '../data/cards.js';
 import { STAGES } from '../data/stages.js';
 import { MONSTERS } from '../data/monsters.js';
-import { UNIQUES } from '../data/items.js';
+import { UNIQUES, relicOf } from '../data/items.js';
 import { CARDS } from '../data/cards.js';
 import { Net } from '../net/firebase.js';
-import { ui, btn, icon, openModal, heroSprite, monsterSprite, cardEl, toast, toggleFullscreen, confirmBox, bar, bagButton, questButton, volumeRow } from './components.js';
+import { ui, btn, icon, itemPic, itemTip, openModal, heroSprite, monsterSprite, cardEl, toast, toggleFullscreen, confirmBox, bar, bagButton, questButton, volumeRow } from './components.js';
 import { openMenu, openQuests } from './panels.js';
 import { coopModal, inviteFriends } from './coopUI.js';
 import { Coop } from '../net/coop.js';
@@ -276,7 +276,11 @@ export function worldMapScreen(app) {
       h('div.wm-d-head', h('div.wm-d-stage', t('STAGE {n}', { n: s.id })), h('h3', s.name), h('div.wm-d-sub', s.subtitle)),
       h('div.wm-boss', locked ? h('div.wm-unknown', '?') : monsterSprite(s.boss, { size: 190 }), h('div', h('small', t('MVP BOSS')), h('b', locked ? '???' : boss.name), locked ? null : h('span', t('Lv {lv} · Weak: {weak}', { lv: boss.level, weak: boss.weak.map((e) => ELEMENTS[e].name).join(', ') || '—' })))),
       h('p.wm-text', locked ? t('Defeat {boss} to unlock this realm.', { boss: MONSTERS[STAGES[selId - 2].boss].name }) : s.intro),
-      locked ? null : h('div.wm-rewards', h('small', t('FIRST CLEAR REWARDS')), h('div', icon('ring', '#ffb347', 18), UNIQUES[s.rewardUnique].name), h('div', icon('book', '#c070ff', 18), t('Card: {name}', { name: CARDS[s.rewardCard].name }))),
+      locked ? null : h('div.wm-rewards', h('small', t('FIRST CLEAR REWARDS')), h('div', icon('book', '#c070ff', 18), t('Card: {name}', { name: CARDS[s.rewardCard].name })),
+        // the stage's relics: never certain, so they are listed as what may drop, and from whom
+        // laid out as three gear tokens with who drops them, like the spoils after a fight
+        h('small.wm-drops', t('RARE DROPS')), h('div.wm-relics', ...[['boss', 'MVP'], ['mini', 'Mini Boss'], ['normal', 'Monsters']].map(([kind, from]) => { const U = UNIQUES[relicOf(s, kind)];
+          return U ? h('div.wm-relic', { 'data-tip-html': itemTip(U) }, h('div.wm-relic-tok', itemPic(U.icon, '#ffb347', 44, { ...U, uniqueId: relicOf(s, kind) }), h('b', t(from))), h('span', U.name)) : null; }))),
       h('div.row', btn(t(locked ? 'Locked' : st.run?.stageId === s.id ? 'Resume Expedition' : cleared ? 'Replay Stage' : 'Enter Stage'), () => app.enterStage(s.id), { cls: 'primary big', disabled: locked })));
   };
   render();

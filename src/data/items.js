@@ -37,18 +37,25 @@ const SMALL = ['atk', 'matk', 'def'];
 
 export const STAT_LABEL = { atk: 'ATK', matk: 'MATK', def: 'DEF', hp: 'Max HP', mp: 'Max MP', crit: 'Crit %', eva: 'Evasion %', spd: 'Speed', move: 'Move', energy: 'Action Slots' };
 
-export function makeEquipment(baseId, tier, rarity, rng = Math.random) {
-  const base = BASES[baseId];
-  const r = ITEM_RARITY[rarity];
+const growth = (tier) => {
   const tt = tier <= 6 ? tier : 6 + (tier - 6) * 0.45; // stages 7 to 11 keep growing, but slowly
-  const tierMul = 1 + (tt - 1) * 0.85;
-  const hpMul = 1 + (tt - 1) * 0.5;
-  const step = Math.floor((tt - 1) / 2); // +1 ATK / MATK / DEF at tiers 3, 5 and 9
-  const stats = {};
-  for (const [k, v] of Object.entries(base.stats)) {
+  return { tierMul: 1 + (tt - 1) * 0.85, hpMul: 1 + (tt - 1) * 0.5, step: Math.floor((tt - 1) / 2) }; // step: +1 ATK / MATK / DEF at tiers 3, 5 and 9
+};
+// The stats a base gives at a tier and rarity, before any affix.
+function baseStats(baseId, tier, rarity) {
+  const r = ITEM_RARITY[rarity]; const { tierMul, hpMul, step } = growth(tier); const stats = {};
+  for (const [k, v] of Object.entries(BASES[baseId].stats)) {
     const n = SMALL.includes(k) ? v + (v > 0 ? step : 0) + (rarity === 'legendary' && v > 0 ? 1 : 0) : k === 'hp' ? Math.round(v * hpMul * r.mul) : Math.max(1, Math.round(v * tierMul * r.mul));
     if (n > 0) stats[k] = n;
   }
+  return stats;
+}
+
+export function makeEquipment(baseId, tier, rarity, rng = Math.random) {
+  const base = BASES[baseId];
+  const r = ITEM_RARITY[rarity];
+  const { tierMul, hpMul } = growth(tier);
+  const stats = baseStats(baseId, tier, rarity);
   const affixNames = []; const used = new Set();
   for (let i = 0; i < r.affixes; i++) {
     const a = AFFIXES[Math.floor(rng() * AFFIXES.length)]; const roll = 0.8 + rng() * 0.4;
@@ -78,6 +85,15 @@ export const PERKS = {
   mend: { slot: 'armor accessory', text: 'Regenerate {n} HP each round.', n: (t) => 1 + Math.floor(t / 5), p: (n) => ({ regenFlat: n }) },
   haste: { slot: 'accessory', text: 'Start every battle with Haste {n}.', n: () => 1, p: (n) => ({ startStatus: { haste: n } }) },
   might: { slot: 'accessory', text: 'Start every battle with Strength {n}.', n: (t) => 1 + Math.floor(t / 4), p: (n) => ({ startStatus: { strength: n } }) },
+  bleed: { slot: 'weapon', hit: 1, text: 'Attacks apply Bleed {n}.', n: () => 1, p: (n) => ({ onHitStatus: { st: 'bleed', n } }) },
+  fury: { slot: 'weapon accessory', text: 'All damage +{n}%.', n: (t) => Math.min(12, 3 + t), p: (n) => ({ dmgPct: n / 100 }) },
+  combo: { slot: 'weapon accessory', text: 'Elemental combos deal +{n}% more.', n: (t) => Math.min(40, 10 + 3 * t), p: (n) => ({ comboPct: n / 100 }) },
+  reach: { slot: 'accessory', text: 'Ranged cards reach 1 hex farther.', n: () => 1, p: (n) => ({ rangeBonus: n }) },
+  ward: { slot: 'armor', text: 'Every ally starts battles with +{n} Block.', n: (t) => 1 + Math.floor(t / 6), p: (n) => ({ teamBlock: n }) },
+  grace: { slot: 'armor accessory', text: 'Healing you give +{n}%.', n: (t) => Math.min(30, 10 + 2 * t), p: (n) => ({ healPct: n / 100 }) },
+  renew: { slot: 'accessory', text: 'Start every battle with Regen {n}.', n: (t) => 2 + Math.floor(t / 4), p: (n) => ({ startStatus: { regen: n } }) },
+  shroud: { slot: 'armor', text: 'Start every battle in Stealth.', n: () => 1, p: (n) => ({ startStatus: { stealth: n } }) },
+  purity: { slot: 'armor accessory', text: 'You cannot be Poisoned.', n: () => 1, p: () => ({ immunePoison: true }) },
 };
 const PERK_COUNT = { rare: 1, epic: 1, legendary: 2 };
 function rollPerks(item, rng) {
@@ -121,6 +137,44 @@ export const UNIQUES = {
   pyre_heart: { kind: 'equip', base: 'ring', slot: 'accessory', type: 'ring', tier: 10, rarity: 'legendary', name: 'Heart of the Pyre', stats: { atk: 4, matk: 4, crit: 10 }, icon: 'ring', value: 4800, unique: '+30% damage to bosses. Attacks apply Burn 1.', passive: { bossDmg: 0.3, onHitStatus: { st: 'burn', n: 1 } } },
   unmaker_sigil: { kind: 'equip', base: 'amulet', slot: 'accessory', type: 'amulet', tier: 11, rarity: 'legendary', name: 'Sigil of Making', stats: { atk: 4, matk: 4, hp: 18, def: 2 }, icon: 'amulet', value: 6000, unique: 'All damage +30%. +1 Movement and +1 Action Slot.', passive: { dmgPct: 0.3, move: 1, energy: 1 } },
 };
+// Relics: named legendary gear that only drops, now and then, in its own stage — `drop: 'mini'` from the stage's mini
+// boss, `'monster'` from any of its monster groups (the MVP's own relic is the stage's `rewardUnique`). Stats are the
+// base's legendary stats at the stage's tier plus `add`; `p` is the effect, with the same keys as the skill trees.
+const RELICS = {
+  bramble_maul: { stage: 1, drop: 'mini', base: 'hammer', name: 'Bramblebark Maul', add: { hp: 2 }, unique: 'Enemies that hit you up close take 2 damage.', p: { thorns: 2 } },
+  thornwolf_pelt: { stage: 1, drop: 'monster', base: 'light', name: 'Thornwolf Pelt', add: { spd: 2 }, unique: 'Start every battle with Haste 1.', p: { startStatus: { haste: 1 } } },
+  raider_scimitar: { stage: 2, drop: 'mini', base: 'sword', name: "Raider Chief's Scimitar", add: { crit: 3 }, unique: 'Attacks apply Bleed 1.', p: { onHitStatus: { st: 'bleed', n: 1 } } },
+  sunbaked_robe: { stage: 2, drop: 'monster', base: 'robe', name: 'Sunbaked Robe', add: { matk: 1 }, unique: 'Fire damage +15%.', p: { elemPct: { fire: 0.15 } } },
+  behemoth_tusk: { stage: 3, drop: 'mini', base: 'mace', name: 'Behemoth Tusk', add: { hp: 3 }, unique: 'Start every battle with 3 Block.', p: { startBlock: 3 } },
+  frostwind_longbow: { stage: 3, drop: 'monster', base: 'bow', name: 'Frostwind Longbow', add: { crit: 3 }, unique: 'Attacks apply Chill 1. Ranged cards reach 1 hex farther.', p: { onHitStatus: { st: 'chill', n: 1 }, rangeBonus: 1 } },
+  colossus_ribcage: { stage: 4, drop: 'mini', base: 'heavy', name: 'Colossus Ribcage', add: { def: 1 }, unique: 'Every ally starts battles with +1 Block.', p: { teamBlock: 1 } },
+  ghoulfang_dirk: { stage: 4, drop: 'monster', base: 'dagger', name: 'Ghoulfang Dirk', add: { crit: 3 }, unique: 'Heal 10% of the damage you deal. Attacks apply Poison 1.', p: { lifesteal: 0.1, onHitStatus: { st: 'poison', n: 1 } } },
+  hydra_ring: { stage: 5, drop: 'mini', base: 'ring', name: 'Hydra Scale Ring', add: { hp: 4 }, unique: 'Elemental combos deal +30% more.', p: { comboPct: 0.3 } },
+  astral_staff: { stage: 5, drop: 'monster', base: 'staff', name: 'Astral Rune Staff', add: { mp: 8 }, unique: 'Holy and Wind damage +15%.', p: { elemPct: { holy: 0.15, wind: 0.15 } } },
+  warden_chains: { stage: 6, drop: 'mini', base: 'amulet', name: "Warden's Chains", add: { atk: 1 }, unique: 'Start every battle with Strength 1. +20% damage to bosses.', p: { startStrength: 1, bossDmg: 0.2 } },
+  chaos_plate: { stage: 6, drop: 'monster', base: 'heavy', name: 'Chaos Plate', add: { hp: 4 }, unique: 'All damage +10%. Enemies that hit you up close take 2 damage.', p: { dmgPct: 0.1, thorns: 2 } },
+  mycelium_cloak: { stage: 7, drop: 'mini', base: 'robe', name: 'Mycelium Mantle', add: { hp: 5 }, unique: 'Regenerate 2 HP each round. You cannot be Poisoned.', p: { regenFlat: 2, immunePoison: true } },
+  lanternwick_staff: { stage: 7, drop: 'monster', base: 'staff', name: 'Lanternwick Staff', add: { matk: 1 }, unique: 'Burn and Poison you apply are 1 stronger.', p: { statusBonus: { burn: 1, poison: 1 } } },
+  siege_hammer: { stage: 8, drop: 'mini', base: 'hammer', name: 'Siege Engine Hammer', add: { atk: 1 }, unique: 'Critical hits deal +30% damage. Start every battle with 2 Block.', p: { critDmg: 0.3, startBlock: 2 } },
+  gyro_boots: { stage: 8, drop: 'monster', base: 'boots', name: 'Brass Gyro Boots', add: { spd: 3 }, unique: '+1 Movement.', p: { move: 1 } },
+  kraken_shiv: { stage: 9, drop: 'mini', base: 'dagger', name: 'Kraken Ink Shiv', add: { eva: 4 }, unique: 'Start every battle in Stealth. Critical hits deal +25% damage.', p: { startStatus: { stealth: 1 }, critDmg: 0.25 } },
+  coral_blade: { stage: 9, drop: 'monster', base: 'sword', name: "Coral Knight's Blade", add: { hp: 4 }, unique: 'Heal 12% of the damage you deal. Ice damage +15%.', p: { lifesteal: 0.12, elemPct: { ice: 0.15 } } },
+  wyrmscale_mail: { stage: 10, drop: 'mini', base: 'light', name: 'Wyrmscale Mail', add: { def: 1 }, unique: 'Start every battle with Regen 3. Enemies that hit you up close take 3 damage.', p: { startStatus: { regen: 3 }, thorns: 3 } },
+  obsidian_greatbow: { stage: 10, drop: 'monster', base: 'bow', name: 'Obsidian Greatbow', add: { atk: 1 }, unique: 'Attacks apply Burn 1. Critical hits deal +30% damage.', p: { onHitStatus: { st: 'burn', n: 1 }, critDmg: 0.3 } },
+  seraph_halo: { stage: 11, drop: 'mini', base: 'amulet', name: "Seraph's Fallen Halo", add: { matk: 2 }, unique: 'Healing you give +30%. Every ally starts battles with +2 Block.', p: { healPct: 0.3, teamBlock: 2 } },
+  oblivion_vestment: { stage: 11, drop: 'monster', base: 'robe', name: 'Oblivion Vestment', add: { matk: 1 }, unique: 'All damage +15%. Elemental combos deal +30% more.', p: { dmgPct: 0.15, comboPct: 0.3 } },
+};
+for (const [id, R] of Object.entries(RELICS)) {
+  const B = BASES[R.base]; const stats = baseStats(R.base, R.stage, 'legendary');
+  for (const [k, v] of Object.entries(R.add)) stats[k] = (stats[k] || 0) + v;
+  UNIQUES[id] = { kind: 'equip', base: R.base, slot: B.slot, type: B.type, tier: R.stage, rarity: 'legendary', name: R.name, stats, icon: B.icon,
+    value: Math.round(180 * growth(R.stage).tierMul), unique: R.unique, passive: R.p, stage: R.stage, drop: R.drop };
+}
+// The relic a stage gives for each kind of fight: its MVP's (the stage's rewardUnique), its mini boss's, its monsters'.
+export const relicOf = (stage, kind) => (kind === 'boss' ? stage.rewardUnique : Object.keys(UNIQUES).find((id) => UNIQUES[id].stage === stage.id && UNIQUES[id].drop === (kind === 'mini' ? 'mini' : 'monster')));
+// Chance per win, and how much it grows with every win in that stage that did not give it (so bad luck runs out).
+export const RELIC_CHANCE = { boss: [0.2, 0.1], mini: [0.12, 0.06], normal: [0.02, 0.01] };
+
 export function makeUnique(id) { return { ...UNIQUES[id], stats: { ...UNIQUES[id].stats }, uid: uid(), uniqueId: id }; }
 
 export const CONSUMABLES = {

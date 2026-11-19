@@ -166,5 +166,25 @@ export const STAT_INFO = {
   dex: { name: 'DEX', full: 'Dexterity', desc: '+1.2% Crit, +1 Speed per point, +1 ATK per 12 points.' },
 };
 
-export const expToNext = (level) => Math.round(40 * Math.pow(level, 1.45) + 20);
+// Milestones: an attribute that reaches 20, 35 or 50 (base + points) gives one more thing, so a build has numbers to
+// aim for. `p` uses the same keys as the skill trees' passives (see computeStats in game/character.js).
+export const STAT_MILESTONES = {
+  str: [{ at: 20, text: 'Start every battle with Strength 1.', p: { startStrength: 1 } },
+    { at: 35, text: 'Critical hits deal +25% damage.', p: { critDmg: 0.25 } },
+    { at: 50, text: 'All damage +10%.', p: { dmgPct: 0.1 } }],
+  agi: [{ at: 20, text: 'Start every battle with Haste 1.', p: { startStatus: { haste: 1 } } },
+    { at: 35, text: '+1 Movement.', p: { move: 1 } },
+    { at: 50, text: '+10% Evasion.', p: { eva: 10 } }],
+  vit: [{ at: 20, text: 'Start every battle with 3 Block.', p: { startBlock: 3 } },
+    { at: 35, text: 'Regenerate 1 HP each round.', p: { regenFlat: 1 } },
+    { at: 50, text: '+10 Max HP.', p: { hp: 10 } }],
+  int: [{ at: 20, text: '+1 MP each round.', p: { mpRegen: 1 } },
+    { at: 35, text: 'Elemental combos deal +25% more.', p: { comboPct: 0.25 } },
+    { at: 50, text: 'Burn, Chill, Poison and Curse you apply are 1 stronger.', p: { statusBonus: { burn: 1, chill: 1, poison: 1, curse: 1 } } }],
+  dex: [{ at: 20, text: '+5% Crit.', p: { crit: 5 } },
+    { at: 35, text: 'Ranged cards reach 1 hex farther.', p: { rangeBonus: 1 } },
+    { at: 50, text: '+15% damage to bosses.', p: { bossDmg: 0.15 } }],
+};
+
+export const expToNext =(level) => Math.round(40 * Math.pow(level, 1.45) + 20);
 export const MAX_LEVEL = 50;

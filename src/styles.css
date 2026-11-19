@@ -694,7 +694,14 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .wm-map { border: 0; border-radius: 0.6em; box-shadow: 0 0.35em 0 rgba(0, 0, 0, 0.28), 0 0.9em 2em rgba(0, 0, 0, 0.4); }
 .wm-label { font-family: var(--f-head); font-weight: 500; background: var(--ink-d); color: var(--scene); border-radius: 0.3em; box-shadow: none; }
 .wm-pin { border: 0; box-shadow: 0 0.2em 0 rgba(0, 0, 0, 0.35); } .wm-node.sel .wm-pin { box-shadow: 0 0 0 0.25em var(--accent), 0 0.2em 0 0.25em rgba(0, 0, 0, 0.35); } .wm-node.cleared .wm-pin { border: 0; box-shadow: 0 0 0 0.2em var(--accent2), 0 0.2em 0 0.2em rgba(0, 0, 0, 0.35); }
-.wm-d-stage { font-family: var(--f-head); letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim-d); } .wm-d-head h3 { color: var(--ink-d); } .wm-d-sub { font-style: normal; color: var(--dim-d); } .wm-rewards { background: var(--paper2); border-radius: 0.4em; } .wm-boss { background: var(--paper2); } .wm-boss b { color: var(--accent); } .wm-boss small { color: var(--dim-d); }
+.wm-d-stage { font-family: var(--f-head); letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim-d); } .wm-d-head h3 { color: var(--ink-d); } .wm-d-sub { font-style: normal; color: var(--dim-d); } .wm-rewards { background: var(--paper2); border-radius: 0.4em; }
+/* a stage's rare drops: three gear tokens on the slip, each with a tag naming who drops it */
+.wm-rewards .wm-drops { display: block; margin-top: 0.6em; } .wm-rewards .wm-relics { display: flex; justify-content: space-around; align-items: flex-start; gap: 0.4em; margin-top: 0.5em; }
+.wm-rewards .wm-relic { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 0.75em; margin: 0; text-align: center; cursor: help; }
+.wm-rewards .wm-relic-tok { position: relative; margin: 0; width: 3.3em; height: 3.3em; border-radius: 0.5em; overflow: visible; display: grid; place-items: center; background: var(--ink-d); box-shadow: 0 0.25em 0 rgba(0, 0, 0, 0.35), inset 0 -0.3em 0 #ffb347; }
+.wm-relic-tok .icon.pic { width: 2.9em; height: 2.9em; border-radius: 0.4em; }
+.wm-relic-tok b { position: absolute; left: 50%; bottom: -0.65em; transform: translateX(-50%); padding: 0 0.45em; border-radius: 1em; background: var(--ink-d); color: var(--coin); font-family: var(--f-head); font-weight: 600; font-size: 0.72em; line-height: 1.4; white-space: nowrap; }
+.wm-relic span { font-family: var(--f-head); font-size: 0.8em; line-height: 1.2; color: var(--ink-d); } .wm-boss { background: var(--paper2); } .wm-boss b { color: var(--accent); } .wm-boss small { color: var(--dim-d); }
 
 /* impact feedback: screen flashes, ghost HP bar, punchy numbers, dice thump */
 .screen-fx { position: absolute; inset: 0; z-index: 25; pointer-events: none; animation: screenFx 0.5s ease-out forwards; }
@@ -746,6 +753,14 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 .tab { padding: 0.7em 0.9em; font-size: 1.05em; color: var(--ink-d); border-radius: 0.5em; } .tab:not(.on) .icon { filter: brightness(0.25); } .tab.on { box-shadow: 0 0.2em 0 rgba(0, 0, 0, 0.18); }
 .sec-title { font-size: 0.95em; letter-spacing: 0.04em; text-transform: none; color: var(--ink-d); font-weight: 600; border-bottom: 0; padding-bottom: 0.35em; margin-bottom: 0.55em; background: linear-gradient(var(--accent), var(--accent)) left bottom / 2.2em 0.2em no-repeat; }
 .attr, .derived, .quest, .skill, .item { background: #fffaf0; box-shadow: 0 0.12em 0 var(--paper3); } .item { box-shadow: inset 0.35em 0 0 var(--rar, var(--paper3)), 0 0.12em 0 var(--paper3); }
+/* attribute milestones: a track of three coins joined by an ink line; gold when reached, a coin ring on the next one */
+.attr-track { flex: 1; display: flex; justify-content: space-between; align-items: center; max-width: 5.6em; margin: 0 0.5em 0 auto; background: linear-gradient(var(--paper2), var(--paper2)) center / 100% 0.1em no-repeat; }
+.attr-track .ms { width: 1.6em; height: 1.6em; border-radius: 50%; display: grid; place-items: center; background: var(--paper2); color: var(--paper3); font-family: var(--f-head); font-size: 0.6em; font-weight: 600; cursor: help; }
+.attr-track .ms.on { background: var(--coin); color: var(--ink-d); } .attr-track .ms.next { color: var(--dim-d); }
+/* what one more point gives, shown while the + is pointed at */
+.pv { font-style: normal; font-family: var(--f-head); font-weight: 600; font-size: 0.8em; color: #fff; background: var(--accent2); border-radius: 1em; padding: 0 0.45em; margin-left: 0.3em; animation: modalIn 0.15s ease-out; } .pv.later { background: var(--paper3); color: var(--ink-d); }
+.derived { position: relative; } .bar[data-pv] { position: relative; } .bar[data-pv] .pv { position: absolute; right: 0.2em; top: 50%; transform: translateY(-50%); z-index: 2; font-size: 0.75em; }
+.attr b { flex: none; min-width: 1.6em; } .tip-stat.got b { color: var(--accent2); }
 .attr { padding: 0.45em 0.7em; margin-bottom: 0.35em; } .attr-n { color: var(--accent2); font-weight: 600; } .attr b { font-family: var(--f-head); font-weight: 600; font-size: 1.2em; }
 .derived { padding: 0.35em 0.7em; } .derived span { color: var(--dim-d); } .derived b { font-family: var(--f-head); font-weight: 600; }
 .plus { width: 2em; height: 2em; font-size: 1.05em; } .plus:disabled { opacity: 1; background: var(--paper2); color: var(--paper3); filter: none; }

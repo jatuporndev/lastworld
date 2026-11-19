@@ -413,6 +413,8 @@ export function rewardsModal(r, kind, { view = false, summary = null } = {}) {
     const m = openModal(body, { title: t(kind === 'boss' ? 'MVP Defeated!' : 'Spoils of Battle'), closable: view, cls: 'rewards-modal' + (view ? ' coop-view' : ''), onClose: res });
     r.items = r.items || []; r.fixedCards = r.fixedCards || []; r.levelUps = r.levelUps || [];
     r.levelUps.forEach((l, i) => setTimeout(() => audio.sfx('levelup'), 400 + i * 300));
+    const relic = r.items.find((it) => it.uniqueId); // a relic is rare: it is announced
+    if (relic && !view) setTimeout(() => { audio.sfx('buff'); toast(t('Rare drop: {name}!', { name: relic.name }), 'good'); }, 600);
     const finish = () => { m.close(); res(); };
     const choices = r.cardChoices ? h('div.card-pick', h('div.sec-title', t('Choose a card reward')), h('div.card-grid.center', ...r.cardChoices.map((id) => { const el = cardEl(id, G.state.cards[id]?.lv || 0); el.classList.add('pickable'); el.onclick = () => { addCard(id); audio.sfx('draw'); audio.sfx('buff'); toast(t('{name} added to your collection', { name: CARDS[id].name }), 'good'); finish(); }; return el; })),
       h('div.row.center', btn(t('Skip (+8 shards)'), () => { G.state.shards += 8; touch(); finish(); }, { cls: 'small' }))) : h('div.row.center', btn(t('Continue'), finish, { cls: 'primary' }));

@@ -5,7 +5,7 @@ import { audio } from '../core/audio.js';
 import { G, myHeroes, touch, usedCopies, canAddToDeck, canRemoveFromDeck, tryUpgradeCard, spareCopy, tryDismantle, equipItem, unequip, sellItem, useConsumable, questStatus, claimQuest, progress, addItem } from '../game/state.js';
 import { computeStats, attributes, canLearn, learnSkill, canEquip, clampVitals, treeOf, jobReady } from '../game/character.js';
 import { openJobChoice } from './jobUI.js';
-import { CLASSES, STAT_INFO, expToNext, className, canUseCard, levelCap } from '../data/classes.js';
+import { CLASSES, STAT_INFO, STAT_MILESTONES, expToNext, className, canUseCard, levelCap } from '../data/classes.js';
 import { JOBS, JOB_LEVEL } from '../data/jobs.js';
 import { CARDS, RARITY, MAX_CARD_LEVEL, upgradeCost, DECK_MIN, DECK_MAX } from '../data/cards.js';
 import { CONSUMABLES, MATERIALS, RECIPES, BASES, ITEM_RARITY, makeEquipment } from '../data/items.js';
@@ -85,9 +85,28 @@ export function openQuests(app) {
 // ───── Heroes: status, stat points, skill tree ─────
 function heroTab(render) {
   const hero = myHeroes()[sel]; const s = computeStats(hero); const a = attributes(hero); const C = CLASSES[hero.cls];
-  const attrRow = (k) => h('div.attr', { 'data-tip': `${STAT_INFO[k].full} — ${STAT_INFO[k].desc}` }, h('span.attr-n', STAT_INFO[k].name), h('b', a[k]),
-    h('button.plus', { disabled: hero.statPoints <= 0, onclick: () => { hero.alloc[k]++; hero.statPoints--; clampVitals(hero); touch(); audio.sfx('buff'); render(); } }, '+'));
-  const d = (label, v, tip) => h('div.derived', { 'data-tip': tip }, h('span', label), h('b', v));
+  // Each attribute has a track of three milestone coins (20, 35, 50): gold once reached, ringed when it is the next one.
+  // A coin tells what it gives when touched; the row tells all three.
+  const attrRow = (k) => { const ms = STAT_MILESTONES[k]; const next = ms.find((m) => a[k] < m.at);
+    const tip = `<div class="tip-title">${STAT_INFO[k].full}</div><div class="tip-sub">${STAT_INFO[k].desc}</div>` + ms.map((m) => `<div class="tip-stat${a[k] >= m.at ? ' got' : ''}"><span>${m.at}</span><b>${m.text}</b></div>`).join('');
+    return h('div.attr', { 'data-tip-html': tip }, h('span.attr-n', STAT_INFO[k].name), h('b', a[k]),
+      h('div.attr-track', ...ms.map((m) => h('span.ms' + (a[k] >= m.at ? '.on' : m === next ? '.next' : ''), { 'data-tip': `${m.at} ${STAT_INFO[k].name} — ${m.text}` }, m.at))),
+      h('button.plus', { disabled: hero.statPoints <= 0, onpointerenter: () => preview(k), onpointerleave: () => preview(null), onclick: () => { hero.alloc[k]++; hero.statPoints--; clampVitals(hero); touch(); audio.sfx(next && a[k] + 1 === next.at ? 'levelup' : 'buff'); render(); } }, '+')); };
+  const d = (key, label, v, tip) => h('div.derived', { 'data-tip': tip, 'data-pv': key }, h('span', label), h('b', v));
+  // Before a point is spent, the stats it raises show a small green "+n" (or, when one point is not yet enough, how
+  // many more it takes), so a point is never spent blind.
+  const PV = { hp: (x) => x.hp, mp: (x) => x.mp, atk: (x) => x.atk, matk: (x) => x.matk, def: (x) => x.def, spd: (x) => x.spd, crit: (x) => x.crit, eva: (x) => x.eva, move: (x) => x.move + (x.passives.move || 0), energy: (x) => x.energy };
+  const pvTag = (el, key) => { el.dataset.pv = key; return el; };
+  const preview = (k) => {
+    const root = document.querySelector('.tab-hero'); root?.querySelectorAll('.pv').forEach((e) => e.remove()); if (!k || !root) return;
+    for (let m = 1; m <= 12; m++) {
+      hero.alloc[k] += m; const n = computeStats(hero); hero.alloc[k] -= m;
+      const ups = Object.entries(PV).map(([key, f]) => [key, Math.round((f(n) - f(s)) * 10) / 10]).filter(([, v]) => v > 0);
+      if (!ups.length) continue;
+      ups.forEach(([key, v]) => root.querySelector(`[data-pv="${key}"]`)?.append(h('i.pv' + (m > 1 ? '.later' : ''), m > 1 ? t('+{v} in {m} points', { v, m }) : '+' + v)));
+      return;
+    }
+  };
   const tree = treeOf(hero); const J = JOBS[hero.job];
   // Each branch is a column of round tokens joined by an ink line, tier I at the top. Tapping a token describes it on
   // the slip above the tree, where it is learned; hovering shows the same words as a tooltip.
@@ -112,10 +131,10 @@ function heroTab(render) {
   return h('div.tab-hero',
     h('div.hero-sheet',
       h('div.hero-col.portrait', h('div.hero-stage', heroSprite(hero, { size: 220, zoom: 1.1 })), h('div.hero-name', hero.name), h('div.hero-class', `${(J || C).name} · ${(J || C).title}`),
-        h('div.lvl', t('Level {n}', { n: hero.level })), hero.level >= levelCap(hero) ? h('div.cap-note', t(hero.job ? 'As strong as a hero can grow' : 'Read the page with your name to grow past Level {n}', { n: JOB_LEVEL }), jobReady(hero) && G.state.inv.cons.job_page ? btn(t('Read the page'), () => openJobChoice(hero, render), { cls: 'small primary' }) : null) : bar('exp', hero.exp, expToNext(hero.level)), bar('hp', hero.hp, s.hp), bar('mp', hero.mp, s.mp)),
+        h('div.lvl', t('Level {n}', { n: hero.level })), hero.level >= levelCap(hero) ? h('div.cap-note', t(hero.job ? 'As strong as a hero can grow' : 'Read the page with your name to grow past Level {n}', { n: JOB_LEVEL }), jobReady(hero) && G.state.inv.cons.job_page ? btn(t('Read the page'), () => openJobChoice(hero, render), { cls: 'small primary' }) : null) : bar('exp', hero.exp, expToNext(hero.level)), pvTag(bar('hp', hero.hp, s.hp), 'hp'), pvTag(bar('mp', hero.mp, s.mp), 'mp')),
       h('div.hero-col', h('div.sec-title', t('Attributes'), h('span.points' + (hero.statPoints ? '.has' : ''), t('{n} points', { n: hero.statPoints }))), ...['str', 'agi', 'vit', 'int', 'dex'].map(attrRow),
         h('div.sec-title', t('Combat Stats')),
-        h('div.derived-grid', d('ATK', s.atk, t('Physical attack power')), d('MATK', s.matk, t('Magic attack power')), d('DEF', s.def, t('Reduces damage taken')), d(t('Speed'), s.spd, t('Determines turn order')), d(t('Crit'), s.crit + '%', t('Critical hit chance')), d(t('Evasion'), s.eva + '%', t('Chance to dodge')), d(t('Move'), s.move + (s.passives.move || 0), t('Hexes per turn')), d(t('Action Slots'), s.energy, t('How many slots of cards you can play each turn')))),
+        h('div.derived-grid', d('atk', 'ATK', s.atk, t('Physical attack power')), d('matk', 'MATK', s.matk, t('Magic attack power')), d('def', 'DEF', s.def, t('Reduces damage taken')), d('spd', t('Speed'), s.spd, t('Determines turn order')), d('crit', t('Crit'), s.crit + '%', t('Critical hit chance')), d('eva', t('Evasion'), s.eva + '%', t('Chance to dodge')), d('move', t('Move'), s.move + (s.passives.move || 0), t('Hexes per turn')), d('energy', t('Action Slots'), s.energy, t('How many slots of cards you can play each turn')))),
       h('div.hero-col.wide', h('div.sec-title', t('Skill Tree'), h('span.points' + (hero.skillPoints ? '.has' : ''), `${hero.skillPoints} SP`)),
         slip, J ? h('div.tree-title', J.name) : null, J ? h('div.tree.job', branch(0, hero.job), branch(1, hero.job), branch(2, hero.job)) : null,
         J ? h('div.tree-title', C.name) : null, h('div.tree', branch(0), branch(1), branch(2)))));

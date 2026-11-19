@@ -6,20 +6,25 @@
 //   aoe {shape: area|burst|line|cone, size, range, dmg, el, status, name}  (telegraphed onto the board)
 //   guard {block}  buff {st, n, allies}  heal {v (×MATK)}  summon {id, n}
 
-const eff = (t) => (t <= 6 ? t : 6 + (t - 6) * 0.45); // stages 7 to 11 count as 6.45 to 8.25
-const T = (real, t = eff(real)) => ({
-  hp: Math.round(4 + 5 * t + 0.6 * t * t), // stages 1-6: 10 16 24 34 44 56 · stages 7-11: 61 67 73 79 86
-  atk: Math.round((2 + 1.4 * t) * 10) / 10, // stages 1-6: 3.4 4.8 6.2 7.6 9 10.4 · stage 11: 13.6
+// Stages 7 to 11 count as 6.75 to 9.75 for life and attack: the climb goes on to the last stage, where heroes have a job,
+// job cards and relics. Armour, rewards and dice keep the old, slower count (6.45 to 8.25), so a stage-11 monster is not
+// a wall of DEF for many-hit cards, and levelling does not speed up.
+const eff = (t) => (t <= 6 ? t : 6 + (t - 6) * 0.75);
+const effOld = (t) => (t <= 6 ? t : 6 + (t - 6) * 0.45);
+const T = (real, t = eff(real), o = effOld(real)) => ({
+  hp: Math.round(4 + 5 * t + 0.6 * t * t), // stages 1-6: 10 16 24 34 44 56 · stages 7-11: 65 75 86 98 110
+  atk: Math.round((2 + 1.4 * t) * 10) / 10, // stages 1-6: 3.4 4.8 6.2 7.6 9 10.4 · stages 7-11: 11.5 12.5 13.6 14.6 15.7
   matk: Math.round((2 + 1.4 * t) * 10) / 10,
-  def: Math.floor((t - 1) / 2),
+  def: Math.floor((o - 1) / 2),
   level: 1 + (real - 1) * 3,
-  exp: Math.round(20 * Math.pow(1.7, t - 1)),
-  gold: Math.round(8 * Math.pow(1.5, t - 1)),
+  exp: Math.round(20 * Math.pow(1.7, o - 1)),
+  gold: Math.round(8 * Math.pow(1.5, o - 1)),
 });
 
 // Monsters had too little life for what heroes, their gear and trees can do (a level-1 archer killed a stage-1 monster
-// with one Aimed Shot 85% of the time): +10% on stage 1, +20% on 2, +30% on 3, +40% from stage 4 on. Bosses too.
-const toughness = (tier) => 1 + 0.1 * Math.min(4, tier);
+// with one Aimed Shot 85% of the time): +10% on stage 1, +20% on 2, +30% on 3, +40% on 4 to 6, then +5% more each
+// stage to +65% on stage 11. Bosses too.
+const toughness = (tier) => 1 + 0.1 * Math.min(4, tier) + 0.05 * Math.max(0, tier - 6);
 
 function M(tier, o) {
   const b = T(tier);
@@ -34,7 +39,7 @@ function M(tier, o) {
     atk: Math.round(b.atk * atkMul * 10) / 10,
     matk: Math.round(b.matk * atkMul * 10) / 10,
     def: b.def + (o.defM >= 1.3 ? 1 : 0),
-    dice: Math.min(4, 1 + Math.floor((eff(tier) - 1) / 2) + (o.rank === 'mvp' || o.rank === 'mini' ? 1 : 0)), // grey dice rolled on every attack
+    dice: Math.min(4, 1 + Math.floor((effOld(tier) - 1) / 2) + (o.rank === 'mvp' || o.rank === 'mini' ? 1 : 0)), // grey dice rolled on every attack
     exp: Math.round(b.exp * rankMul * 0.8),
     gold: Math.round(b.gold * rankMul * 0.8),
   };

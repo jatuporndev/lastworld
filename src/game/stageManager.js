@@ -5,7 +5,7 @@ import * as Hex from '../engine/hex.js';
 import { STAGE_BY_ID, STAGES, parseLayout, exploreCell } from '../data/stages.js';
 import { MONSTERS } from '../data/monsters.js';
 import { CARDS, RARITY, MAX_CARD_LEVEL } from '../data/cards.js';
-import { BASES, makeEquipment, makeUnique, rollRarity, CONSUMABLES, MATERIALS } from '../data/items.js';
+import { BASES, makeEquipment, makeUnique, rollRarity, CONSUMABLES, MATERIALS, relicOf, RELIC_CHANCE } from '../data/items.js';
 import { EVENTS } from '../data/events.js';
 import { CLASSES, canUseCard } from '../data/classes.js';
 import { JOBS } from '../data/jobs.js';
@@ -142,6 +142,13 @@ export class StageManager {
     return makeEquipment(rng.pick(usable), this.stage.id, rar, () => rng.float());
   }
 
+  rollRelic(rng, kind) {
+    const id = relicOf(this.stage, kind); const [base, step] = RELIC_CHANCE[kind] || [0, 0]; if (!id || !base) return null;
+    const miss = (G.state.stats.relicMiss ||= {}); const k = this.stage.id + kind;
+    if (rng.chance(base + step * (miss[k] || 0))) { delete miss[k]; return id; }
+    miss[k] = (miss[k] || 0) + 1; return null;
+  }
+
   battleRewards(battle, c) {
     const st = G.state; const rng = this.luck(); const s = this.stage;
     const kind = battle.kind;
@@ -164,11 +171,13 @@ export class StageManager {
     } else if (kind === 'boss') {
       r.first = !st.stats.bosses[s.id];
       r.items.push(this.rollEquip(rng, 4, 'epic'));
-      if (r.first) { r.items.push(makeUnique(s.rewardUnique)); r.fixedCards.push(s.rewardCard); } else r.shards += 60;
+      if (r.first) r.fixedCards.push(s.rewardCard); else r.shards += 60;
       r.cardChoices = this.rollCards(rng, 3, 'rare', 'boss');
       s.mats.forEach((m) => { r.mats[m] = (r.mats[m] || 0) + 3; });
       r.cons.push('elixir');
     }
+    // a relic: never certain, but every win in this stage without it makes the next one likelier
+    const relic = this.rollRelic(rng, kind); if (relic) { r.items.push(makeUnique(relic)); r.relic = relic; }
     // apply
     st.gold += r.gold; st.shards += r.shards;
     r.items.forEach(addItem); r.cons.forEach((id) => addConsumable(id));

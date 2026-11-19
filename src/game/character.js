@@ -1,5 +1,5 @@
 // Character System — heroes, derived stats, levelling, equipment, skill trees.
-import { CLASSES, SKILL_TREES, expToNext, levelCap } from '../data/classes.js';
+import { CLASSES, SKILL_TREES, STAT_MILESTONES, expToNext, levelCap } from '../data/classes.js';
 import { JOBS, JOB_TREES, JOB_LEVEL } from '../data/jobs.js';
 import { STARTER_DECKS } from '../data/cards.js';
 import { makeEquipment } from '../data/items.js';
@@ -65,6 +65,7 @@ export function computeStats(hero) {
     for (const [k, v] of Object.entries(it.stats)) if (k in s) s[k] += v;
     if (it.passive) applyPassive(it.passive);
   }
+  for (const [k, list] of Object.entries(STAT_MILESTONES)) for (const m of list) if (a[k] >= m.at) applyPassive(m.p);
   const tree = treeOf(hero);
   for (const id of hero.skills) { const n = tree.find((x) => x.id === id); if (n) applyPassive(n.p); }
   s.crit = Math.min(75, Math.round(s.crit)); s.eva = Math.min(50, Math.round(s.eva));
