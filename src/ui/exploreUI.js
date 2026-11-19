@@ -176,8 +176,11 @@ export class ExploreScene {
 
   async trigger(c) {
     this.aid = Coop.isHost ? 1 + Math.floor(Math.random() * 1e9) : 0; // (with friends: the host goes on only when every player has closed their own window, see App.waitForParty)
+    this.aidSent = 0;
     await this.trigger_(c);
-    if (this.aid) await this.app.waitForParty(this.aid);
+    // only for a window the friends were really sent (a fight, a rest or a sealed boss sends none, so nobody would ever
+    // answer), and only while this map is still the one on screen (after a fight a new one has been built)
+    if (this.aid && this.aidSent === this.aid && this.app.scene === this && !this.app.inBattle) await this.app.waitForParty(this.aid);
   }
   async trigger_(c) {
     const node = c.node; const sm = this.sm;
@@ -235,7 +238,7 @@ export class ExploreScene {
     this.bagTags.set(id, w.attach(h('div.ping-label', h('div.bag-tag', icon(s.sum ? 'chest' : 'bag', '#3a2a20', 16), t(s.sum ? 'Collecting rewards' : 'Looking in the bag'))), () => w.unitPos(uid, 2.1)));
   }
   bagUnit(id) { const i = G.state.party.findIndex((x) => x.owner === id); return i < 0 ? null : 'party' + i; }
-  share(type, data) { if (Coop.isHost) Coop.send({ t: type, ...data }); }
+  share(type, data) { if (!Coop.isHost) return; if (data?.aid) this.aidSent = data.aid; Coop.send({ t: type, ...data }); }
   // Guests: read-only view of an event the host resolved.
   eventView(m) {
     if (m.cell) this.clearNode(this.sm.cell(m.cell));

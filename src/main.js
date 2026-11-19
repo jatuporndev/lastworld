@@ -250,7 +250,7 @@ class App {
   // Every client (solo, host, guest) plays the battle and collects its own rewards into its own character.
   async runBattle({ stage, enc, seed, party, cell }) {
     const stageId = stage.id; const guest = Coop.isGuest;
-    this.disposeScene(); this.inBattle = true;
+    this.endWait?.(); this.disposeScene(); this.inBattle = true;
     let bs; let playing;
     await transition(async () => { clearScreens(); this.leaveDiorama(); bs = new BattleScene(this, { stage, enc, seed, party }); this.scene = bs; playing = bs.play(); await sleep(60); });
     const result = await playing;
@@ -334,7 +334,8 @@ class App {
     await sleep(400); if (!left().length) return;
     await new Promise((res) => {
       const box = h('div.rc-wait'); let offs = [], done = false;
-      const end = () => { done = true; offs.forEach((off) => off()); box.remove(); res(); };
+      const end = () => { done = true; offs.forEach((off) => off()); box.remove(); this.endWait = null; res(); };
+      this.endWait = end; // a fight that starts meanwhile ends the wait: the slip never stays over the board
       const draw = () => { if (!left().length) return end(); box.replaceChildren(h('div.rc-wait-t', t('Waiting for the others to finish…')), partyTiles(this, (id) => !left().includes(id), (id) => t(left().includes(id) ? 'Not done yet' : 'Done'))); };
       offs = [bus.on('coop:state', draw), bus.on('coop:players', draw)];
       draw(); if (!done) document.getElementById('ui').appendChild(box);
@@ -481,6 +482,7 @@ class App {
         const c = cellOf(m.cell); if (sc && c) { this.sm.markCleared(c); sc.clearNode(c); }
         this.closeGuestModals();
         if (ownModalOpen()) toast([m.title, m.msg].filter(Boolean).join(' — ')); else sc?.eventView?.(m);
+        this.doneWith(m.aid); // (the host must not wait for an answer this path would never give)
         break;
       }
       case 'note': if (m.close) this.closeGuestModals(); if (m.text) toast(t(m.text, m.vars || {})); break;
