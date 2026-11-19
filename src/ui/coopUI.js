@@ -6,7 +6,7 @@ import { audio } from '../core/audio.js';
 import { G, charList, worldList, MAX_WORLDS } from '../game/state.js';
 import { CLASSES, className } from '../data/classes.js';
 import { Net } from '../net/firebase.js';
-import { Coop } from '../net/coop.js';
+import { Coop, MAX_PARTY } from '../net/coop.js';
 import { ui, btn, icon, openModal, heroSprite, toast } from './components.js';
 import { newWorldModal } from './screens.js';
 import { partyTiles } from './exploreUI.js';
@@ -17,10 +17,10 @@ const ERR = {
   noroom: 'No room with that code. Check the code with your friend.',
   self: 'This is your own room.',
   busy: 'Could not create a room. Try again.',
-  full: 'That room is full (3 players).',
+  full: 'That room is full ({n} players).',
 };
 export const coopError = (e) => {
-  if (ERR[e?.message]) return t(ERR[e.message]);
+  if (ERR[e?.message]) return t(ERR[e.message], { n: MAX_PARTY });
   if (String(e?.code || e?.message).includes('PERMISSION_DENIED') || String(e).includes('permission')) return t('The database refused access. Publish the co-op rules in database.rules.json to Firebase.');
   return t('Something went wrong');
 };
@@ -68,7 +68,7 @@ export function coopModal(app) {
   const needChar = h('div.coop-box.coop-need', h('p', t('You need a character to play online.')), btn(t('Create Character'), () => { m.close(); app.toCharCreate({ join: back, cancel: back }); }, { cls: 'primary block', iconName: 'star' }));
   const body = h('div.coop',
     h('div.auth-head', h('div.auth-crest', h('div.auth-crest-ring'), icon('banner', '#f6d98a', 46)), h('h2.auth-title', t('Play with Friends')),
-      h('p.auth-sub', t('Up to 3 players, one character each. The host opens one of their worlds; friends bring their own character and keep what they earn.'))),
+      h('p.auth-sub', t('Up to {n} players, one character each. The host opens one of their worlds; friends bring their own character and keep what they earn.', { n: MAX_PARTY }))),
     !chars.length ? needChar : h('div.coop-cols',
       h('div.coop-box', h('h3', t('Host a room')),
         field(t('World'), h('div.coop-world', hostWorld, newWorld)),
@@ -96,8 +96,8 @@ export function lobbyModal(app) {
     body.replaceChildren(
       h('div.lb-code', h('small', t('ROOM CODE')), h('div.lb-code-row', h('b', Coop.code),
         h('button.mini', { onclick: () => { navigator.clipboard?.writeText(Coop.code).then(() => toast(t('Code copied'), 'good')).catch(() => {}); } }, t('Copy')))),
-      h('p.note', Coop.isHost ? t('Share this code with friends. Up to 3 players.') : t('The host leads the party on the map. Click tiles to suggest a direction.')),
-      h('div.sec-title', t('Players ({n}/3)', { n: ids.length })), h('div.lb-heroes', ...ids.map(playerRow)),
+      h('p.note', Coop.isHost ? t('Share this code with friends. Up to {n} players.', { n: MAX_PARTY }) : t('The host leads the party on the map. Click tiles to suggest a direction.')),
+      h('div.sec-title', t('Players ({n}/{max})', { n: ids.length, max: MAX_PARTY })), h('div.lb-heroes', ...ids.map(playerRow)),
       h('div.row.center', btn(t(Coop.isHost ? 'Close Room' : 'Leave Room'), async () => { m.close(); await app.leaveCoop(); }, { cls: 'ghost' }), btn(t('Done'), () => m.close(), { cls: 'primary' })));
   };
   const m = openModal(body, { title: t('Party Room'), cls: 'narrow lobby-modal', onClose: () => off() });

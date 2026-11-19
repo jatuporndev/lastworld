@@ -363,7 +363,7 @@ export const RULES = {
   the_unmaker: {
     setup(b, R) { this.call(b, R).forEach(({ at, hero }) => put(b, R, 'aeon_echo', at, { echoOf: hero.uid })); },
     call(b, R) {
-      const need = b.heroes().filter((h) => !alive(R).some((e) => e.echoOf === h.uid)).slice(0, 3);
+      const need = b.heroes().filter((h) => !alive(R).some((e) => e.echoOf === h.uid)).slice(0, 4);
       const spots = pickSpots(b, need.length, R.boss, 2, 4, { avoid: alive(R) });
       return need.map((hero, i) => ({ hero, at: spots[i] })).filter((x) => x.at);
     },

@@ -157,7 +157,7 @@ function authForm(app, ok, mode) {
 }
 
 // ───────── Characters + Worlds ─────────
-// Up to 3 characters and 6 worlds. Pick a character and a world, then enter. A world can be played
+// Up to 6 characters and 6 worlds. Pick a character and a world, then enter. A world can be played
 // alone or opened to friends (co-op); a character can visit any world.
 export function playScreen(app, sel = {}) {
   const P = G.profile;

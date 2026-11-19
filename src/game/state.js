@@ -10,9 +10,9 @@ import { STAGES } from '../data/stages.js';
 import { CONSUMABLES, UNIQUES, makeEquipment } from '../data/items.js';
 
 export const SAVE_VERSION = 4;
-export const MAX_CHARS = 3;
+export const MAX_CHARS = 6;
 export const MAX_WORLDS = 6;
-// G.profile — everything saved for this player: up to 3 characters and up to 6 worlds.
+// G.profile — everything saved for this player: up to 6 characters and up to 6 worlds.
 //   A character owns its hero, gold, shards, bag, card collection, quests and stats.
 //   A world owns map progress: unlocked / cleared stages, the current expedition, intros seen.
 // G.state — the play session: one world + one character, in the shape the game code uses.

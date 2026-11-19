@@ -995,7 +995,7 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 500; letter-spacing: 0.01e
 @keyframes slipIn { 0% { transform: translate(-50%, -150%); } 100% { transform: translate(-50%, 0); } }
 #rc-slip .btn { margin: 0; } .rc-ok { color: var(--accent2); }
 /* after a battle: who the party is still waiting for */
-.rc-wait { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 30; text-align: center; padding: 0.9em 1.2em 1em; background: var(--paper); border-radius: 0.6em; box-shadow: 0 0.35em 0 rgba(0, 0, 0, 0.28); animation: modalIn 0.2s ease-out; }
+.rc-wait { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 30; width: max-content; max-width: 94vw; text-align: center; padding: 0.9em 1.2em 1em; background: var(--paper); border-radius: 0.6em; box-shadow: 0 0.35em 0 rgba(0, 0, 0, 0.28); animation: modalIn 0.2s ease-out; }
 .rc-wait-t { font-family: var(--f-head); font-size: 1.15em; color: var(--ink-d); } .rc-wait .rc-party { margin-bottom: 0; }
 /* a guest waiting for the host between stages: a paper slip with the party on it, not a loading screen */
 .cw-box { gap: 0.5em; padding: 1.1em 1.6em 1.2em; background: var(--paper); border: 0; border-radius: 0.6em; box-shadow: 0 0.35em 0 rgba(0, 0, 0, 0.28); color: var(--ink-d); animation: modalIn 0.2s ease-out; }
@@ -1125,7 +1125,16 @@ html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent
   /* character / world pick, character creation */
   .ps-screen, .cs-screen { padding: 0.6em 1.2em; gap: 0.5em; }
   .job-cols { gap: 0.6em; } .job-stage .sprite-canvas { width: 7em !important; height: 7em !important; } .job-desc { font-size: 0.82em; }
-  .ps-main { gap: 0.8em; } .ps-col { padding: 0.6em 0.8em; gap: 0.5em; overflow-y: auto; } .ps-char.empty { min-height: 9em; }
+  .ps-main { gap: 0.8em; } .ps-col { padding: 0.6em 0.8em; gap: 0.5em; overflow-y: auto; } .ps-char.empty { min-height: 0; }
+  /* six character slots on a phone: characters and worlds side by side, the slots as two rows of small figures */
+  .ps-main { grid-template-columns: 1.5fr 1fr; overflow: hidden; }
+  .ps-chars { grid-template-columns: repeat(3, 1fr); gap: 0.4em; } .ps-char { padding: 0.2em 0.2em 0.35em; gap: 0; }
+  .ps-sprite { height: 4.8em; } .ps-sprite .sprite-canvas { width: 4.8em !important; height: 4.8em !important; } .ps-cstats { display: none; }
+  .ps-cname { font-size: 0.82em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; } .ps-char small { font-size: 0.68em; } .ps-char .ps-plus { font-size: 1.6em; }
+  /* a fight's window (and the co-op ready check) keeps its monsters on one row of small figures, so the players and the button stay in view */
+  .enc-row { flex-wrap: nowrap; gap: 0.6em; } .enc-mon .sprite-canvas { width: auto !important; height: 4.4em !important; } .enc-mon.big .sprite-canvas { height: 5.6em !important; }
+  .enc-name { font-size: 0.85em; } .enc-sub { font-size: 0.7em; } .enc-quote { margin: 0.3em 0; font-size: 0.85em; }
+  .rc-p { width: 7.4em; padding: 0.4em 0.3em; } .rc-face { width: 3.2em; height: 3.2em; } .rc-party { gap: 0.6em; margin: 0.4em 0 0.2em; } .ready-modal .rc-count { margin: 0.3em 0 0.4em; }
   .cs-head h2 { font-size: 1.4em; } .cs-detail { gap: 1em; padding: 0.5em 0.8em; } .cs-title { font-size: 1.4em; } .cs-slot { height: 3.6em; min-width: 12em; }
   /* the class page fits a phone held sideways with nothing to scroll: small class cards, a smaller hero, a smaller deck */
   .cs-screen { grid-template-rows: auto auto minmax(0, 1fr) auto; }

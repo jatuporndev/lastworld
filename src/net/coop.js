@@ -17,6 +17,7 @@ import { bus } from '../core/util.js';
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const code5 = () => Array.from({ length: 5 }, () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)]).join('');
 export const PLAYER_COLORS = ['#ffd24a', '#6fd0ff', '#ff7ab0', '#8fe07a'];
+export const MAX_PARTY = 4; // players in one room, the host included
 
 export const Coop = {
   code: null, role: null, me: null, hostId: null,
@@ -57,7 +58,7 @@ export const Coop = {
       if (!host.exists()) throw new Error('noroom');
       if (host.val() === this.me) throw new Error('self');
       const ps = await fd.get(fd.ref(Net._db, `rooms/${code}/players`));
-      if (Object.keys(ps.val() || {}).filter((id) => id !== this.me).length >= 3) throw new Error('full');
+      if (Object.keys(ps.val() || {}).filter((id) => id !== this.me).length >= MAX_PARTY) throw new Error('full');
       this.code = code; this.role = 'guest'; this.hostId = host.val();
       // start reading the log from "now" so a late joiner doesn't replay history
       this._from = fd.push(this._ref('/log')).key;

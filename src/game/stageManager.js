@@ -90,10 +90,10 @@ export class StageManager {
     // the MVP's guards start spread over the arena and do not come back: one per hero, up to the stage's `guards`
     if (type === 'boss') return { kind: 'boss', enemies: [s.boss, ...Array.from({ length: Math.min(s.guards || 0, n) }, () => rng.pick(s.pool))] };
     if (type === 'mini') {
-      const adds = Array.from({ length: n >= 3 ? 2 : 1 }, () => rng.pick(s.pool));
+      const adds = Array.from({ length: Math.max(1, n - 1) }, () => rng.pick(s.pool));
       return { kind: 'mini', enemies: [rng.pick(s.mini), ...adds] };
     }
-    const count = Math.min(5, Math.max(2, n + rng.int(0, 1)));
+    const count = Math.min(6, Math.max(2, n + rng.int(0, 1)));
     return { kind: 'normal', enemies: Array.from({ length: count }, () => rng.pick(s.pool)) };
   }
   ambush() {
