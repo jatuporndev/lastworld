@@ -9,6 +9,7 @@ import { audio } from '../core/audio.js';
 import { elColor } from './renderer.js';
 import { play, playFloor, hitMs } from './pixfx.js';
 import { MONSTERS } from '../data/monsters.js';
+import { makeJobSigns } from './vfxJobs.js';
 
 const EL_SFX = { fire: 'fire', ice: 'ice', wind: 'wind', earth: 'earth', holy: 'holy', shadow: 'shadow', poison: 'poison', neutral: 'slash', arcane: 'magic' };
 
@@ -848,7 +849,7 @@ const SIGN = {
   // WARLOCK · Doom: hands of shadow close round the foe out of the ground, a sign of doom opens over its head.
   async wl_doom(w, x) {
     const { target, targets, color } = x; const g = x.floor(target), mid = x.chest(target);
-    dusk(w, 0.7, 180, 400, 400); audio.sfx('shadow');
+    audio.sfx('shadow'); // (no dusk: only a last card darkens the board)
     decal(w, 'circle', g, { color, size: 1.8, to: 0.9, ms: 700, opacity: 0.8, spin: -3, hold: 0.6 });
     for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; after(i * 50, () => spike(w, g.clone().add(V(Math.cos(a) * 0.75, 0, Math.sin(a) * 0.5)), { color: 0x2a1640, h: 0.9 + Math.random() * 0.3, wd: 0.3, tilt: -Math.cos(a) * 0.8, up: 160, hold: 420, bits: color })); }
     await beat(330);
@@ -1074,6 +1075,11 @@ const SIGN = {
   },
 };
 
+// every other card of the advanced classes (vfxJobs.js)
+const { JOB, SHEETS: JOB_SHEETS } = makeJobSigns({ spr, decal, bit, shot, fly, stroke, spike, scar, beat, after, V, R, pale, sideways, screenDir, screenAngle, play, audio, Ease, CHEST });
+for (const id in JOB) if (!SIGN[id]) { SIGN[id] = JOB[id]; SIGN_SHEETS[id] = JOB_SHEETS[id] || []; }
+for (const list of Object.values(JOB_SHEETS)) for (const n of list) if (n.startsWith('x_')) CHEST.add(n);
+
 export async function castVfx(w, d) {
   const { unit: u, card, cells, targets, target } = d;
   const hostile = card.cat === 'attack' || targets.some((t) => t.side !== u.side);
@@ -1101,9 +1107,10 @@ export async function castVfx(w, d) {
 
   if (P.self) play(w, P.self, feet, { s: sc, order: 34 });
   if (!d.monster && card.job) play(w, 'j_' + card.job, feet, { s: sc, order: 9 }); // the class's sign under the hero, on every card of it
-  if (!d.monster && SIGN[card.id] && (aim || card.tg === 'self') && P.mode === 'support') { await SIGN[card.id](w, { u, card, cells, targets, target: target || u, from, feet, aim, color, sc, chest, floor, land }); return; } // a helpful card with a staging of its own
+  const staged = !d.monster && SIGN[card.id] && (aim || card.tg === 'self' || JOB[card.id]);
+  if (staged && P.mode === 'support') { await SIGN[card.id](w, { u, card, cells, targets, target: target || u, from, feet, aim, color, sc, chest, floor, land, P }); return; } // a helpful card with a staging of its own
   if (P.mode === 'support') { supportFx(w, d, P, sc); await tween(P.main === 'build' ? 1200 : 200, () => {}); return; } // (what is built stands there only when the frame round it comes down)
-  if (!d.monster && SIGN[card.id] && (aim || card.tg === 'self')) { await SIGN[card.id](w, { u, card, cells, targets, target: target || u, from, feet, aim, color, sc, chest, floor, land }); return; } // a spell with a staging of its own
+  if (staged) { await SIGN[card.id](w, { u, card, cells, targets, target: target || u, from, feet, aim, color, sc, chest, floor, land, P }); return; } // a spell with a staging of its own
 
   // beats 2 and 3 · it travels, and it lands
   const wait = (name, s = 1) => tween(Math.max(1, hitMs(name, s)), () => {});
