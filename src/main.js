@@ -26,6 +26,20 @@ import * as Story from './story/index.js';
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
 
+// Phones: Safari's bars can lie over the page, and a page nudged by a swipe keeps its offset. The game is laid
+// over exactly the part of the screen that is shown, so nothing (the title menu, a window's buttons) hides under a bar.
+function fitToVisibleArea() {
+  const vv = window.visualViewport; if (!vv || !matchMedia('(hover: none)').matches) return;
+  const game = document.getElementById('game');
+  const fit = () => {
+    if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
+    Object.assign(game.style, { top: vv.offsetTop + 'px', left: vv.offsetLeft + 'px', width: vv.width + 'px', height: vv.height + 'px', right: 'auto', bottom: 'auto' });
+  };
+  vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit); window.addEventListener('orientationchange', () => setTimeout(fit, 300));
+  fit();
+}
+fitToVisibleArea();
+
 class App {
   constructor() {
     this.world = new World(document.getElementById('view3d'), document.getElementById('labels'));

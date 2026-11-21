@@ -77,7 +77,12 @@ export class World {
     this.hover = new THREE.Mesh(this.ringGeo, flatMat(0xffffff, 0.9)); this.hover.visible = false; this.hover.renderOrder = 6; this.hlGroup.add(this.hover);
     this.turnRing = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.78, 32).rotateX(-Math.PI / 2), flatMat(0xffd76a, 0.95)); this.turnRing.visible = false; this.turnRing.renderOrder = 7; this.hlGroup.add(this.turnRing);
     this.setEnvironment(null);
+    // phones change the screen size without a usable 'resize' (turning the phone, going fullscreen, a home-screen app
+    // opening): watch the canvas itself, or taps and name labels keep the old size and land in the wrong place
     window.addEventListener('resize', () => this.resize());
+    window.visualViewport?.addEventListener('resize', () => this.resize());
+    window.addEventListener('orientationchange', () => setTimeout(() => this.resize(), 300));
+    if (window.ResizeObserver) new ResizeObserver(() => this.resize()).observe(this.canvas);
     this.resize();
     this.last = performance.now();
     const loop = (now) => { const dt = Math.min(50, now - this.last); this.last = now; this.update(dt); requestAnimationFrame(loop); };
@@ -671,6 +676,7 @@ export class World {
   }
   pick(clientX, clientY, { units = null } = {}) {
     const rect = this.canvas.getBoundingClientRect(); const x = clientX - rect.left, y = clientY - rect.top;
+    if (Math.abs(rect.width - this.w) > 1 || Math.abs(rect.height - this.h) > 1) this.resize(); // (a size change nobody told us about)
     if (units) {
       let best = null, bd = Infinity;
       for (const u of units) { const U = this.units.get(u.uid); if (!U) continue; const p = this.project(this.unitPos(u.uid, 0.75)); const d = Math.hypot(p.x - x, p.y - y); const rad = 30 * U.scale * (this.h / ((this.viewSize || this.cam.size) * 55)); if (d < rad && d < bd) { bd = d; best = u; } }

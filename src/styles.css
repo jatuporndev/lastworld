@@ -1154,7 +1154,9 @@ html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent
   .cine-name { font-size: 3.1em; } .cine-quote { font-size: 1.1em; min-height: 2.4em; } .cine-card { bottom: 15%; max-width: 74%; }
   .cine-rule { font-size: 1.35em; bottom: 15%; } .b-rule { font-size: 0.82em; }
   .modal.reveal .modal-title { font-size: 1.7em; } .modal.reveal .card { font-size: 0.78em; } .rv-was .card { font-size: 0.64em; } .rv-token { width: 4.4em; height: 4.4em; } .rv-row { margin: 0.9em 0 1.2em; gap: 1em 1.2em; }
-  .modal { max-width: 96vw; max-height: 96vh; min-width: 0; } .modal.menu-modal { width: 96vw; height: 96vh; } .modal.narrow { width: min(34em, 94vw); } .modal.wide, .modal.rewards-modal { width: min(62em, 96vw); }
+  .modal { max-width: 96vw; max-height: 96vh; max-height: 96dvh; min-width: 0; }
+  /* Safari's address bar can sit over the top of the page: windows stay inside the part that is actually shown */
+  .modal-wrap { padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); box-sizing: border-box; } .modal.menu-modal { width: 96vw; height: 96vh; } .modal.narrow { width: min(34em, 94vw); } .modal.wide, .modal.rewards-modal { width: min(62em, 96vw); }
   .menu { gap: 0.6em; } .menu-side { width: 9.5em; } .tab { padding: 0.45em 0.6em; }
   .hero-sheet { gap: 0.7em; } .hero-col.portrait { flex-basis: 9.5em; } .hero-stage { height: 8em; overflow: hidden; } .hero-stage canvas { height: 8em !important; width: auto !important; } .hero-name { font-size: 1.1em; }
   .eq-col { flex-basis: 18em; } .deck-cols .card, .card-grid .card { font-size: 0.8em; } .wm-boss b { font-size: 1em; }
